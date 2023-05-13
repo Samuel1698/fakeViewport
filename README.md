@@ -12,3 +12,4 @@ I chose to put this script in /usr/local/bin but you can put it anywhere you wan
 Execute it with `python3 protect.py` or `python3 /usr/local/bin/protect.py`
 
 The code assumes that you're using an UNVR. If you aren't, change any instance of 'Live View | UNVR' with whatever page title your Live View page shows. It might be 'Live View | UDM Pro' or something along those lines. 
+Note that the Thin Client I'm using only has DisplayPort outputs.
