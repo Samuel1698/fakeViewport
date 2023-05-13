@@ -59,7 +59,7 @@ def check_python_script():
         logging.info("Starting API...")
         subprocess.Popen(['python3', '/usr/local/bin/api.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-# Starts a chrome 'driver' and handles 3 error reattempts
+# Starts a chrome 'driver' and handles error reattempts
 def start_chrome(url):
     retry_count = 0
     max_retries = MAX_RETRIES
