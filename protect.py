@@ -5,6 +5,7 @@ import os
 import sys
 import logging
 import getpass
+import traceback
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -111,6 +112,7 @@ def click_fullscreen_button(driver):
 def wait_for_title(driver, title):
     try:
         WebDriverWait(driver, WAIT_TIME).until(EC.title_contains(title))
+        logging.info(f"Loaded {title}")
     except TimeoutException:
         logging.info(f"Failed to load the {title} page.")
         return False
@@ -181,10 +183,14 @@ def check_view(driver, url):
             time.sleep(SLEEP_TIME)
         except (TimeoutException, NoSuchElementException) as e:
             logging.info(f"Error: {e}")
+            loggin.info(f"Error type: {type(e).__name__}")
+            logging.info("Traceback:")
+            traceback.print_exec() # Prints traceback of the exception
             logging.info("Video feeds not found or other error occurred, refreshing the page.")
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             try:
+                logging.info("Attempting to load page")
                 driver.get(url)
                 wait_for_title(driver, "Live View | UNVR")
                 click_fullscreen_button(driver)
