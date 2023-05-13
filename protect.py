@@ -145,7 +145,7 @@ def check_view(driver, url):
     def handle_retry(driver, url, attempt, max_retries):
         logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
         if attempt == max_retries - 1:
-            logging.info("Refreshing page")
+            logging.info("Refreshing page...")
             driver.refresh()
             time.sleep(10) # Wait for page to refresh before retrying
         elif attempt == max_retries:
@@ -157,7 +157,7 @@ def check_view(driver, url):
             # Wait for the page to load
             WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
             if handle_page(driver):
-                logging.info("Page loaded")
+                logging.info("Page successfully reloaded.")
         return driver
 
     retry_count = 0
@@ -178,7 +178,7 @@ def check_view(driver, url):
             screen_size = driver.get_window_size()
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
                screen_size['height'] != driver.execute_script("return screen.height;"):
-                logging.info("Browser is not in fullscreen, making it fullscreen")
+                logging.info("Browser is not in fullscreen, making it fullscreen.")
                 click_fullscreen_button(driver)
             time.sleep(SLEEP_TIME)
         except (TimeoutException, NoSuchElementException) as e:
@@ -190,7 +190,7 @@ def check_view(driver, url):
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             try:
-                logging.info("Attempting to load page")
+                logging.info("Attempting to load page.")
                 driver.get(url)
                 wait_for_title(driver, "Live View | UNVR")
                 click_fullscreen_button(driver)
@@ -224,8 +224,10 @@ def restart_program(driver):
 def handle_page(driver):
     while True:
         if "Live View | UNVR" in driver.title:
+            logging.info("Live view started.")
             return True
         elif "Ubiquiti Account" in driver.title:
+            logging.info("Log-in page found. Inputting credentials...")
             if not login(driver):
                 restart_program(driver)
         time.sleep(3)
@@ -237,9 +239,10 @@ def main():
     driver = start_chrome(url)
     # Wait for the page to load
     WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
-
+    logging.info("Chrome loaded.")
     if handle_page(driver):
         # Start the check_view function in a separate thread
+        logging.info("Started check_view thread. Checking health of page every 5 minutes...")
         threading.Thread(target=check_view, args=(driver, url)).start()
 
 
