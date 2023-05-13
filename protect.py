@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', date
 os.environ['DISPLAY'] = ':0'
 # Chrome directory
 user = getpass.getuser()
-chrome_data_dir = f"/home/{username}/.config/google-chrome/Default"
+chrome_data_dir = f"/home/{user}/.config/google-chrome/Default"
 
 load_dotenv()
 # dotenv variables
@@ -116,6 +116,25 @@ def wait_for_title(driver, title):
         logging.info(f"Failed to load the {title} page.")
         return False
     return True
+# Checks if the live view feed is constantly loading with the three dots and needs a refresh
+def check_loading_issue(driver):
+    trouble_loading_start_time = None
+    for _ in range(30):  # Check every second for 30 seconds
+        try:
+            trouble_loading = WebDriverWait(driver, 1).until(
+                EC.presence_of_element_located((By.CLASS_NAME, 'TimedDotsLoader__Overlay-o4vbzb-0'))
+            )
+            if trouble_loading:
+                if trouble_loading_start_time is None:
+                    trouble_loading_start_time = time.time()
+                elif time.time() - trouble_loading_start_time >= 15:  # if loading issue persists for 15 seconds
+                    logging.info("Video feed trouble persisting for 15 seconds, refreshing the page.")
+                    driver.refresh()
+                    time.sleep(5)
+                    return  # Exit the function
+        except TimeoutException:
+            trouble_loading_start_time = None  # Reset the timer if the issue resolved
+        time.sleep(1)
 # Checks every 5 minutes if the live view is loaded. Calls the fullscreen function if it is
 # If it unloads for any reason and it can't find the live view container, it navigates to the page again
 def check_view(driver, url):
@@ -151,8 +170,9 @@ def check_view(driver, url):
             with open(view_status_file, 'w') as f: #api
                 f.write('True') #api
             logging.info("Video feeds are present.")
-            # Reset count
+            # Reset count and check loading issue
             retry_count = 0
+            check_loading_issue(driver)
             # Check if browser is in fullscreen
             screen_size = driver.get_window_size()
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
