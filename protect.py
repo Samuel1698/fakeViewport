@@ -1,4 +1,3 @@
-  GNU nano 6.2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          protect.py
 import subprocess
 import time
 import threading
