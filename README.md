@@ -9,4 +9,4 @@ You'll need a .env file in the same location as your protect.py file, with your 
 I've included an example .env for you to modify.
 
 I chose to put this script in /usr/local/bin but you can put it anywhere you want.
-Execute it with `python3 protect.py` or `python3 /usr/local/bin/protect.py`5 
+Execute it with `python3 protect.py` or `python3 /usr/local/bin/protect.py`
