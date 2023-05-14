@@ -6,6 +6,7 @@ import sys
 import logging
 import getpass
 import traceback
+import signal
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -21,7 +22,10 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoSuchElementException
 
-logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+# Make logfile path
+log_file_path = os.path.join(os.path.expanduser('~'), 'protect.log')
+logging.basicConfig(filename=log_file_path, level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+
 os.environ['DISPLAY'] = ':0'
 # Chrome directory
 user = getpass.getuser()
@@ -37,6 +41,7 @@ password = os.getenv('PASSWORD')
 # Link to the live view you want to display
 url = os.getenv('URL')
 # Global variables
+driver = None # Declare it globally so that it can be accessed in the signal handler function
 SLEEP_TIME = 300 # 5 minutes delay between each check of the status of the live view
 WAIT_TIME = 30   # How long the script will wait each time it attempts to locate an element in chrome
 MAX_RETRIES = 5  # Amount of retries the script will attempt of launching chrome, or getting back into the live view if the window is no longer loading
@@ -59,6 +64,14 @@ def check_python_script():
         logging.info("Starting API...")
         subprocess.Popen(['python3', '/usr/local/bin/api.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+# Handles the closing of the script with CTRL+C
+def signal_handler(sig, frame):
+    global driver
+    logging.info('Gracefully shutting down Chrome.')
+    if driver is not None:
+        driver.quit()
+    logging.info("Quitting.")
+    sys.exit(0)
 # Starts a chrome 'driver' and handles error reattempts
 def start_chrome(url):
     retry_count = 0
@@ -184,7 +197,7 @@ def check_view(driver, url):
             time.sleep(SLEEP_TIME)
         except (TimeoutException, NoSuchElementException) as e:
             logging.info(f"Error: {e}")
-            loggin.info(f"Error type: {type(e).__name__}")
+            logging.info(f"Error type: {type(e).__name__}")
             logging.info("Traceback:")
             traceback.print_exec() # Prints traceback of the exception
             logging.info("Video feeds not found or other error occurred")
