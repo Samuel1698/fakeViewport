@@ -186,11 +186,13 @@ def check_view(driver, url):
             loggin.info(f"Error type: {type(e).__name__}")
             logging.info("Traceback:")
             traceback.print_exec() # Prints traceback of the exception
-            logging.info("Video feeds not found or other error occurred, refreshing the page.")
+            logging.info("Video feeds not found or other error occurred")
+            time.sleep(WAIT_TIME)
+            logging.info("Refreshing chrome tab...")
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             try:
-                logging.info("Attempting to load page.")
+                logging.info("Attempting to load page from url.")
                 driver.get(url)
                 wait_for_title(driver, "Live View | UNVR")
                 click_fullscreen_button(driver)
@@ -198,6 +200,9 @@ def check_view(driver, url):
                     f.write('True') #api
             except TimeoutException as e:
                 logging.info(f"Error: {e}")
+                loggin.info(f"Error type: {type(e).__name__}")
+                logging.info("Traceback:")
+                traceback.print_exec() # Prints traceback of the exception
                 with open(view_status_file, 'w') as f: #api
                     f.write('False') #api
                 logging.info("Page load timed out.")
