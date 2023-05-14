@@ -24,7 +24,31 @@ from selenium.common.exceptions import NoSuchElementException
 
 # Make logfile path
 log_file_path = os.path.join(os.path.expanduser('~'), 'protect.log')
-logging.basicConfig(filename=log_file_path, level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+
+# If you want to log both in the file and in the console
+# If you don't want this, comment everything between the equal signs
+# ===================================================================================================================
+# Define a handler for the console
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+# Define a handler for the file
+file_handler = logging.FileHandler(log_file_path)
+file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
+# Create a formatter
+formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+# Set the formatter for both handlers
+console_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+# Get the root logger and add both handlers to it
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)  # or the most inclusive level, if they're different
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
+# ===================================================================================================================
+# uncomment line below if you want just the log file
+# logging.basicConfig(filename=log_file_path, level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+# uncomment if you want just the console logging
+# logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
 
 os.environ['DISPLAY'] = ':0'
 # Chrome directory
