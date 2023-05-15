@@ -16,4 +16,4 @@ Note that the Thin Client I'm using only has DisplayPort outputs.
 
 ## Requirements
 
-For this code to work you need to have selenium, webdriver_manager and dotenv installed. You can download the requirements.txt file in the same folder as the script and run `pip install -r requirements.txt` or manually install them yourself. I had the most issues installing webdriver_manager, which I solved by modifying the script and installing it from the script itself, since it was a very specific environment, then removing the code to install it on other runs of the script. 
+For this code to work you need to have selenium, webdriver_manager and dotenv installed. You can download the requirements.txt file in the same folder as the script and run `pip install -r requirements.txt` or manually install them yourself. I've included some code to check for webdriver_manager since it tends to be finnicky with the different environments.
