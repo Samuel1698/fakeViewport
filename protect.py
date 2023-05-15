@@ -223,7 +223,7 @@ def check_view(driver, url):
             logging.info(f"Error: {e}")
             logging.info(f"Error type: {type(e).__name__}")
             logging.info("Traceback:")
-            traceback.print_exec() # Prints traceback of the exception
+            traceback.print_exc() # Prints traceback of the exception
             logging.info("Video feeds not found or other error occurred")
             time.sleep(WAIT_TIME)
             logging.info("Refreshing chrome tab...")
@@ -240,7 +240,7 @@ def check_view(driver, url):
                 logging.info(f"Error: {e}")
                 loggin.info(f"Error type: {type(e).__name__}")
                 logging.info("Traceback:")
-                traceback.print_exec() # Prints traceback of the exception
+                traceback.print_exc() # Prints traceback of the exception
                 with open(view_status_file, 'w') as f: #api
                     f.write('False') #api
                 logging.info("Page load timed out.")
