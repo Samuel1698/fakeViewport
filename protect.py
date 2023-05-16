@@ -7,11 +7,10 @@ import logging
 import getpass
 import traceback
 import signal
-from datetime import datetime
-from dotenv import load_dotenv
-
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+from datetime import datetime
+from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -27,35 +26,23 @@ except ImportError:
     from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoSuchElementException
+import configparser
+config = configparser.ConfigParser()
+config.read('config.ini')
 
-# Make logfile path
-log_file_path = os.path.join(os.path.expanduser('~'), 'protect.log')
+# General
+SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
+WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
+MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
 
-# If you want to log both in the file and in the console
-# If you don't want this, comment everything between the equal signs
-# ===================================================================================================================
-# Define a handler for the console
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-# Define a handler for the file
-file_handler = logging.FileHandler(log_file_path)
-file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
-# Create a formatter
-formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
-# Set the formatter for both handlers
-console_handler.setFormatter(formatter)
-file_handler.setFormatter(formatter)
-# Get the root logger and add both handlers to it
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)  # or the most inclusive level, if they're different
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
-# ===================================================================================================================
-# uncomment line below if you want just the log file
-# logging.basicConfig(filename=log_file_path, level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
-# uncomment if you want just the console logging
-# logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+# Logging
+LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
+LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
+LOGFILE_PATH = config.get('Loggig', 'LOG_FILE_PATH', fallback='~')
+# API
+API = config.getboolean('API', 'USE_API', fallback=False)
 
+log_file_path = os.path.join(os.path.expanduser(LOGFILE_PATH), 'protect.log')
 os.environ['DISPLAY'] = ':0'
 # Chrome directory
 user = getpass.getuser()
@@ -63,28 +50,38 @@ chrome_data_dir = f"/home/{user}/.config/google-chrome/Default"
 
 load_dotenv()
 # dotenv variables
-# Protect credentials in separate .env file. Format shoud be
-# USERNAME=InsertUsernameHere
-# PASSWORD=InsertPasswordHere
 username = os.getenv('USERNAME')
 password = os.getenv('PASSWORD')
-# Link to the live view you want to display
 url = os.getenv('URL')
-# Global variables
 driver = None # Declare it globally so that it can be accessed in the signal handler function
-SLEEP_TIME = 300 # 5 minutes delay between each check of the status of the live view
-WAIT_TIME = 30   # How long the script will wait each time it attempts to locate an element in chrome
-MAX_RETRIES = 5  # Amount of retries the script will attempt of launching chrome, or getting back into the live view if the window is no longer loading
 
-# Construct the path to the file in the user's home directory
-# Only needed if using API. Everything with #api is optional
-script_start_time_file = os.path.join(os.path.expanduser('~'), 'script_start_time.txt')
-# Store the start time when the script starts
-with open(script_start_time_file, 'w') as f:
-    f.write(str(datetime.now()))
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)  # or the most inclusive level, if they're different
+formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+
+if LOG_FILE:
+    # Define a handler for the file
+    file_handler = logging.FileHandler(log_file_path)
+    file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
+    # Set the formatter for the handler
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+if LOG_CONSOLE:
+    # Define a handler for the console
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    # Set the formatter for the handler
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+if API:
+    # Construct the path to the file in the user's home directory
+    script_start_time_file = os.path.join(os.path.expanduser('~'), 'script_start_time.txt')
+    with open(script_start_time_file, 'w') as f:
+        f.write(str(datetime.now()))
 
 # Check if the API is already running, start it otherwise
-# api
 def check_python_script():
     logging.info("Checking if API script is already running...")
     result = subprocess.run(['pgrep', '-f', 'api.py'], stdout=subprocess.PIPE)
@@ -92,7 +89,7 @@ def check_python_script():
         logging.info("API already running.")
     else:
         logging.info("Starting API...")
-        subprocess.Popen(['python3', '/usr/local/bin/api.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.Popen(['python3', '/usr/local/bin/fakeViewport/api.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 # Handles the closing of the script with CTRL+C
 def signal_handler(sig, frame):
@@ -183,8 +180,9 @@ def check_loading_issue(driver):
 # Checks every 5 minutes if the live view is loaded. Calls the fullscreen function if it is
 # If it unloads for any reason and it can't find the live view container, it navigates to the page again
 def check_view(driver, url):
-    # Construct the path to the file in the user's home directory
-    view_status_file = os.path.join(os.path.expanduser('~'), 'view_status.txt') #api
+    if API:
+        # Construct the path to the file in the user's home directory
+        view_status_file = os.path.join(os.path.expanduser('~'), 'view_status.txt')
 
     def handle_retry(driver, url, attempt, max_retries):
         logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
@@ -212,8 +210,9 @@ def check_view(driver, url):
             video_feeds = WebDriverWait(driver, WAIT_TIME).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.liveview__ViewportsWrapper-xf5wrh-2"))
             )
-            with open(view_status_file, 'w') as f: #api
-                f.write('True') #api
+            if API:
+                with open(view_status_file, 'w') as f:
+                    f.write('True') #api
             logging.info("Video feeds are present.")
             # Reset count and check loading issue
             retry_count = 0
@@ -240,15 +239,17 @@ def check_view(driver, url):
                 driver.get(url)
                 wait_for_title(driver, "Live View | UNVR")
                 click_fullscreen_button(driver)
-                with open(view_status_file, 'w') as f: #api
-                    f.write('True') #api
+                if API:
+                    with open(view_status_file, 'w') as f:
+                        f.write('True')
             except TimeoutException as e:
                 logging.info(f"Error: {e}")
                 loggin.info(f"Error type: {type(e).__name__}")
                 logging.info("Traceback:")
                 traceback.print_exc() # Prints traceback of the exception
-                with open(view_status_file, 'w') as f: #api
-                    f.write('False') #api
+                if API:
+                    with open(view_status_file, 'w') as f:
+                        f.write('False')
                 logging.info("Page load timed out.")
                 retry_count += 1
                 handle_retry(driver, url, retry_count, max_retries)
@@ -282,8 +283,9 @@ def handle_page(driver):
         time.sleep(3)
 
 def main():
-    logging.info("Starting Fake Viewport v1.2")
-    check_python_script()
+    logging.info("Starting Fake Viewport v1.3")
+    if API:
+        check_python_script()
     logging.info("Waiting for chrome to load...")
     driver = start_chrome(url)
     # Wait for the page to load
