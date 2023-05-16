@@ -247,7 +247,7 @@ def check_view(driver, url):
                         f.write('True')
             except TimeoutException as e:
                 logging.info(f"Error: {e}")
-                loggin.info(f"Error type: {type(e).__name__}")
+                logging.info(f"Error type: {type(e).__name__}")
                 logging.info("Traceback:")
                 traceback.print_exc() # Prints traceback of the exception
                 if API:
