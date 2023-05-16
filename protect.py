@@ -259,7 +259,7 @@ def login(driver):
     try:
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.NAME, 'username'))).send_keys(username)
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.NAME, 'password'))).send_keys(password, Keys.RETURN)
-        return wait_for_title(driver, "Live View | UNVR")
+        return wait_for_title(driver, "Live View")
     except TimeoutException:
         logging.info("Failed to login, elements not found.")
         return False
@@ -272,7 +272,7 @@ def restart_program(driver):
 # Restarts program if unexpected results from loggin in, or opening the link.
 def handle_page(driver):
     while True:
-        if "Live View | UNVR" in driver.title:
+        if "Live View" in driver.title:
             logging.info("Live view started.")
             return True
         elif "Ubiquiti Account" in driver.title:
