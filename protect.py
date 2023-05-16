@@ -39,17 +39,17 @@ MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
 LOGFILE_PATH = config.get('Loggig', 'LOG_FILE_PATH', fallback='~')
+log_file_path = os.path.join(os.path.expanduser(LOGFILE_PATH), 'protect.log')
 # API
 API = config.getboolean('API', 'USE_API', fallback=False)
 
-log_file_path = os.path.join(os.path.expanduser(LOGFILE_PATH), 'protect.log')
 os.environ['DISPLAY'] = ':0'
 # Chrome directory
 user = getpass.getuser()
 chrome_data_dir = f"/home/{user}/.config/google-chrome/Default"
 
-load_dotenv()
 # dotenv variables
+load_dotenv()
 username = os.getenv('USERNAME')
 password = os.getenv('PASSWORD')
 url = os.getenv('URL')
@@ -129,6 +129,9 @@ def start_chrome(url):
             return driver
         except Exception as e:
             logging.info(f"An error occurred while starting Chrome: {e}")
+            logging.info(f"Error type: {type(e).__name__}")
+            logging.info("Traceback:")
+            traceback.print_exc() # Prints traceback of the exception
             retry_count += 1
             logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
             # If this is the final attempt, kill all existing Chrome processes
