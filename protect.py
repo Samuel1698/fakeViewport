@@ -3,9 +3,10 @@ import time
 import threading
 import os
 import sys
-import logging
 import getpass
-import traceback
+import configparser
+import logging
+from logging.handlers import TimedRotatingFileHandler
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 from datetime import datetime
@@ -17,14 +18,13 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import NoSuchElementException
 try:
     from webdriver_manager.chrome import ChromeDriverManager
 except ImportError:
     install('webdriver_manager')
     from webdriver_manager.chrome import ChromeDriverManager
-from selenium.common.exceptions import TimeoutException
-from selenium.common.exceptions import NoSuchElementException
-import configparser
 config = configparser.ConfigParser()
 config.read('config.ini')
 
@@ -57,11 +57,11 @@ driver = None # Declare it globally so that it can be accessed in the signal han
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)  # or the most inclusive level, if they're different
-formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 if LOG_FILE:
-    # Define a handler for the file
-    file_handler = logging.FileHandler(log_file_path)
+    #  Define a handler for the file
+    file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=3, backupCount=7)
     file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
     # Set the formatter for the handler
     file_handler.setFormatter(formatter)
@@ -76,6 +76,8 @@ if LOG_CONSOLE:
     logger.addHandler(console_handler)
 
 if API:
+    # get the directory of the current script
+    current_dir = os.path.dirname(os.path.realpath(__file__))
     # Construct the path to the file in the user's home directory
     script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
     with open(script_start_time_file, 'w') as f:
@@ -89,7 +91,9 @@ def check_python_script():
         logging.info("API already running.")
     else:
         logging.info("Starting API...")
-        subprocess.Popen(['python3', '/usr/local/bin/fakeViewport/api.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # construct the path to api.py
+        api_script = os.path.join(current_dir, 'api.py')
+        subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 # Handles the closing of the script with CTRL+C
 def signal_handler(sig, frame):
@@ -287,7 +291,6 @@ def main():
         # Start the check_view function in a separate thread
         logging.info("Started check_view thread. Checking health of page every 5 minutes...")
         threading.Thread(target=check_view, args=(driver, url)).start()
-
 
 if __name__ == "__main__":
     main()
