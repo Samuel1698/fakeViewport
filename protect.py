@@ -6,7 +6,6 @@ import sys
 import logging
 import getpass
 import traceback
-import signal
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 from datetime import datetime
@@ -219,13 +218,13 @@ def check_view(driver, url):
             logging.info("Video feeds are present.")
             # Reset count and check loading issue
             retry_count = 0
-            check_loading_issue(driver)
             # Check if browser is in fullscreen
             screen_size = driver.get_window_size()
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
                screen_size['height'] != driver.execute_script("return screen.height;"):
                 logging.info("Browser is not in fullscreen, making it fullscreen.")
                 click_fullscreen_button(driver)
+            check_loading_issue(driver)
             time.sleep(SLEEP_TIME)
         except (TimeoutException, NoSuchElementException) as e:
             logging.info(f"Error: {e}")
@@ -240,7 +239,7 @@ def check_view(driver, url):
             try:
                 logging.info("Attempting to load page from url.")
                 driver.get(url)
-                wait_for_title(driver, "Live View | UNVR")
+                wait_for_title(driver, "Live View")
                 click_fullscreen_button(driver)
                 if API:
                     with open(view_status_file, 'w') as f:
@@ -277,7 +276,7 @@ def restart_program(driver):
 def handle_page(driver):
     while True:
         if "Live View" in driver.title:
-            logging.info("Live view started.")
+            logging.info(f"{driver.title} started.")
             return True
         elif "Ubiquiti Account" in driver.title:
             logging.info("Log-in page found. Inputting credentials...")
