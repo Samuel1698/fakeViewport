@@ -41,7 +41,9 @@ LOGFILE_PATH = config.get('Loggig', 'LOG_FILE_PATH', fallback='~')
 log_file_path = os.path.join(os.path.expanduser(LOGFILE_PATH), 'protect.log')
 # API
 API = config.getboolean('API', 'USE_API', fallback=False)
+API_PATH = config.get('API', 'API_FILE_PATH', fallback='~')
 
+# Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 os.environ['DISPLAY'] = ':0'
 # Chrome directory
 user = getpass.getuser()
@@ -76,7 +78,7 @@ if LOG_CONSOLE:
 
 if API:
     # Construct the path to the file in the user's home directory
-    script_start_time_file = os.path.join(os.path.expanduser('~'), 'script_start_time.txt')
+    script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
     with open(script_start_time_file, 'w') as f:
         f.write(str(datetime.now()))
 
@@ -184,7 +186,7 @@ def check_loading_issue(driver):
 def check_view(driver, url):
     if API:
         # Construct the path to the file in the user's home directory
-        view_status_file = os.path.join(os.path.expanduser('~'), 'view_status.txt')
+        view_status_file = os.path.join(os.path.expanduser(API_PATH), 'view_status.txt')
 
     def handle_retry(driver, url, attempt, max_retries):
         logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
