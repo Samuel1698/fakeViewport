@@ -56,7 +56,6 @@ url = os.getenv('URL')
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)  # or the most inclusive level, if they're different
 formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 if LOG_FILE:
