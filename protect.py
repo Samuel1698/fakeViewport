@@ -128,10 +128,7 @@ def start_chrome(url):
             driver.get(url)
             return driver
         except Exception as e:
-            logging.info(f"An error occurred while starting Chrome: {e}")
-            logging.info(f"Error type: {type(e).__name__}")
-            logging.info("Traceback:")
-            traceback.print_exc() # Prints traceback of the exception
+            logging.exception(f"An error occurred while starting Chrome: ")
             retry_count += 1
             logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
             # If this is the final attempt, kill all existing Chrome processes
@@ -151,14 +148,14 @@ def click_fullscreen_button(driver):
         ).click()
         logging.info("Live view is in fullscreen.")
     except TimeoutException:
-        logging.info("Fullscreen button not found.")
+        logging.exception("Fullscreen button not found.")
 # Waits for the specified title to appear
 def wait_for_title(driver, title):
     try:
         WebDriverWait(driver, WAIT_TIME).until(EC.title_contains(title))
         logging.info(f"Loaded {title}")
     except TimeoutException:
-        logging.info(f"Failed to load the {title} page.")
+        logging.exception(f"Failed to load the {title} page.")
         return False
     return True
 # Checks if the live view feed is constantly loading with the three dots and needs a refresh
@@ -228,11 +225,7 @@ def check_view(driver, url):
             check_loading_issue(driver)
             time.sleep(SLEEP_TIME)
         except (TimeoutException, NoSuchElementException) as e:
-            logging.info(f"Error: {e}")
-            logging.info(f"Error type: {type(e).__name__}")
-            logging.info("Traceback:")
-            traceback.print_exc() # Prints traceback of the exception
-            logging.info("Video feeds not found or other error occurred")
+            logging.exception(f"Video feeds not found or other error occurred: ")
             time.sleep(WAIT_TIME)
             logging.info("Refreshing chrome tab...")
             retry_count += 1
@@ -246,14 +239,10 @@ def check_view(driver, url):
                     with open(view_status_file, 'w') as f:
                         f.write('True')
             except TimeoutException as e:
-                logging.info(f"Error: {e}")
-                logging.info(f"Error type: {type(e).__name__}")
-                logging.info("Traceback:")
-                traceback.print_exc() # Prints traceback of the exception
+                logging.exception(f"Error refreshing chrome tab: ")
                 if API:
                     with open(view_status_file, 'w') as f:
                         f.write('False')
-                logging.info("Page load timed out.")
                 retry_count += 1
                 handle_retry(driver, url, retry_count, max_retries)
 
@@ -265,7 +254,7 @@ def login(driver):
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.NAME, 'password'))).send_keys(password, Keys.RETURN)
         return wait_for_title(driver, "Live View")
     except TimeoutException:
-        logging.info("Failed to login, elements not found.")
+        logging.exception("Failed to login, elements not found.")
         return False
 # Restarts the program with execv to prevent stack overflow
 def restart_program(driver):
