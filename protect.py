@@ -127,7 +127,7 @@ def start_chrome(url):
             driver = webdriver.Chrome(service=webdriver_service, options=chrome_options)
             driver.get(url)
             return driver
-        except Exception as e:
+        except Exception:
             logging.exception(f"An error occurred while starting Chrome: ")
             retry_count += 1
             logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
@@ -224,7 +224,7 @@ def check_view(driver, url):
                 click_fullscreen_button(driver)
             check_loading_issue(driver)
             time.sleep(SLEEP_TIME)
-        except (TimeoutException, NoSuchElementException) as e:
+        except (TimeoutException, NoSuchElementException):
             logging.exception(f"Video feeds not found or other error occurred: ")
             time.sleep(WAIT_TIME)
             logging.info("Refreshing chrome tab...")
@@ -238,7 +238,7 @@ def check_view(driver, url):
                 if API:
                     with open(view_status_file, 'w') as f:
                         f.write('True')
-            except TimeoutException as e:
+            except TimeoutException:
                 logging.exception(f"Error refreshing chrome tab: ")
                 if API:
                     with open(view_status_file, 'w') as f:
