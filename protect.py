@@ -216,7 +216,7 @@ def check_view(driver, url):
             try:
                 logging.info("Attempting to load page from url.")
                 driver.get(url)
-                if handle_page(driver)
+                if handle_page(driver):
                     click_fullscreen_button(driver)
                 if API:
                     with open(view_status_file, 'w') as f:
