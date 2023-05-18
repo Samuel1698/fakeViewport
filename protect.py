@@ -197,6 +197,7 @@ def check_loading_issue(driver):
                 elif time.time() - trouble_loading_start_time >= 15:  # if loading issue persists for 15 seconds
                     logging.info("Video feed trouble persisting for 15 seconds, refreshing the page.")
                     driver.refresh()
+                    handle_page(driver)
                     time.sleep(5)
                     return  # Exit the function
         except TimeoutException:
@@ -211,20 +212,44 @@ def check_view(driver, url):
 
     def handle_retry(driver, url, attempt, max_retries):
         logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
+        if attempt < max_retries - 1:
+            try:
+                logging.info("Attempting to load page from url.")
+                driver.get(url)
+                if handle_page(driver)
+                    click_fullscreen_button(driver)
+                if API:
+                    with open(view_status_file, 'w') as f:
+                        f.write('True')
+            except TimeoutException:
+                logging.exception("Error refreshing chrome tab: ")
+                if API:
+                    with open(view_status_file, 'w') as f:
+                        f.write('False')
+        # Second to last attempt will kill chrome proccess and start new driver
         if attempt == max_retries - 1:
-            logging.info("Refreshing page...")
-            driver.refresh()
-            time.sleep(10) # Wait for page to refresh before retrying
+            try:
+            	logging.info("Killing existing Chrome processes...")
+            	subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            	time.sleep(5)  # wait for a while before retrying
+            	logging.info("Starting chrome instance...")
+            	driver = start_chrome(url)
+            	# Wait for the page to load
+            	WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
+                if handle_page(driver):
+                    logging.info("Page successfully reloaded.")
+                if API:
+                    with open(view_status_file, 'w') as f:
+                        f.write('True')
+            except TimeoutException:
+                logging.exception("Error killing chrome: ")
+                if API:
+                    with open(view_status_file, 'w') as f:
+                        f.write('False')
+        # If last attempt, restart entire script
         elif attempt == max_retries:
-            logging.info("Killing existing Chrome processes...")
-            subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            time.sleep(5)  # wait for a while before retrying
-            logging.info("Starting chrome instance...")
-            driver = start_chrome(url)
-            # Wait for the page to load
-            WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
-            if handle_page(driver):
-                logging.info("Page successfully reloaded.")
+            logging.info("Max Attempts reached, restarting script...")
+            restart_program(driver):
         return driver
 
     retry_count = 0
@@ -250,26 +275,12 @@ def check_view(driver, url):
             check_loading_issue(driver)
             time.sleep(SLEEP_TIME)
         except (TimeoutException, NoSuchElementException):
-            logging.exception(f"Video feeds not found or other error occurred: ")
+            logging.exception("Video feeds not found or other error occurred: ")
             time.sleep(WAIT_TIME)
-            logging.info("Refreshing chrome tab...")
+            logging.info("Attempting to revive live view...")
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
-            try:
-                logging.info("Attempting to load page from url.")
-                driver.get(url)
-                wait_for_title(driver, "Live View")
-                click_fullscreen_button(driver)
-                if API:
-                    with open(view_status_file, 'w') as f:
-                        f.write('True')
-            except TimeoutException:
-                logging.exception(f"Error refreshing chrome tab: ")
-                if API:
-                    with open(view_status_file, 'w') as f:
-                        f.write('False')
-                retry_count += 1
-                handle_retry(driver, url, retry_count, max_retries)
+            time.sleep(WAIT_TIME)
 
 # Waits for the login elements to appear and inputs the username and password
 # Only returns true if the page after pressing Return is the Live View
@@ -294,6 +305,8 @@ def handle_page(driver):
     while True:
         if "Live View" in driver.title:
             logging.info(f"{driver.title} started.")
+            time.sleep(3)
+            hide_cursor(driver)
             return True
         elif "Ubiquiti Account" in driver.title:
             logging.info("Log-in page found. Inputting credentials...")
@@ -330,9 +343,8 @@ def main():
     WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
     logging.info("Chrome loaded.")
     if handle_page(driver):
-        hide_cursor(driver)
         # Start the check_view function in a separate thread
-        logging.info(f"Started check_view thread. Checking health of page every {int(SLEEP_TIME/60)} minutes...")
+        logging.info(f"Checking health of page every {int(SLEEP_TIME/60)} minutes...")
         threading.Thread(target=check_view, args=(driver, url)).start()
     else:
         logging.error("Restarting the program...")
