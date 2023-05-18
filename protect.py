@@ -72,6 +72,9 @@ password = os.getenv('PASSWORD')
 url = os.getenv('URL')
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 
+if not url:
+    logging.error("No URL detected. Please make sure you have a .env file in the same directory as this script.")
+    sys.exit(1)
 logger = logging.getLogger()
 formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 logger.setLevel(logging.INFO)
@@ -318,7 +321,7 @@ def hide_cursor(driver):
     document.head.appendChild(style);
     """)
 def main():
-    logging.info("Starting Fake Viewport v1.3")
+    logging.info("Starting Fake Viewport v1.4")
     if API:
         check_python_script()
     logging.info("Waiting for chrome to load...")
@@ -329,7 +332,7 @@ def main():
     if handle_page(driver):
         hide_cursor(driver)
         # Start the check_view function in a separate thread
-        logging.info("Started check_view thread. Checking health of page every 5 minutes...")
+        logging.info(f"Started check_view thread. Checking health of page every {int(SLEEP_TIME/60)} minutes...")
         threading.Thread(target=check_view, args=(driver, url)).start()
     else:
         logging.error("Restarting the program...")
