@@ -6,6 +6,7 @@ import sys
 import getpass
 import configparser
 import logging
+import signal
 from logging.handlers import TimedRotatingFileHandler
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
@@ -109,7 +110,6 @@ def check_python_script():
         # construct the path to api.py
         api_script = os.path.join(current_dir, 'api.py')
         subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
 # Handles the closing of the script with CTRL+C
 def signal_handler(sig, frame):
     global driver
@@ -118,6 +118,9 @@ def signal_handler(sig, frame):
         driver.quit()
     logging.info("Quitting.")
     sys.exit(0)
+# Register the signal handler
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 # Starts a chrome 'driver' and handles error reattempts
 def start_chrome(url):
     retry_count = 0
@@ -297,6 +300,23 @@ def handle_page(driver):
             logging.error("Unexpected page loaded. The page title is: " + driver.title)
             return False
         time.sleep(3)
+def hide_cursor(driver):
+    logging.info("Removing custom cursor from page.")
+    # Removes ubiquiti's custom cursor from the page
+    driver.execute_script("""
+    var style = document.createElement('style');
+    style.type = 'text/css';
+    style.innerHTML = '.hMbAUy { cursor: none !important; }';
+    document.head.appendChild(style);
+    """)
+    logging.info("Removing visibility of player options elements.")
+    # Remove visibility of the player options elements
+    driver.execute_script("""
+    var style = document.createElement('style');
+    style.type = 'text/css';
+    style.innerHTML = '.chHzKN { z-index: 0 !important; }';
+    document.head.appendChild(style);
+    """)
 def main():
     logging.info("Starting Fake Viewport v1.3")
     if API:
@@ -307,6 +327,7 @@ def main():
     WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
     logging.info("Chrome loaded.")
     if handle_page(driver):
+        hide_cursor(driver)
         # Start the check_view function in a separate thread
         logging.info("Started check_view thread. Checking health of page every 5 minutes...")
         threading.Thread(target=check_view, args=(driver, url)).start()
