@@ -9,7 +9,7 @@ You'll need a .env file in the same location as your protect.py file, with your 
 I've included an example .env for you to modify and rename.
 
 I chose to put this script in /usr/local/bin but you can put it anywhere you want (That doesnt require root permission).
-Execute it with `python3 protect.py` or `python3 /usr/local/bin/protect.py`
+Execute it with `python3 protect.py`, `python3 /usr/local/bin/protect.py` or `nohup python3 protect.py` if you're remotely executing it.
 
 Note that the Thin Client I'm using only has DisplayPort outputs.
 
