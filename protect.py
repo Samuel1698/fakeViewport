@@ -229,13 +229,13 @@ def check_view(driver, url):
         # Second to last attempt will kill chrome proccess and start new driver
         if attempt == max_retries - 1:
             try:
-            	logging.info("Killing existing Chrome processes...")
-            	subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            	time.sleep(5)  # wait for a while before retrying
-            	logging.info("Starting chrome instance...")
-            	driver = start_chrome(url)
+                logging.info("Killing existing Chrome processes...")
+                subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                time.sleep(5)  # wait for a while before retrying
+                logging.info("Starting chrome instance...")
+                driver = start_chrome(url)
             	# Wait for the page to load
-            	WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
+                WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
                 if handle_page(driver):
                     logging.info("Page successfully reloaded.")
                 if API:
@@ -249,7 +249,7 @@ def check_view(driver, url):
         # If last attempt, restart entire script
         elif attempt == max_retries:
             logging.info("Max Attempts reached, restarting script...")
-            restart_program(driver):
+            restart_program(driver)
         return driver
 
     retry_count = 0
