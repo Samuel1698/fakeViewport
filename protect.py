@@ -57,7 +57,7 @@ driver = None # Declare it globally so that it can be accessed in the signal han
 
 logger = logging.getLogger()
 formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-
+logger.setLevel(logging.INFO)
 if LOG_FILE:
     #  Define a handler for the file
     file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=3, backupCount=7)
