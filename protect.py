@@ -32,16 +32,32 @@ config.read('config.ini')
 SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
 MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
-
+# Validate config variables
+if SLEEP_TIME <= 0:
+    logging.error("Invalid value for SLEEP_TIME. It should be a positive integer.")
+    sys.exit(1)
+if WAIT_TIME <= 5:
+    logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
+    sys.exit(1)
+if MAX_RETRIES <= 1:
+    logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 1.")
+    sys.exit(1)
 # Logging
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
 LOGFILE_PATH = config.get('Loggig', 'LOG_FILE_PATH', fallback='~')
 log_file_path = os.path.join(os.path.expanduser(LOGFILE_PATH), 'protect.log')
+# Validate LOGFILE_PATH
+if not os.path.isdir(os.path.dirname(log_file_path)):
+    logging.error(f"Invalid LOG_FILE_PATH: {LOGFILE_PATH}. The directory does not exist.")
+    sys.exit(1)
 # API
 API = config.getboolean('API', 'USE_API', fallback=False)
 API_PATH = config.get('API', 'API_FILE_PATH', fallback='~')
-
+# Validate API_PATH
+if not os.path.isdir(os.path.dirname(API_PATH)):
+    logging.error(f"Invalid LOG_FILE_PATH: {API_PATH}. The directory does not exist.")
+    sys.exit(1)
 # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 os.environ['DISPLAY'] = ':0'
 # Chrome directory found by navigating to chrome://version/ and copying the Profile Path
