@@ -48,15 +48,15 @@ LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
 LOGFILE_PATH = config.get('Loggig', 'LOG_FILE_PATH', fallback='~')
 log_file_path = os.path.join(os.path.expanduser(LOGFILE_PATH), 'protect.log')
 # Validate LOGFILE_PATH
-if not os.path.isdir(os.path.dirname(log_file_path)):
+if not os.path.isdir(os.path.expanduser(LOGFILE_PATH)):
     logging.error(f"Invalid LOG_FILE_PATH: {LOGFILE_PATH}. The directory does not exist.")
     sys.exit(1)
 # API
 API = config.getboolean('API', 'USE_API', fallback=False)
 API_PATH = config.get('API', 'API_FILE_PATH', fallback='~')
 # Validate API_PATH
-if not os.path.isdir(os.path.dirname(API_PATH)):
-    logging.error(f"Invalid LOG_FILE_PATH: {API_PATH}. The directory does not exist.")
+if not os.path.isdir(os.path.expanduser(API_PATH)):
+    logging.error(f"Invalid API_PATH: {API_PATH}. The directory does not exist.")
     sys.exit(1)
 # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 os.environ['DISPLAY'] = ':0'
@@ -76,7 +76,7 @@ formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:
 logger.setLevel(logging.INFO)
 if LOG_FILE:
     #  Define a handler for the file
-    file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=3, backupCount=7)
+    file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=1, backupCount=7)
     file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
     # Set the formatter for the handler
     file_handler.setFormatter(formatter)
@@ -277,12 +277,14 @@ def login(driver):
         return False
 # Restarts the program with execv to prevent stack overflow
 def restart_program(driver):
-    logging.info("Unexpected window detected, restarting...")
+    logging.info("Gracefully shutting down chrome...")
     driver.quit()
+    logging.info("Starting script again.")
     os.execv(sys.executable, ['python3'] + sys.argv)
 # Handles whether or not the page loaded directly or got redirected to the login page upon chrome opening
 # Restarts program if unexpected results from loggin in, or opening the link.
 def handle_page(driver):
+    start_time = time.time()  # Capture the starting time
     while True:
         if "Live View" in driver.title:
             logging.info(f"{driver.title} started.")
@@ -291,8 +293,10 @@ def handle_page(driver):
             logging.info("Log-in page found. Inputting credentials...")
             if not login(driver):
                 restart_program(driver)
+        elif time.time() - start_time > WAIT_TIME:  # If timeout limit is reached
+            logging.error("Unexpected page loaded. The page title is: " + driver.title)
+            return False
         time.sleep(3)
-
 def main():
     logging.info("Starting Fake Viewport v1.3")
     if API:
@@ -306,6 +310,8 @@ def main():
         # Start the check_view function in a separate thread
         logging.info("Started check_view thread. Checking health of page every 5 minutes...")
         threading.Thread(target=check_view, args=(driver, url)).start()
-
+    else:
+        logging.error("Restarting the program...")
+        restart_program(driver)
 if __name__ == "__main__":
     main()
