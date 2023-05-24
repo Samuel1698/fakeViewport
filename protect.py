@@ -21,6 +21,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoSuchElementException
+from urllib3.exceptions import NewConnectionError
 try:
     from webdriver_manager.chrome import ChromeDriverManager
 except ImportError:
@@ -281,7 +282,12 @@ def check_view(driver, url):
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
-
+        except NewConnectionError:
+            logging.exception("Connection error occurred: ")
+            time.sleep(SLEEP_TIME/2)  # Wait for 2 minutes before retrying
+            retry_count += 1
+            handle_retry(driver, url, retry_count, max_retries)
+            time.sleep(WAIT_TIME)
 # Waits for the login elements to appear and inputs the username and password
 # Only returns true if the page after pressing Return is the Live View
 def login(driver):
