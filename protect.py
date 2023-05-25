@@ -105,7 +105,7 @@ if API:
 
 # Check if the API is already running, start it otherwise
 def check_python_script():
-    logging.info("Checking if API script is already running...")
+    logging.info("Checking if API is already running...")
     result = subprocess.run(['pgrep', '-f', 'api.py'], stdout=subprocess.PIPE)
     if result.stdout:
         logging.info("API already running.")
@@ -172,7 +172,7 @@ def click_fullscreen_button(driver):
         WebDriverWait(driver, WAIT_TIME).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, 'div.LiveviewControls__Container-sc-6n7ics-0.ihZxIP button.button__jTNy2Cxe'))
         ).click()
-        logging.info("Live view is in fullscreen.")
+        logging.info("Success.")
     except TimeoutException:
         logging.exception("Fullscreen button not found.")
 # Waits for the specified title to appear
@@ -264,21 +264,19 @@ def check_view(driver, url):
             if API:
                 with open(view_status_file, 'w') as f:
                     f.write('True') #api
-            logging.info("Video feeds are present.")
             # Reset count and check loading issue
             retry_count = 0
             # Check if browser is in fullscreen
             screen_size = driver.get_window_size()
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
                screen_size['height'] != driver.execute_script("return screen.height;"):
-                logging.info("Browser is not in fullscreen, making it fullscreen.")
+                logging.info("Making live-view fullscreen.")
                 click_fullscreen_button(driver)
             check_loading_issue(driver)
             time.sleep(SLEEP_TIME)
         except (TimeoutException, NoSuchElementException):
-            logging.exception("Video feeds not found or other error occurred: ")
+            logging.exception("Video feeds not found or page timed out: ")
             time.sleep(WAIT_TIME)
-            logging.info("Attempting to revive live view...")
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
@@ -288,6 +286,12 @@ def check_view(driver, url):
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
+        except Exception as e:
+            logging.exception("Unexpected error occurred: ")
+            logging.error(str(e))
+            time.sleep(WAIT_TIME)
+            retry_count += 1
+            handle_retry(driver, url, retry_count, max_retries)
 # Waits for the login elements to appear and inputs the username and password
 # Only returns true if the page after pressing Return is the Live View
 def login(driver):
@@ -302,7 +306,8 @@ def login(driver):
 def restart_program(driver):
     logging.info("Gracefully shutting down chrome...")
     driver.quit()
-    logging.info("Starting script again.")
+    logging.info(f"Starting script again in {int(SLEEP_TIME/120)}.")
+    time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 # Handles whether or not the page loaded directly or got redirected to the login page upon chrome opening
 # Restarts program if unexpected results from loggin in, or opening the link.
@@ -317,7 +322,7 @@ def handle_page(driver):
         elif "Ubiquiti Account" in driver.title:
             logging.info("Log-in page found. Inputting credentials...")
             if not login(driver):
-                restart_program(driver)
+                return False
         elif time.time() - start_time > WAIT_TIME:  # If timeout limit is reached
             logging.error("Unexpected page loaded. The page title is: " + driver.title)
             return False
@@ -340,20 +345,19 @@ def hide_cursor(driver):
     document.head.appendChild(style);
     """)
 def main():
-    logging.info("Starting Fake Viewport v1.4")
+    logging.info("Starting Fake Viewport v1.5")
     if API:
         check_python_script()
     logging.info("Waiting for chrome to load...")
     driver = start_chrome(url)
     # Wait for the page to load
     WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
-    logging.info("Chrome loaded.")
     if handle_page(driver):
         # Start the check_view function in a separate thread
         logging.info(f"Checking health of page every {int(SLEEP_TIME/60)} minutes...")
         threading.Thread(target=check_view, args=(driver, url)).start()
     else:
-        logging.error("Restarting the program...")
+        logging.error("Error loading the live view. Restarting the program.")
         restart_program(driver)
 if __name__ == "__main__":
     main()
