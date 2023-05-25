@@ -163,8 +163,10 @@ def start_chrome(url):
                 subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             time.sleep(5)  # wait for a while before retrying
 
-    logging.info("Failed to start Chrome after maximum retries. Exiting...")
-    sys.exit(1)  # exit with error code
+    logging.info("Failed to start Chrome after maximum retries.")
+    logging.info(f"Starting script again in {int(SLEEP_TIME/120)} minutes.")
+    time.sleep(SLEEP_TIME/2)
+    os.execv(sys.executable, ['python3'] + sys.argv)
 
 # Waits for the fullscreen button to appear, then clicks it.
 def click_fullscreen_button(driver):
@@ -222,8 +224,9 @@ def check_view(driver, url):
                 if API:
                     with open(view_status_file, 'w') as f:
                         f.write('True')
-            except TimeoutException:
+            except Exception as e:
                 logging.exception("Error refreshing chrome tab: ")
+                logging.error(str(e))
                 if API:
                     with open(view_status_file, 'w') as f:
                         f.write('False')
@@ -242,8 +245,9 @@ def check_view(driver, url):
                 if API:
                     with open(view_status_file, 'w') as f:
                         f.write('True')
-            except TimeoutException:
+            except Exception as e:
                 logging.exception("Error killing chrome: ")
+                logging.error(str(e))
                 if API:
                     with open(view_status_file, 'w') as f:
                         f.write('False')
@@ -306,7 +310,7 @@ def login(driver):
 def restart_program(driver):
     logging.info("Gracefully shutting down chrome...")
     driver.quit()
-    logging.info(f"Starting script again in {int(SLEEP_TIME/120)}.")
+    logging.info(f"Starting script again in {int(SLEEP_TIME/120)} minutes.")
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 # Handles whether or not the page loaded directly or got redirected to the login page upon chrome opening
