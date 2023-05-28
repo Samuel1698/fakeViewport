@@ -257,6 +257,7 @@ def check_view(driver, url):
             restart_program(driver)
         return driver
 
+    interval_counter = 0
     retry_count = 0
     max_retries = MAX_RETRIES
     while True:
@@ -277,6 +278,9 @@ def check_view(driver, url):
                 logging.info("Making live-view fullscreen.")
                 click_fullscreen_button(driver)
             check_loading_issue(driver)
+            interval_counter += 1
+            if interval_counter % 12 == 0:
+                logging.info("Video feeds healthy.")
             time.sleep(SLEEP_TIME)
         except (TimeoutException, NoSuchElementException):
             logging.exception("Video feeds not found or page timed out: ")
