@@ -278,6 +278,7 @@ def check_view(driver, url):
                 logging.info("Making live-view fullscreen.")
                 click_fullscreen_button(driver)
             check_loading_issue(driver)
+            hide_cursor(driver)
             interval_counter += 1
             if interval_counter % 12 == 0:
                 logging.info("Video feeds healthy.")
@@ -336,21 +337,29 @@ def handle_page(driver):
             return False
         time.sleep(3)
 def hide_cursor(driver):
-    logging.info("Removing custom cursor from page.")
     # Removes ubiquiti's custom cursor from the page
     driver.execute_script("""
-    var style = document.createElement('style');
-    style.type = 'text/css';
-    style.innerHTML = '.hMbAUy { cursor: none !important; }';
-    document.head.appendChild(style);
+    var styleId = 'hideCursorStyle';
+    if (!document.getElementById(styleId)) {
+        var style = document.createElement('style');
+        style.type = 'text/css';
+        style.id = styleId;
+        style.innerHTML = '.hMbAUy { cursor: none !important; }';
+        document.head.appendChild(style)
+        console.log("Custom cursor removed.");
+    }
     """)
-    logging.info("Removing visibility of player options elements.")
     # Remove visibility of the player options elements
     driver.execute_script("""
-    var style = document.createElement('style');
-    style.type = 'text/css';
-    style.innerHTML = '.chHzKN { z-index: 0 !important; }';
-    document.head.appendChild(style);
+    var styleId = 'hidePlayerOptionsStyle';
+    if (!document.getElementById(styleId)) {
+        var style = document.createElement('style');
+        style.type = 'text/css';
+        style.id = styleId;
+        style.innerHTML = '.chHzKN { z-index: 0 !important; }';
+        document.head.appendChild(style);
+        console.log("Player options elements removed.");
+    }
     """)
 def main():
     logging.info("Starting Fake Viewport v1.5")
