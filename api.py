@@ -20,7 +20,7 @@ def api_check_view():
     # Construct the path to the file in the user's home directory
     view_status_file = os.path.join(os.path.expanduser(API_PATH), 'view_status.txt')
     with open(view_status_file, 'r') as f:
-        result = f.read() == 'True'
+        result = f.read()
     return jsonify(view_status=result)
 
 @app.route('/get_system_uptime')

@@ -123,7 +123,7 @@ def signal_handler(sig, frame):
         driver.quit()
     if API:
         with open(view_status_file, 'w') as f:
-            f.write('False')
+            f.write('Quit')
     logging.info("Quitting.")
     sys.exit(0)
 # Register the signal handler
@@ -169,6 +169,9 @@ def start_chrome(url):
 
     logging.info("Failed to start Chrome after maximum retries.")
     logging.info(f"Starting script again in {int(SLEEP_TIME/120)} minutes.")
+    if API:
+        with open(view_status_file, 'w') as f:
+            f.write('Restarting Chrome')
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 
@@ -217,7 +220,7 @@ def check_view(driver, url):
         logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
         if API:
             with open(view_status_file, 'w') as f:
-                f.write('False')
+                f.write(f'Retrying: {attempt} of {max_retries}')
         if attempt < max_retries - 1:
             try:
                 logging.info("Attempting to load page from url.")
@@ -226,10 +229,13 @@ def check_view(driver, url):
                     click_fullscreen_button(driver)
                 if API:
                     with open(view_status_file, 'w') as f:
-                        f.write('True')
+                        f.write('Feed Healthy')
             except Exception as e:
                 logging.exception("Error refreshing chrome tab: ")
                 logging.error(str(e))
+                if API:
+                    with open(view_status_file, 'w') as f:
+                        f.write('Error refreshing')
         # Second to last attempt will kill chrome proccess and start new driver
         if attempt == max_retries - 1:
             try:
@@ -242,12 +248,15 @@ def check_view(driver, url):
                 WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
                 if handle_page(driver):
                     logging.info("Page successfully reloaded.")
-                if API:
-                    with open(view_status_file, 'w') as f:
-                        f.write('True')
+                    if API:
+                        with open(view_status_file, 'w') as f:
+                            f.write('Feed Healthy')
             except Exception as e:
                 logging.exception("Error killing chrome: ")
                 logging.error(str(e))
+                if API:
+                    with open(view_status_file, 'w') as f:
+                        f.write('Error killing chrome')
         # If last attempt, restart entire script
         elif attempt == max_retries:
             logging.info("Max Attempts reached, restarting script...")
@@ -265,7 +274,7 @@ def check_view(driver, url):
             )
             if API:
                 with open(view_status_file, 'w') as f:
-                    f.write('True') #api
+                    f.write('Feed Healthy')
             # Reset count and check loading issue
             retry_count = 0
             # Check if browser is in fullscreen
@@ -310,6 +319,9 @@ def login(driver):
         return False
 # Restarts the program with execv to prevent stack overflow
 def restart_program(driver):
+    if API:
+        with open(view_status_file, 'w') as f:
+            f.write('Restarting...')
     logging.info("Gracefully shutting down chrome...")
     driver.quit()
     logging.info(f"Starting script again in {int(SLEEP_TIME/120)} minutes.")
@@ -364,7 +376,7 @@ def main():
         check_python_script()
         # Defaults to 'False' until status updates
         with open(view_status_file, 'w') as f:
-            f.write('False')
+            f.write('Starting...')
     logging.info("Waiting for chrome to load...")
     driver = start_chrome(url)
     # Wait for the page to load
