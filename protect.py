@@ -215,6 +215,9 @@ def check_view(driver, url):
 
     def handle_retry(driver, url, attempt, max_retries):
         logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
+        if API:
+                with open(view_status_file, 'w') as f:
+                    f.write('False')
         if attempt < max_retries - 1:
             try:
                 logging.info("Attempting to load page from url.")
@@ -227,9 +230,6 @@ def check_view(driver, url):
             except Exception as e:
                 logging.exception("Error refreshing chrome tab: ")
                 logging.error(str(e))
-                if API:
-                    with open(view_status_file, 'w') as f:
-                        f.write('False')
         # Second to last attempt will kill chrome proccess and start new driver
         if attempt == max_retries - 1:
             try:
@@ -248,9 +248,6 @@ def check_view(driver, url):
             except Exception as e:
                 logging.exception("Error killing chrome: ")
                 logging.error(str(e))
-                if API:
-                    with open(view_status_file, 'w') as f:
-                        f.write('False')
         # If last attempt, restart entire script
         elif attempt == max_retries:
             logging.info("Max Attempts reached, restarting script...")
