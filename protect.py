@@ -99,6 +99,7 @@ if API:
     # get the directory of the current script
     current_dir = os.path.dirname(os.path.realpath(__file__))
     # Construct the path to the file in the user's home directory
+    view_status_file = os.path.join(os.path.expanduser(API_PATH), 'view_status.txt')
     script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
     with open(script_start_time_file, 'w') as f:
         f.write(str(datetime.now()))
@@ -120,6 +121,9 @@ def signal_handler(sig, frame):
     logging.info('Gracefully shutting down Chrome.')
     if driver is not None:
         driver.quit()
+    if API:
+        with open(view_status_file, 'w') as f:
+            f.write('False')
     logging.info("Quitting.")
     sys.exit(0)
 # Register the signal handler
@@ -209,15 +213,11 @@ def check_loading_issue(driver):
 # Checks every 5 minutes if the live view is loaded. Calls the fullscreen function if it is
 # If it unloads for any reason and it can't find the live view container, it navigates to the page again
 def check_view(driver, url):
-    if API:
-        # Construct the path to the file in the user's home directory
-        view_status_file = os.path.join(os.path.expanduser(API_PATH), 'view_status.txt')
-
     def handle_retry(driver, url, attempt, max_retries):
         logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
         if API:
-                with open(view_status_file, 'w') as f:
-                    f.write('False')
+            with open(view_status_file, 'w') as f:
+                f.write('False')
         if attempt < max_retries - 1:
             try:
                 logging.info("Attempting to load page from url.")
@@ -362,6 +362,9 @@ def main():
     logging.info("Starting Fake Viewport v1.5")
     if API:
         check_python_script()
+        # Defaults to 'False' until status updates
+        with open(view_status_file, 'w') as f:
+            f.write('False')
     logging.info("Waiting for chrome to load...")
     driver = start_chrome(url)
     # Wait for the page to load
