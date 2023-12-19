@@ -144,7 +144,9 @@ def start_chrome(url):
             chrome_options.add_argument("--no-first-run")
             chrome_options.add_argument("--disable-dev-smh-usage")
             chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument("-–disable-session-crashed-bubble")
+            chrome_options.add_argument('--ignore-certificate-errors')  # Ignore SSL certificate errors
+            chrome_options.add_argument('--ignore-ssl-errors')  # Ignore SSL errors   
+            chrome_options.add_argument("--disable-session-crashed-bubble")
             chrome_options.add_argument("--remote-debugging-port=9222")
             chrome_options.add_argument(f"--user-data-dir={chrome_data_dir}")
             chrome_options.add_experimental_option("excludeSwitches", ['enable-automation'])
