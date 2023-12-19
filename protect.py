@@ -247,7 +247,7 @@ def check_view(driver, url):
                 time.sleep(5)  # wait for a while before retrying
                 logging.info("Starting chrome instance...")
                 driver = start_chrome(url)
-            	# Wait for the page to load
+                # Wait for the page to load
                 WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
                 if handle_page(driver):
                     logging.info("Page successfully reloaded.")
@@ -283,7 +283,7 @@ def check_view(driver, url):
             # Check if browser is in fullscreen
             screen_size = driver.get_window_size()
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
-               screen_size['height'] != driver.execute_script("return screen.height;"):
+                screen_size['height'] != driver.execute_script("return screen.height;"):
                 logging.info("Making live-view fullscreen.")
                 click_fullscreen_button(driver)
             check_loading_issue(driver)
@@ -340,7 +340,7 @@ def handle_page(driver):
             time.sleep(3)
             hide_cursor(driver)
             return True
-        elif "Ubiquiti Account" in driver.title:
+        elif "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
             logging.info("Log-in page found. Inputting credentials...")
             if not login(driver):
                 return False
