@@ -335,7 +335,7 @@ def restart_program(driver):
 def handle_page(driver):
     start_time = time.time()  # Capture the starting time
     while True:
-        if "Live View" in driver.title:
+        if "Dashboard" in driver.title:
             logging.info(f"{driver.title} started.")
             time.sleep(3)
             hide_cursor(driver)
