@@ -316,7 +316,7 @@ def login(driver):
     try:
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.NAME, 'username'))).send_keys(username)
         WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.NAME, 'password'))).send_keys(password, Keys.RETURN)
-        return wait_for_title(driver, "Live View")
+        return wait_for_title(driver, "Dashboard")
     except TimeoutException:
         logging.exception("Failed to login, elements not found.")
         return False
