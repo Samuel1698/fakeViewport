@@ -182,7 +182,7 @@ def start_chrome(url):
 def click_fullscreen_button(driver):
     try:
         WebDriverWait(driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, 'div.LiveviewControls__Container-sc-6n7ics-0 button.IconButton-pbem09-0'))
+            EC.presence_of_element_located((By.CSS_SELECTOR, 'div:nth-child(2) > button'))
         ).click()
         logging.info("Success.")
     except TimeoutException:
