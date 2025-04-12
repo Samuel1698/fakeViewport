@@ -156,7 +156,7 @@ def start_chrome(url):
             chrome_options.add_argument("--disable-dev-smh-usage")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument('--ignore-certificate-errors')  # Ignore SSL certificate errors
-            chrome_options.add_argument('--ignore-ssl-errors')  # Ignore SSL errors   
+            chrome_options.add_argument('--ignore-ssl-errors')  # Ignore SSL errors
             chrome_options.add_argument("--disable-session-crashed-bubble")
             chrome_options.add_argument("--remote-debugging-port=9222")
             chrome_options.add_argument(f"--user-data-dir={chrome_data_dir}")
@@ -191,31 +191,24 @@ def start_chrome(url):
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 
-# Waits for the fullscreen button to appear, then clicks it.
+# Finds the fullscreen button and clicks it.
 def click_fullscreen_button(driver):
-    """
-    Clicks the fullscreen button using the discovered selector pattern.
-    Includes multiple fallback strategies and verification.
-    """
-    selectors = [
-        "div.LiveviewControls__ButtonGroup-hdlmsl-0 > div:nth-child(2) > button",  # Working selector
-        "#react-aria7711553291-171"  # ID Fallback
-    ]
-
-    for selector in selectors:
+    structural_selector = "div[class*='Controls'] button:nth-child(2)"
+    element_id = "react-aria7711553291-171"
+    try:
+        WebDriverWait(driver, WAIT_TIME).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, structural_selector))
+        ).click()
+        logging.info("Fullscreen activated via structural selector")
+    except Exception as e:
+        logging.debug(f"Structural selector failed: {str(e)}")
         try:
-            button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
-            )
-            button.click()
-            logging.info(f"Successfully clicked fullscreen button")
+            WebDriverWait(driver, WAIT_TIME).until(
+                EC.presence_of_element_located((By.ID, element_id))
+            ).click()
+            logging.info("Fullscreen activated via element ID")
         except Exception as e:
-            logging.warning(f"Attempt with selector '{selector}' failed: {str(e)}")
-            continue
-
-    logging.error("All fullscreen button selector attempts failed")
-    return False
-
+            logging.debug(f"Element ID failed: {str(e)}")
 # Waits for the specified title to appear
 def wait_for_title(driver, title):
     try:
@@ -231,7 +224,7 @@ def check_loading_issue(driver):
     for _ in range(30):  # Check every second for 30 seconds
         try:
             trouble_loading = WebDriverWait(driver, 1).until(
-                EC.presence_of_element_located((By.CLASS_NAME, 'TimedDotsLoader__Overlay-o4vbzb-0'))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div[class^='TimedDotsLoader']"))
             )
             if trouble_loading:
                 if trouble_loading_start_time is None:
