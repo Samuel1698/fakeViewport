@@ -196,12 +196,11 @@ def click_fullscreen_button(driver):
     try:
         # Find the button using XPath
         button = WebDriverWait(driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.XPATH, '//*[@id="react-aria8377309220-51"]'))
+            EC.presence_of_element_located((By.XPATH, "//*[@id='react-aria8377309220-51']"))
         )
-        
-        # Force click using JavaScript (bypasses visibility checks)
+        # Force click using JavaScript
         driver.execute_script("arguments[0].click();", button)
-        logging.info("Fullscreen activated via JavaScript (XPath selector)")
+        logging.info("Fullscreen activated via JavaScript click")
         return True
     except Exception as e:
         logging.debug("Failed to click via JavaScript.")
@@ -408,6 +407,7 @@ def hide_cursor(driver):
         console.log("Custom cursor removed.");
     }
     """)
+    logging.info("Removed Cursor")
     # Remove visibility of the player options elements
     driver.execute_script("""
     var styleId = 'hidePlayerOptionsStyle';
@@ -420,6 +420,7 @@ def hide_cursor(driver):
         console.log("Player options elements removed.");
     }
     """)
+    logging.info("Removed Player Options")
 def main():
     logging.info("Starting Fake Viewport v1.9")
     if API:
