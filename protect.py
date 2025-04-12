@@ -193,39 +193,17 @@ def start_chrome(url):
 
 # Finds the fullscreen button and clicks it.
 def click_fullscreen_button(driver):
-    logging.info("Check before first try")
     try:
-        # Try the first selector (structural)
-        logging.info("Trying first selector")
-        try:
-            button = WebDriverWait(driver, WAIT_TIME).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, "div[class*='Controls'] button:nth-child(2)"))
-            )
-            button.click()
-            logging.info("Fullscreen activated via structural selector")
-            return True
-        except Exception as e:
-            logging.debug("Structural selector failed: ")
-            logging.error(str(e))
-
-        # Try the second selector (ID)
-        logging.info("Trying button ID")
-        try:
-            button = WebDriverWait(driver, WAIT_TIME).until(
-                EC.element_to_be_clickable((By.ID, "react-aria7711553291-171")))
-            button.click()
-            logging.info("Fullscreen activated via element ID")
-            return True
-        except Exception as e:
-            logging.exception("Element ID failed: ")
-            logging.error(str(e))
-        # If all attempts fail
-        logging.exception("Could not find or click the fullscreen button.")
-        return False
-
+        # Find the button using JavaScript and click it directly
+        button = WebDriverWait(driver, WAIT_TIME).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='Controls'] button:nth-child(2)"))
+        )
+        # Force click using JavaScript
+        driver.execute_script("arguments[0].click();", button)
+        logging.info("Fullscreen activated via JavaScript click")
+        return True
     except Exception as e:
-        logging.exception("Unexpected error in click_fullscreen_button: ")
-        logging.error(str(e))
+        logging.debug("Failed to click via JavaScript.")
         return False
 # Waits for the specified title to appear
 def wait_for_title(driver, title):
