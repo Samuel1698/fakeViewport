@@ -5,7 +5,7 @@ This code is out of date and will not receive any update until June 2025. It has
 # Fake Viewport
 
 Tired of refreshing the unifi store to constantly see the Viewport out of stock? Me too. So I made a 40$ alternative.
-Using a used **Dell Wyse 5070 Thin Client** with Mint installed on it (40$ on [ebay](https://www.ebay.com/itm/115791180422)), and this script I made
+Using a used **Dell Wyse 5070 Thin Client** with Linux Mint installed on it (50$ on [ebay](https://www.ebay.com/sch/i.html?_nkw=Dell%20Wyse%205070%20Thin%20Client&_sacat=0)), and this script I made
 I can automatically, and remotely, launch the Protect Live View website with the desired Live View, automatically handle login if the session expires, handle temporary loss of connection to the console, or any random hiccups of the webpage.
 
 The API file is optional. I made a simple API to gather some data for me to display on my main computer, since the fake viewport is in another location.
