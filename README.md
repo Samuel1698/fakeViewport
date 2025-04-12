@@ -1,3 +1,7 @@
+# Important!
+
+This code is out of date and will not receive any update until June 2025. It has not received any update since Ubiquiti started mandating 2FA on all accounts, which currently break the login proccess of this code.  
+
 # Fake Viewport
 
 Tired of refreshing the unifi store to constantly see the Viewport out of stock? Me too. So I made a 40$ alternative.
