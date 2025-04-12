@@ -25,11 +25,11 @@ from selenium.common.exceptions import NoSuchElementException
 from urllib3.exceptions import NewConnectionError
 try:
     from webdriver_manager.chrome import ChromeDriverManager
-    from webdriver_manager.core.utils import ChromeType
+    from webdriver_manager.core.os_manager import ChromeType
 except ImportError:
     install('webdriver_manager')
     from webdriver_manager.chrome import ChromeDriverManager
-    from webdriver_manager.core.utils import ChromeType
+    from webdriver_manager.core.os_manager import ChromeType
 def check_chrome_version():
     try:
         chrome_version = subprocess.check_output(["google-chrome-stable", "--version"]).decode('utf-8').strip()
@@ -168,10 +168,9 @@ def start_chrome(url):
                 "profile.password_manager_enabled": False
             })
             driver = webdriver.Chrome(
-                service=Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()),
+                service=Service(ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()),
                 options=chrome_options
             )
-            driver = webdriver.Chrome(service=webdriver_service, options=chrome_options)
             driver.get(url)
             return driver
         except Exception:
@@ -199,10 +198,10 @@ def click_fullscreen_button(driver):
     Includes multiple fallback strategies and verification.
     """
     selectors = [
-        "div.LiveviewControls__ButtonGroup-hdlmsl-0 > div:nth-child(2) > button",  # Your working selector
+        "div.LiveviewControls__ButtonGroup-hdlmsl-0 > div:nth-child(2) > button",  # Working selector
         "#react-aria7711553291-171"  # ID Fallback
     ]
-    
+
     for selector in selectors:
         try:
             button = WebDriverWait(driver, 10).until(
@@ -213,10 +212,10 @@ def click_fullscreen_button(driver):
         except Exception as e:
             logging.warning(f"Attempt with selector '{selector}' failed: {str(e)}")
             continue
-            
+
     logging.error("All fullscreen button selector attempts failed")
     return False
-    
+
 # Waits for the specified title to appear
 def wait_for_title(driver, title):
     try:
@@ -303,7 +302,7 @@ def check_view(driver, url):
         try:
             # Wait for the video feeds to load
             video_feeds = WebDriverWait(driver, WAIT_TIME).until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.liveview__ViewportsWrapper-xf5wrh-2"))
+                EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div[class^='liveview__ViewportsWrapper']"))
             )
             if API:
                 with open(view_status_file, 'w') as f:
@@ -344,11 +343,37 @@ def check_view(driver, url):
 # Only returns true if the page after pressing Return is the Live View
 def login(driver):
     try:
-        WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.NAME, 'username'))).send_keys(username)
-        WebDriverWait(driver, WAIT_TIME).until(EC.presence_of_element_located((By.NAME, 'password'))).send_keys(password, Keys.RETURN)
+        # Clear and input username with explicit waits
+        username_field = WebDriverWait(driver, WAIT_TIME).until(
+            EC.element_to_be_clickable((By.NAME, 'username'))
+        )
+        username_field.clear()
+        username_field.send_keys(username)
+
+        # Add small delay between fields (sometimes needed)
+        time.sleep(0.5)
+
+        # Clear and input password with explicit wait
+        password_field = WebDriverWait(driver, WAIT_TIME).until(
+            EC.element_to_be_clickable((By.NAME, 'password'))
+        )
+        password_field.clear()
+        password_field.send_keys(password)
+
+        # Add another small delay before submitting
+        time.sleep(0.5)
+
+        # Find and click the Login button
+        submit_button = WebDriverWait(driver, WAIT_TIME).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']"))
+        )
+        submit_button.click()
+
+        # Verify successful login
         return wait_for_title(driver, "Dashboard")
-    except TimeoutException:
-        logging.exception("Failed to login, elements not found.")
+
+    except Exception as e:  # Catch broader exceptions
+        logging.exception(f"Login failed: {str(e)}")
         return False
 # Restarts the program with execv to prevent stack overflow
 def restart_program(driver):
@@ -404,7 +429,7 @@ def hide_cursor(driver):
     }
     """)
 def main():
-    logging.info("Starting Fake Viewport v1.5")
+    logging.info("Starting Fake Viewport v1.9")
     if API:
         check_python_script()
         # Defaults to 'False' until status updates
