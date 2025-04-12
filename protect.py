@@ -194,21 +194,44 @@ def start_chrome(url):
 # Finds the fullscreen button and clicks it.
 def click_fullscreen_button(driver):
     try:
-        button = WebDriverWait(driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='Controls'] button:nth-child(2)"))
-        )
-        button.click()
-        logging.info("Fullscreen activated via structural selector")
-    except Exception as e:
-        logging.debug(f"Structural selector failed: {str(e)}")
+        # Try the first selector (structural)
         try:
             button = WebDriverWait(driver, WAIT_TIME).until(
-                EC.presence_of_element_located((By.ID, "react-aria7711553291-171"))
-            )
+                EC.element_to_be_clickable((By.CSS_SELECTOR, "div[class*='Controls'] button:nth-child(2)"))
+            button.click()
+            logging.info("Fullscreen activated via structural selector")
+            return True
+        except Exception as e:
+            logging.debug(f"Structural selector failed: {str(e)}")
+
+        # Try the second selector (ID)
+        try:
+            button = WebDriverWait(driver, WAIT_TIME).until(
+                EC.element_to_be_clickable((By.ID, "react-aria7711553291-171")))
             button.click()
             logging.info("Fullscreen activated via element ID")
+            return True
         except Exception as e:
             logging.debug(f"Element ID failed: {str(e)}")
+
+        # Try a more generic approach (e.g., looking for a button with "Fullscreen" text)
+        try:
+            buttons = driver.find_elements(By.TAG_NAME, "button")
+            for button in buttons:
+                if "fullscreen" in button.get_attribute("aria-label").lower():
+                    button.click()
+                    logging.info("Fullscreen activated via aria-label")
+                    return True
+        except Exception as e:
+            logging.debug(f"Generic button search failed: {str(e)}")
+
+        # If all attempts fail
+        logging.error("Could not find or click the fullscreen button.")
+        return False
+
+    except Exception as e:
+        logging.error(f"Unexpected error in click_fullscreen_button: {str(e)}")
+        return False
 # Waits for the specified title to appear
 def wait_for_title(driver, title):
     try:
@@ -251,7 +274,8 @@ def check_view(driver, url):
                 logging.info("Attempting to load page from url.")
                 driver.get(url)
                 if handle_page(driver):
-                    click_fullscreen_button(driver)
+                    if not click_fullscreen_button(driver):
+                        logging.warning("Failed to activate fullscreen, but continuing anyway.")
                 if API:
                     with open(view_status_file, 'w') as f:
                         f.write('Feed Healthy')
@@ -307,7 +331,8 @@ def check_view(driver, url):
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
                 screen_size['height'] != driver.execute_script("return screen.height;"):
                 logging.info("Attempting to make live-view fullscreen.")
-                click_fullscreen_button(driver)
+                if not click_fullscreen_button(driver):
+                    logging.warning("Failed to activate fullscreen, but continuing anyway.")
             check_loading_issue(driver)
             hide_cursor(driver)
             interval_counter += 1
