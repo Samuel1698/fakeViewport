@@ -193,19 +193,19 @@ def start_chrome(url):
 
 # Finds the fullscreen button and clicks it.
 def click_fullscreen_button(driver):
-    structural_selector = "div[class*='Controls'] button:nth-child(2)"
-    element_id = "react-aria7711553291-171"
     try:
-        WebDriverWait(driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, structural_selector))
-        ).click()
+        button = WebDriverWait(driver, WAIT_TIME).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='Controls'] button:nth-child(2)"))
+        )
+        button.click()
         logging.info("Fullscreen activated via structural selector")
     except Exception as e:
         logging.debug(f"Structural selector failed: {str(e)}")
         try:
-            WebDriverWait(driver, WAIT_TIME).until(
-                EC.presence_of_element_located((By.ID, element_id))
-            ).click()
+            button = WebDriverWait(driver, WAIT_TIME).until(
+                EC.presence_of_element_located((By.ID, "react-aria7711553291-171"))
+            )
+            button.click()
             logging.info("Fullscreen activated via element ID")
         except Exception as e:
             logging.debug(f"Element ID failed: {str(e)}")
@@ -306,7 +306,7 @@ def check_view(driver, url):
             screen_size = driver.get_window_size()
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
                 screen_size['height'] != driver.execute_script("return screen.height;"):
-                logging.info("Making live-view fullscreen.")
+                logging.info("Attempting to make live-view fullscreen.")
                 click_fullscreen_button(driver)
             check_loading_issue(driver)
             hide_cursor(driver)
@@ -416,7 +416,7 @@ def hide_cursor(driver):
         var style = document.createElement('style');
         style.type = 'text/css';
         style.id = styleId;
-        style.innerHTML = '.chHzKN { z-index: 0 !important; }';
+        style.innerHTML = '.aeugT { z-index: 0 !important; }';
         document.head.appendChild(style);
         console.log("Player options elements removed.");
     }
