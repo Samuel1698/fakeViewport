@@ -196,7 +196,7 @@ def click_fullscreen_button(driver):
     try:
         # Find the button using XPath
         button = WebDriverWait(driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.XPATH, "//*[@id='react-aria8377309220-51']"))
+            EC.presence_of_element_located((By.XPATH, '//div[contains(@class, "LiveviewControls__ButtonGroup-hdlmsl-0")]//button[2]'))
         )
         # Force click using JavaScript
         driver.execute_script("arguments[0].click();", button)
