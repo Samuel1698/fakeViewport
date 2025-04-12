@@ -25,9 +25,11 @@ from selenium.common.exceptions import NoSuchElementException
 from urllib3.exceptions import NewConnectionError
 try:
     from webdriver_manager.chrome import ChromeDriverManager
+    from webdriver_manager.core.utils import ChromeType
 except ImportError:
     install('webdriver_manager')
     from webdriver_manager.chrome import ChromeDriverManager
+    from webdriver_manager.core.utils import ChromeType
 def check_chrome_version():
     try:
         chrome_version = subprocess.check_output(["google-chrome-stable", "--version"]).decode('utf-8').strip()
@@ -165,7 +167,10 @@ def start_chrome(url):
                 "credentials_enable_service": False,
                 "profile.password_manager_enabled": False
             })
-            webdriver_service = Service(ChromeDriverManager(version=f"{chrome_major_version}.*").install())
+            driver = webdriver.Chrome(
+                service=Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()),
+                options=chrome_options
+            )
             driver = webdriver.Chrome(service=webdriver_service, options=chrome_options)
             driver.get(url)
             return driver
