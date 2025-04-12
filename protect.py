@@ -156,7 +156,7 @@ def start_chrome(url):
                 "credentials_enable_service": False,
                 "profile.password_manager_enabled": False
             })
-            webdriver_service = Service(ChromeDriverManager().install())
+            webdriver_service = Service(ChromeDriverManager(version="114.0.5735.90").install())
             driver = webdriver.Chrome(service=webdriver_service, options=chrome_options)
             driver.get(url)
             return driver
