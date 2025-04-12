@@ -198,6 +198,7 @@ def click_fullscreen_button(driver):
         try:
             button = WebDriverWait(driver, WAIT_TIME).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, "div[class*='Controls'] button:nth-child(2)"))
+            )
             button.click()
             logging.info("Fullscreen activated via structural selector")
             return True
