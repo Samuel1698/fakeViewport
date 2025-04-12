@@ -194,13 +194,14 @@ def start_chrome(url):
 # Finds the fullscreen button and clicks it.
 def click_fullscreen_button(driver):
     try:
-        # Find the button using JavaScript and click it directly
+        # Find the button using XPath
         button = WebDriverWait(driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='Controls'] button:nth-child(2)"))
+            EC.presence_of_element_located((By.XPATH, '//*[@id="react-aria8377309220-51"]'))
         )
-        # Force click using JavaScript
+        
+        # Force click using JavaScript (bypasses visibility checks)
         driver.execute_script("arguments[0].click();", button)
-        logging.info("Fullscreen activated via JavaScript click")
+        logging.info("Fullscreen activated via JavaScript (XPath selector)")
         return True
     except Exception as e:
         logging.debug("Failed to click via JavaScript.")
