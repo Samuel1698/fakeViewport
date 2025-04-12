@@ -28,6 +28,14 @@ try:
 except ImportError:
     install('webdriver_manager')
     from webdriver_manager.chrome import ChromeDriverManager
+def check_chrome_version():
+    try:
+        chrome_version = subprocess.check_output(["google-chrome-stable", "--version"]).decode('utf-8').strip()
+        logging.info(f"Chrome version: {chrome_version}")
+        return chrome_version.split()[-1].split('.')[0]  # Returns major version number
+    except Exception as e:
+        logging.error(f"Could not verify Chrome version: {e}")
+        return None
 config = configparser.ConfigParser()
 config.read('config.ini')
 
@@ -132,6 +140,7 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 # Starts a chrome 'driver' and handles error reattempts
 def start_chrome(url):
+    chrome_major_version = check_chrome_version()
     retry_count = 0
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
@@ -156,7 +165,7 @@ def start_chrome(url):
                 "credentials_enable_service": False,
                 "profile.password_manager_enabled": False
             })
-            webdriver_service = Service(ChromeDriverManager(version="114.0.5735.90").install())
+            webdriver_service = Service(ChromeDriverManager(version=f"{chrome_major_version}.*").install())
             driver = webdriver.Chrome(service=webdriver_service, options=chrome_options)
             driver.get(url)
             return driver
