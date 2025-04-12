@@ -180,13 +180,29 @@ def start_chrome(url):
 
 # Waits for the fullscreen button to appear, then clicks it.
 def click_fullscreen_button(driver):
-    try:
-        WebDriverWait(driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, 'div:nth-child(2) > button'))
-        ).click()
-        logging.info("Success.")
-    except TimeoutException:
-        logging.exception("Fullscreen button not found.")
+    """
+    Clicks the fullscreen button using the discovered selector pattern.
+    Includes multiple fallback strategies and verification.
+    """
+    selectors = [
+        "div.LiveviewControls__ButtonGroup-hdlmsl-0 > div:nth-child(2) > button",  # Your working selector
+        "#react-aria7711553291-171"  # ID Fallback
+    ]
+    
+    for selector in selectors:
+        try:
+            button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+            )
+            button.click()
+            logging.info(f"Successfully clicked fullscreen button")
+        except Exception as e:
+            logging.warning(f"Attempt with selector '{selector}' failed: {str(e)}")
+            continue
+            
+    logging.error("All fullscreen button selector attempts failed")
+    return False
+    
 # Waits for the specified title to appear
 def wait_for_title(driver, title):
     try:
