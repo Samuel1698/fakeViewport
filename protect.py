@@ -314,20 +314,20 @@ def check_view(driver, url):
             logging.exception("Video feeds not found or page timed out: ")
             time.sleep(WAIT_TIME)
             retry_count += 1
-            driver = handle_retry(driver, url, retry_count, max_retries)
+            handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except NewConnectionError:
             logging.exception("Connection error occurred: ")
             time.sleep(SLEEP_TIME/2)  # Wait for 2 minutes before retrying
             retry_count += 1
-            driver = handle_retry(driver, url, retry_count, max_retries)
+            handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except Exception as e:
             logging.exception("Unexpected error occurred: ")
             logging.error(str(e))
             time.sleep(WAIT_TIME)
             retry_count += 1
-            driver = handle_retry(driver, url, retry_count, max_retries)
+            handle_retry(driver, url, retry_count, max_retries)
 # Waits for the login elements to appear and inputs the username and password
 # Only returns true if the page after pressing Return is the Live View
 def login(driver):
