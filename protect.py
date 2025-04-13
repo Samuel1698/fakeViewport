@@ -410,7 +410,7 @@ def hide_cursor(driver):
     }
     """)
 def main():
-    logging.info("Starting Fake Viewport v1.9")
+    logging.info("Starting Fake Viewport v2.0.0")
     if API:
         check_python_script()
         # Defaults to 'False' until status updates
