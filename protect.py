@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
@@ -194,16 +195,18 @@ def start_chrome(url):
 # Finds the fullscreen button and clicks it.
 def click_fullscreen_button(driver):
     try:
-        # Find the button using XPath
-        button = WebDriverWait(driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.XPATH, '//div[contains(@class, "LiveviewControls__ButtonGroup-hdlmsl-0")]//button[2]'))
+        # Find the button using full CSS class name
+        parent = WebDriverWait(driver, WAIT_TIME).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div.LiveviewControls__ButtonGroup-hdlmsl-0"))
         )
-        # Force click using JavaScript
-        driver.execute_script("arguments[0].click();", button)
-        logging.info("Fullscreen activated via JavaScript click")
+        button = parent.find_element(By.CSS_SELECTOR, "div:nth-child(2)")
+        # Move Mouse to parent to trigger hover events
+        actions = ActionChains(driver)
+        actions.move_to_element(parent).click(button).perform()
+        logging.info("Fullscreen activated")
         return True
     except Exception as e:
-        logging.debug("Failed to click via JavaScript.")
+        logging.debug("Failed to click.")
         return False
 # Waits for the specified title to appear
 def wait_for_title(driver, title):
@@ -291,8 +294,8 @@ def check_view(driver, url):
     while True:
         try:
             # Wait for the video feeds to load
-            video_feeds = WebDriverWait(driver, WAIT_TIME).until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div[class^='liveview__ViewportsWrapper']"))
+            video_feed = WebDriverWait(driver, WAIT_TIME).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='liveview__ViewportsWrapper']"))
             )
             if API:
                 with open(view_status_file, 'w') as f:
@@ -403,8 +406,7 @@ def hide_cursor(driver):
         style.type = 'text/css';
         style.id = styleId;
         style.innerHTML = '.hMbAUy { cursor: none !important; }';
-        document.head.appendChild(style)
-        console.log("Custom cursor removed.");
+        document.head.appendChild(style);
     }
     """)
     logging.info("Removed Cursor")
@@ -417,7 +419,6 @@ def hide_cursor(driver):
         style.id = styleId;
         style.innerHTML = '.aeugT { z-index: 0 !important; }';
         document.head.appendChild(style);
-        console.log("Player options elements removed.");
     }
     """)
     logging.info("Removed Player Options")
