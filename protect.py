@@ -41,7 +41,6 @@ def check_chrome_version():
         return None
 config = configparser.ConfigParser()
 config.read('config.ini')
-
 # General
 SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
@@ -77,14 +76,12 @@ os.environ['DISPLAY'] = ':0'
 # Chrome directory found by navigating to chrome://version/ and copying the Profile Path
 user = getpass.getuser()
 chrome_data_dir = f"/home/{user}/.config/google-chrome/Default"
-
 # dotenv variables
 load_dotenv()
 username = os.getenv('USERNAME')
 password = os.getenv('PASSWORD')
 url = os.getenv('URL')
 driver = None # Declare it globally so that it can be accessed in the signal handler function
-
 if not url:
     logging.error("No URL detected. Please make sure you have a .env file in the same directory as this script.")
     sys.exit(1)
@@ -98,7 +95,6 @@ if LOG_FILE:
     # Set the formatter for the handler
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-
 if LOG_CONSOLE:
     # Define a handler for the console
     console_handler = logging.StreamHandler()
@@ -106,7 +102,6 @@ if LOG_CONSOLE:
     # Set the formatter for the handler
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
-
 if API:
     # get the directory of the current script
     current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -115,7 +110,6 @@ if API:
     script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
     with open(script_start_time_file, 'w') as f:
         f.write(str(datetime.now()))
-
 # Check if the API is already running, start it otherwise
 def check_python_script():
     logging.info("Checking if API is already running...")
@@ -183,7 +177,6 @@ def start_chrome(url):
                 logging.info("Killing existing Chrome processes...")
                 subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             time.sleep(5)  # wait for a while before retrying
-
     logging.info("Failed to start Chrome after maximum retries.")
     logging.info(f"Starting script again in {int(SLEEP_TIME/120)} minutes.")
     if API:
@@ -191,22 +184,31 @@ def start_chrome(url):
             f.write('Restarting Chrome')
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
-
 # Finds the fullscreen button and clicks it.
 def click_fullscreen_button(driver):
     try:
-        # Find the button using full CSS class name
+        # Wait for the parent container which holds the button to be present
         parent = WebDriverWait(driver, WAIT_TIME).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "div.LiveviewControls__ButtonGroup-hdlmsl-0"))
         )
-        button = parent.find_element(By.CSS_SELECTOR, "div:nth-child(2)")
-        # Move Mouse to parent to trigger hover events
+        # Move to the parent to trigger hover effects.
         actions = ActionChains(driver)
-        actions.move_to_element(parent).click(button).perform()
+        actions.move_to_element(parent).perform()
+        time.sleep(2)  # A small delay to allow UI elements to become interactive
+        # Wait until the child button is visible and clickable.
+        button = WebDriverWait(parent, WAIT_TIME).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "div:nth-child(2) button"))
+        )
+        # At this point, you can choose one of the following options:
+        # Option 1: Click via ActionChains
+        actions.move_to_element(button).click().perform()
+        # Option 2 (if the above fails or the UI does not react to the click):
+        # driver.execute_script("arguments[0].click();", button)
         logging.info("Fullscreen activated")
         return True
     except Exception as e:
-        logging.debug("Failed to click.")
+        logging.exception("Failed to click the fullscreen button: ")
+        logging.error(str(e))
         return False
 # Waits for the specified title to appear
 def wait_for_title(driver, title):
@@ -284,7 +286,6 @@ def check_view(driver, url):
             logging.info("Max Attempts reached, restarting script...")
             restart_program(driver)
         return driver
-
     interval_counter = 0
     retry_count = 0
     max_retries = MAX_RETRIES
@@ -327,7 +328,6 @@ def check_view(driver, url):
             time.sleep(WAIT_TIME)
             retry_count += 1
             driver = handle_retry(driver, url, retry_count, max_retries)
-
 # Waits for the login elements to appear and inputs the username and password
 # Only returns true if the page after pressing Return is the Live View
 def login(driver):
@@ -338,29 +338,23 @@ def login(driver):
         )
         username_field.clear()
         username_field.send_keys(username)
-
         # Add small delay between fields (sometimes needed)
         time.sleep(0.5)
-
         # Clear and input password with explicit wait
         password_field = WebDriverWait(driver, WAIT_TIME).until(
             EC.element_to_be_clickable((By.NAME, 'password'))
         )
         password_field.clear()
         password_field.send_keys(password)
-
         # Add another small delay before submitting
         time.sleep(0.5)
-
         # Find and click the Login button
         submit_button = WebDriverWait(driver, WAIT_TIME).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']"))
         )
         submit_button.click()
-
         # Verify successful login
         return wait_for_title(driver, "Dashboard")
-
     except Exception as e:  # Catch broader exceptions
         logging.exception(f"Login failed: {str(e)}")
         return False
