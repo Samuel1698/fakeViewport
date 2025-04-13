@@ -156,6 +156,13 @@ def start_chrome(url):
             chrome_options.add_argument("--remote-debugging-port=9222")
             chrome_options.add_argument(f"--user-data-dir={chrome_data_dir}")
             chrome_options.add_experimental_option("excludeSwitches", ['enable-automation'])
+            # Set preferences to disable restore prompts
+            chrome_options.add_experimental_option("prefs", {
+                "profile.default_content_setting_values.notifications": 1,  # Disable notifications popup
+                "profile.exit_type": "Normal",  # Prevent "Chrome didn't shut down correctly"
+                "profile.exit_prompt_on_exit": False,  # Disable exit prompt
+                "restore_on_startup": 0,  # Disable restoring previous session
+            })
             chrome_options.binary_location = "/usr/bin/google-chrome-stable"
             # Add the preference to disable the "Save password" prompt
             chrome_options.add_experimental_option("prefs", {
