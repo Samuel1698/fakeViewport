@@ -154,7 +154,7 @@ def start_chrome(url):
             chrome_options.add_argument("--disable-translate")
             chrome_options.add_argument("--no-default-browser-check")
             chrome_options.add_argument("--no-first-run")
-            chrome_options.add_argument("--disable-dev-smh-usage")
+            chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument('--ignore-certificate-errors')  # Ignore SSL certificate errors
             chrome_options.add_argument('--ignore-ssl-errors')  # Ignore SSL errors
@@ -261,15 +261,13 @@ def check_view(driver, url):
                 if API:
                     with open(view_status_file, 'w') as f:
                         f.write('Error refreshing')
-        # Second to last attempt will kill chrome proccess and start new driver
         if attempt == max_retries - 1:
             try:
                 logging.info("Killing existing Chrome processes...")
                 subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                time.sleep(5)  # wait for a while before retrying
+                time.sleep(5)
                 logging.info("Starting chrome instance...")
                 driver = start_chrome(url)
-                # Wait for the page to load
                 WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
                 if handle_page(driver):
                     logging.info("Page successfully reloaded.")
@@ -282,7 +280,6 @@ def check_view(driver, url):
                 if API:
                     with open(view_status_file, 'w') as f:
                         f.write('Error killing chrome')
-        # If last attempt, restart entire script
         elif attempt == max_retries:
             logging.info("Max Attempts reached, restarting script...")
             restart_program(driver)
@@ -293,16 +290,13 @@ def check_view(driver, url):
     max_retries = MAX_RETRIES
     while True:
         try:
-            # Wait for the video feeds to load
             video_feed = WebDriverWait(driver, WAIT_TIME).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='liveview__ViewportsWrapper']"))
             )
             if API:
                 with open(view_status_file, 'w') as f:
                     f.write('Feed Healthy')
-            # Reset count and check loading issue
             retry_count = 0
-            # Check if browser is in fullscreen
             screen_size = driver.get_window_size()
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
                 screen_size['height'] != driver.execute_script("return screen.height;"):
@@ -319,20 +313,21 @@ def check_view(driver, url):
             logging.exception("Video feeds not found or page timed out: ")
             time.sleep(WAIT_TIME)
             retry_count += 1
-            handle_retry(driver, url, retry_count, max_retries)
+            driver = handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except NewConnectionError:
             logging.exception("Connection error occurred: ")
             time.sleep(SLEEP_TIME/2)  # Wait for 2 minutes before retrying
             retry_count += 1
-            handle_retry(driver, url, retry_count, max_retries)
+            driver = handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except Exception as e:
             logging.exception("Unexpected error occurred: ")
             logging.error(str(e))
             time.sleep(WAIT_TIME)
             retry_count += 1
-            handle_retry(driver, url, retry_count, max_retries)
+            driver = handle_retry(driver, url, retry_count, max_retries)
+
 # Waits for the login elements to appear and inputs the username and password
 # Only returns true if the page after pressing Return is the Live View
 def login(driver):
