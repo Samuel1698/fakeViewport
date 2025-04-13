@@ -404,7 +404,6 @@ def hide_cursor(driver):
         document.head.appendChild(style);
     }
     """)
-    logging.info("Removed Cursor")
     # Remove visibility of the player options elements
     driver.execute_script("""
     var styleId = 'hidePlayerOptionsStyle';
@@ -416,7 +415,6 @@ def hide_cursor(driver):
         document.head.appendChild(style);
     }
     """)
-    logging.info("Removed Player Options")
 def main():
     logging.info("Starting Fake Viewport v1.9")
     if API:
