@@ -59,7 +59,7 @@ if MAX_RETRIES <= 1:
 # Logging
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
-LOGFILE_PATH = config.get('Loggig', 'LOG_FILE_PATH', fallback='~')
+LOGFILE_PATH = config.get('Logging', 'LOG_FILE_PATH', fallback='~')
 log_file_path = os.path.join(os.path.expanduser(LOGFILE_PATH), 'protect.log')
 # Validate LOGFILE_PATH
 if not os.path.isdir(os.path.expanduser(LOGFILE_PATH)):
