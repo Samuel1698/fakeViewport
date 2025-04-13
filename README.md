@@ -11,7 +11,8 @@ I can automatically, and remotely, launch the Protect Live View website with the
 
 The API file is optional. I made a simple API to gather some data for me to display on my main computer, since the fake viewport is in another location.
 
-You'll need a .env file in the same location as your protect.py file, with your login information as well as the live view link you want to see. **You must make a local account for this**
+You'll need a .env file in the same location as your protect.py file, with your login information as well as the live view link you want to see. **You must use a local account for this.** I recommend making one just for use in this device with view-only permissions.
+
 I've included an example DOTenv for you to modify and rename to '.env'
 
 I chose to put this script in /usr/local/bin but you can put it anywhere you want (that doesn't require root permission).
