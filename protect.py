@@ -197,7 +197,7 @@ def click_fullscreen_button(driver):
         time.sleep(2)  # A small delay to allow UI elements to become interactive
         # Wait until the child button is visible and clickable.
         button = WebDriverWait(parent, WAIT_TIME).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "div:nth-child(2) button"))
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "button:nth-of-type(2)"))
         )
         # At this point, you can choose one of the following options:
         # Option 1: Click via ActionChains
