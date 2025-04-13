@@ -369,7 +369,7 @@ def restart_program(driver):
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 # Handles whether or not the page loaded directly or got redirected to the login page upon chrome opening
-# Restarts program if unexpected results from loggin in, or opening the link.
+# Restarts program if unexpected results from logging in, or opening the link.
 def handle_page(driver):
     start_time = time.time()  # Capture the starting time
     while True:
