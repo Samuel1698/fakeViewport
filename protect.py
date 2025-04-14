@@ -18,7 +18,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
@@ -45,6 +44,12 @@ config.read('config.ini')
 SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
 MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
+# CSS Selectors. Prone to breaking with any website update Ubiquiti pushes
+# Using Selenium's substring matching for better future proofing
+CSS_FULLSCREEN_PARENT = "div[class*='LiveviewControls__ButtonGroup']"
+CSS_FULLSCREEN_BUTTON = ":nth-child(2) > button"
+CSS_LOADING_DOTS = "div[class*='TimedDotsLoader']"
+CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
 # Validate config variables
 if SLEEP_TIME <= 0:
     logging.error("Invalid value for SLEEP_TIME. It should be a positive integer.")
@@ -122,8 +127,7 @@ def check_python_script():
         api_script = os.path.join(current_dir, 'api.py')
         subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 # Handles the closing of the script with CTRL+C
-def signal_handler(sig, frame):
-    global driver
+def signal_handler():
     logging.info('Gracefully shutting down Chrome.')
     if driver is not None:
         driver.quit()
@@ -137,7 +141,6 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 # Starts a chrome 'driver' and handles error reattempts
 def start_chrome(url):
-    chrome_major_version = check_chrome_version()
     retry_count = 0
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
@@ -189,21 +192,17 @@ def click_fullscreen_button(driver):
     try:
         # Wait for the parent container which holds the button to be present
         parent = WebDriverWait(driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "div.LiveviewControls__ButtonGroup-hdlmsl-0"))
+            EC.presence_of_element_located((By.CSS_SELECTOR, CSS_FULLSCREEN_PARENT))
         )
         # Move to the parent to trigger hover effects.
         actions = ActionChains(driver)
         actions.move_to_element(parent).perform()
-        time.sleep(2)  # A small delay to allow UI elements to become interactive
+        time.sleep(0.5)  # A small delay to allow UI elements to become interactive
         # Wait until the child button is visible and clickable.
         button = WebDriverWait(parent, WAIT_TIME).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, ":nth-child(2) > button"))
+            EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_FULLSCREEN_BUTTON))
         )
-        # At this point, you can choose one of the following options:
-        # Option 1: Click via ActionChains
         actions.move_to_element(button).click().perform()
-        # Option 2 (if the above fails or the UI does not react to the click):
-        # driver.execute_script("arguments[0].click();", button)
         logging.info("Fullscreen activated")
         return True
     except Exception as e:
@@ -225,7 +224,7 @@ def check_loading_issue(driver):
     for _ in range(30):  # Check every second for 30 seconds
         try:
             trouble_loading = WebDriverWait(driver, 1).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "div[class^='TimedDotsLoader']"))
+                EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LOADING_DOTS))
             )
             if trouble_loading:
                 if trouble_loading_start_time is None:
@@ -291,8 +290,8 @@ def check_view(driver, url):
     max_retries = MAX_RETRIES
     while True:
         try:
-            video_feed = WebDriverWait(driver, WAIT_TIME).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='liveview__ViewportsWrapper']"))
+            WebDriverWait(driver, WAIT_TIME).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
             )
             if API:
                 with open(view_status_file, 'w') as f:
@@ -399,6 +398,7 @@ def hide_cursor(driver):
     }
     """)
     # Remove visibility of the player options elements
+    # .aeugT CSS Class might change.
     driver.execute_script("""
     var styleId = 'hidePlayerOptionsStyle';
     if (!document.getElementById(styleId)) {
@@ -410,7 +410,7 @@ def hide_cursor(driver):
     }
     """)
 def main():
-    logging.info("Starting Fake Viewport v2.0.0")
+    logging.info("Starting Fake Viewport v2.0.0-alpha.2")
     if API:
         check_python_script()
         # Defaults to 'False' until status updates
