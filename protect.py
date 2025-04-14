@@ -8,11 +8,15 @@ import getpass
 import configparser
 import logging
 import signal
-from logging.handlers import TimedRotatingFileHandler
-def install(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 from datetime import datetime
 from pathlib import Path
+from logging.handlers import TimedRotatingFileHandler
+def install(package):
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+    except subprocess.CalledProcessError as e:
+        logging.critical(f"Failed to install package '{package}': {e}")
+        sys.exit(1)
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
