@@ -73,16 +73,18 @@ if not os.path.isdir(os.path.expanduser(LOGFILE_PATH)):
     sys.exit(1)
 # API
 API = config.getboolean('API', 'USE_API', fallback=False)
-API_PATH = config.get('API', 'API_FILE_PATH', fallback='~')
+API_PATH = config.get('API', 'API_FILE_PATH', fallback='~').strip()
 # Validate API_PATH
 if not os.path.isdir(os.path.expanduser(API_PATH)):
     logging.error(f"Invalid API_PATH: {API_PATH}. The directory does not exist.")
     sys.exit(1)
 # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 os.environ['DISPLAY'] = ':0'
-# Chrome directory found by navigating to chrome://version/ and copying the Profile Path
+# Chrome
 user = getpass.getuser()
-chrome_data_dir = f"/home/{user}/.config/google-chrome/Default"
+default_profile_path = f"/home/{user}/.config/google-chrome/Default"
+CHROME_PROFILE_PATH = config.get('Chrome', 'CHROME_PROFILE_PATH', fallback=default_profile_path).strip()
+CHROME_BINARY = config.get('Chrome', 'CHROME_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
 # Get the directory this script is in
 script_dir = Path(__file__).resolve().parent
 env_path = script_dir / '.env'
@@ -167,9 +169,9 @@ def start_chrome(url):
             chrome_options.add_argument('--ignore-ssl-errors')  # Ignore SSL errors
             chrome_options.add_argument("--hide-crash-restore-bubble")
             chrome_options.add_argument("--remote-debugging-port=9222")
-            chrome_options.add_argument(f"--user-data-dir={chrome_data_dir}")
+            chrome_options.add_argument(f"--user-data-dir={CHROME_PROFILE_PATH}")
             chrome_options.add_experimental_option("excludeSwitches", ['enable-automation'])
-            chrome_options.binary_location = "/usr/bin/google-chrome-stable"
+            chrome_options.binary_location = CHROME_BINARY
             # Add the preference to disable the "Save password" prompt
             chrome_options.add_experimental_option("prefs", {
                 "credentials_enable_service": False,
