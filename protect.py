@@ -115,25 +115,27 @@ if API:
     script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
     with open(script_start_time_file, 'w') as f:
         f.write(str(datetime.now()))
-# Check if the API is already running, start it otherwise
-def check_python_script():
-    logging.info("Checking if API is already running...")
-    result = subprocess.run(['pgrep', '-f', 'api.py'], stdout=subprocess.PIPE)
-    if result.stdout:
-        logging.info("API already running.")
-    else:
-        logging.info("Starting API...")
-        # construct the path to api.py
-        api_script = os.path.join(current_dir, 'api.py')
-        subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    def api_status(msg):
+        with open(view_status_file, 'w') as f:
+            f.write(msg)
+    # Check if the API is already running, start it otherwise
+    def check_python_script():
+        logging.info("Checking if API is already running...")
+        result = subprocess.run(['pgrep', '-f', 'api.py'], stdout=subprocess.PIPE)
+        if result.stdout:
+            logging.info("API already running.")
+        else:
+            logging.info("Starting API...")
+            # construct the path to api.py
+            api_script = os.path.join(current_dir, 'api.py')
+            subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 # Handles the closing of the script with CTRL+C
-def signal_handler():
+def signal_handler(signum, frame):
     logging.info('Gracefully shutting down Chrome.')
     if driver is not None:
         driver.quit()
     if API:
-        with open(view_status_file, 'w') as f:
-            f.write('Quit')
+        api_status("Quit")
     logging.info("Quitting.")
     sys.exit(0)
 # Register the signal handler
@@ -183,8 +185,7 @@ def start_chrome(url):
     logging.info("Failed to start Chrome after maximum retries.")
     logging.info(f"Starting script again in {int(SLEEP_TIME/120)} minutes.")
     if API:
-        with open(view_status_file, 'w') as f:
-            f.write('Restarting Chrome')
+        api_status("Restarting Chrome")
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 # Finds the fullscreen button and clicks it.
@@ -244,8 +245,7 @@ def check_view(driver, url):
     def handle_retry(driver, url, attempt, max_retries):
         logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
         if API:
-            with open(view_status_file, 'w') as f:
-                f.write(f'Retrying: {attempt} of {max_retries}')
+            api_status(f"Retrying: {attempt} of {max_retries}")
         if attempt < max_retries - 1:
             try:
                 logging.info("Attempting to load page from url.")
@@ -254,14 +254,12 @@ def check_view(driver, url):
                     if not click_fullscreen_button(driver):
                         logging.warning("Failed to activate fullscreen, but continuing anyway.")
                 if API:
-                    with open(view_status_file, 'w') as f:
-                        f.write('Feed Healthy')
+                    api_status("Feed Healthy")
             except Exception as e:
                 logging.exception("Error refreshing chrome tab: ")
                 logging.error(str(e))
                 if API:
-                    with open(view_status_file, 'w') as f:
-                        f.write('Error refreshing')
+                    api_status("Error refreshing")
         if attempt == max_retries - 1:
             try:
                 logging.info("Killing existing Chrome processes...")
@@ -273,14 +271,12 @@ def check_view(driver, url):
                 if handle_page(driver):
                     logging.info("Page successfully reloaded.")
                     if API:
-                        with open(view_status_file, 'w') as f:
-                            f.write('Feed Healthy')
+                        api_status("Feed Healthy")
             except Exception as e:
                 logging.exception("Error killing chrome: ")
                 logging.error(str(e))
                 if API:
-                    with open(view_status_file, 'w') as f:
-                        f.write('Error killing chrome')
+                    api_status("Error Killing Chrome")
         elif attempt == max_retries:
             logging.info("Max Attempts reached, restarting script...")
             restart_program(driver)
@@ -294,8 +290,7 @@ def check_view(driver, url):
                 EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
             )
             if API:
-                with open(view_status_file, 'w') as f:
-                    f.write('Feed Healthy')
+                api_status("Feed Healthy")
             retry_count = 0
             screen_size = driver.get_window_size()
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
@@ -360,8 +355,7 @@ def login(driver):
 # Restarts the program with execv to prevent stack overflow
 def restart_program(driver):
     if API:
-        with open(view_status_file, 'w') as f:
-            f.write('Restarting...')
+        api_status("Restarting...")
     logging.info("Gracefully shutting down chrome...")
     driver.quit()
     logging.info(f"Starting script again in {int(SLEEP_TIME/120)} minutes.")
@@ -414,8 +408,7 @@ def main():
     if API:
         check_python_script()
         # Defaults to 'False' until status updates
-        with open(view_status_file, 'w') as f:
-            f.write('Starting...')
+        api_status("Starting API...")
     logging.info("Waiting for chrome to load...")
     driver = start_chrome(url)
     # Wait for the page to load
