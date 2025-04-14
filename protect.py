@@ -51,6 +51,7 @@ CSS_FULLSCREEN_PARENT = "div[class*='LiveviewControls__ButtonGroup']"
 CSS_FULLSCREEN_BUTTON = ":nth-child(2) > button"
 CSS_LOADING_DOTS = "div[class*='TimedDotsLoader']"
 CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
+CSS_PLAYER_OPTIONS = 'aeugT'
 # Validate config variables
 if SLEEP_TIME <= 0:
     logging.error("Invalid value for SLEEP_TIME. It should be a positive integer.")
@@ -399,17 +400,17 @@ def hide_cursor(driver):
     }
     """)
     # Remove visibility of the player options elements
-    # .aeugT CSS Class might change.
     driver.execute_script("""
     var styleId = 'hidePlayerOptionsStyle';
+    var cssClass = arguments[0];
     if (!document.getElementById(styleId)) {
         var style = document.createElement('style');
         style.type = 'text/css';
         style.id = styleId;
-        style.innerHTML = '.aeugT { z-index: 0 !important; }';
+        style.innerHTML = '.' + cssClass + ' { z-index: 0 !important; }';
         document.head.appendChild(style);
     }
-    """)
+    """, CSS_PLAYER_OPTIONS)
 def main():
     logging.info("Starting Fake Viewport v2.0.0-alpha.2")
     if API:
