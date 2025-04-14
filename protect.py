@@ -47,11 +47,11 @@ WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
 MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
 # CSS Selectors. Prone to breaking with any website update Ubiquiti pushes
 # Using Selenium's substring matching for better future proofing
-CSS_FULLSCREEN_PARENT = "div[class*='LiveviewControls__ButtonGroup']"
-CSS_FULLSCREEN_BUTTON = ":nth-child(2) > button"
-CSS_LOADING_DOTS = "div[class*='TimedDotsLoader']"
-CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
-CSS_PLAYER_OPTIONS = 'aeugT'
+CSS_FULLSCREEN_PARENT = config.get('CSS', 'CSS_FULLSCREEN_PARENT', fallback="div[class*='LiveviewControls__ButtonGroup']")
+CSS_FULLSCREEN_BUTTON = config.get('CSS', 'CSS_FULLSCREEN_BUTTON', fallback=":nth-child(2) > button")
+CSS_LOADING_DOTS = config.get('CSS', 'CSS_LOADING_DOTS', fallback="div[class*='TimedDotsLoader']")
+CSS_LIVEVIEW_WRAPPER = config.get('CSS', 'CSS_LIVEVIEW_WRAPPER', fallback="div[class*='liveview__ViewportsWrapper']")
+CSS_PLAYER_OPTIONS = config.get('CSS', 'CSS_PLAYER_OPTIONS', fallback="aeugT")
 # Validate config variables
 if SLEEP_TIME <= 0:
     logging.error("Invalid value for SLEEP_TIME. It should be a positive integer.")
