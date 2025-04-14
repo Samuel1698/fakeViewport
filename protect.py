@@ -12,6 +12,7 @@ from logging.handlers import TimedRotatingFileHandler
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -64,7 +65,7 @@ if MAX_RETRIES <= 1:
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
 LOGFILE_PATH = config.get('Logging', 'LOG_FILE_PATH', fallback='~')
-log_file_path = os.path.join(os.path.expanduser(LOGFILE_PATH), 'protect.log')
+log_file_path = os.path.join(os.path.expanduser(LOGFILE_PATH), 'viewport.log')
 # Validate LOGFILE_PATH
 if not os.path.isdir(os.path.expanduser(LOGFILE_PATH)):
     logging.error(f"Invalid LOG_FILE_PATH: {LOGFILE_PATH}. The directory does not exist.")
@@ -81,6 +82,12 @@ os.environ['DISPLAY'] = ':0'
 # Chrome directory found by navigating to chrome://version/ and copying the Profile Path
 user = getpass.getuser()
 chrome_data_dir = f"/home/{user}/.config/google-chrome/Default"
+# Get the directory this script is in
+script_dir = Path(__file__).resolve().parent
+env_path = script_dir / '.env'
+if not env_path.exists():
+    logging.error("Missing .env file.")
+    sys.exit(1)
 # dotenv variables
 load_dotenv()
 username = os.getenv('USERNAME')
