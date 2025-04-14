@@ -1,5 +1,5 @@
 # Updated!
-I'm happy to announce that the basic functionality is once again working. I cannot test the entire script's functionality at the moment, but will do so with time. 
+I'm happy to announce that the basic functionality is once again working. I cannot test the entire script's functionality at the moment, but will do so with time. Go to the Releases for the stable versions of this code while I iron out all the kinks and try to bring back functionality through trial and error.  
 
 # Fake Viewport
 
