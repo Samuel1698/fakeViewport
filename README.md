@@ -1,6 +1,6 @@
 # Important!
 
-This code is out of date and will not receive any update until June 2025. It has not received any update since Ubiquiti started mandating 2FA on all accounts, which currently break the login proccess of this code.  
+This code is out of date. I'm remotely working on it, but without a device on hand I'm very limited in the type of testing I can do. Go to the [Snapshot releases](https://github.com/Samuel1698/fakeViewport/releases) as I iron out all the kinks and slowly bring back functionality. Approximately in May I will be able to fully test this code and release version 2.0.0 of the script.
 
 # Fake Viewport
 
