@@ -24,4 +24,4 @@ Note that the Thin Client I'm using only has DisplayPort outputs.
 
 When selecting the Thing Client, make sure it meets the requirements for your linux distro of choice. I've gotten away with Mint installed on a 5070 with 16GB of storage. You could even dedicate a flash drive just for booting up and launching the script, or buy a thin client with upgradable storage.
 
-For this code to work you need to have python3, selenium, webdriver_manager and dotenv installed. You can download the requirements.txt file in the same folder as the script and run `pip install -r requirements.txt` or manually install them yourself. I've included some code to check for webdriver_manager since it tends to be finnicky with the different environments.
+For this code to work you need to have python3, chrome, selenium, webdriver_manager and dotenv installed. You can download the requirements.txt file in the same folder as the script and run `pip install -r requirements.txt` or manually install them yourself. I've included some code to check for webdriver_manager since it tends to be finnicky with the different environments.
