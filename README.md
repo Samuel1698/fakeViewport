@@ -25,3 +25,10 @@ Note that the Thin Client I'm using only has DisplayPort outputs.
 When selecting the Thing Client, make sure it meets the requirements for your linux distro of choice. I've gotten away with Mint installed on a 5070 with 16GB of storage. You could even dedicate a flash drive just for booting up and launching the script, or buy a thin client with upgradable storage.
 
 For this code to work you need to have python3, chrome, selenium, webdriver_manager and dotenv installed. Manually install python3 and chrome, then navigate to the fakeViewport folder and run `pip install -r requirements.txt` to install selenium, webdriver_manager and dotenv. You can also manually install them yourself. I've included some code to check for webdriver_manager since it tends to be finnicky with the different environments.
+
+## New Installation hiccups
+
+- [ ] Python3 now requires virtual environments for pip execution
+python3 -m venv venv       # Create once
+source venv/bin/activate   # Activate every new terminal
+pip install -r requirements.txt
