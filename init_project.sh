@@ -65,7 +65,9 @@ if [ -f "$REQUIREMENTS" ]; then
     # Install requirements (with retry logic)
     if ! pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --retries 3 --timeout 30 -r "$REQUIREMENTS"; then
         echo -e "${RED}✗ Failed to install some dependencies${NC}"
-        echo -e "${YELLOW}This might be due to network issues. "
+        echo -e "${YELLOW}This might be due to network issues."
+        echo -e "Try manually running this command: "
+        echo -e "pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt"
         INSTALL_SUCCESS=false
     fi
     
@@ -97,7 +99,25 @@ else
 fi
 
 # -------------------------------------------------------------------
-# 6. Status check
+# 6: Rename DOTenv to .env
+# -------------------------------------------------------------------
+if [ -f "DOTenv" ]; then
+    echo -e "${YELLOW}Renaming DOTenv to .env...${NC}"
+    if mv -n DOTenv .env; then
+        echo -e "${GREEN}✓ Configuration file prepared${NC}"
+        echo -e "${YELLOW}Please edit .env to set your UniFi Protect credentials.${NC}"
+    else
+        echo -e "${RED}Failed to rename DOTenv file!${NC}"
+        exit 1
+    fi
+elif [ ! -f ".env" ]; then
+    echo -e "${RED}Missing configuration file!${NC}"
+    echo -e "${YELLOW}Either DOTenv or .env must exist${NC}"
+    exit 1
+fi
+
+# -------------------------------------------------------------------
+# Final Report
 # -------------------------------------------------------------------
 if [ "$INSTALL_SUCCESS" = false ]; then
     echo -e "\n${RED}SETUP INCOMPLETE - Some steps failed${NC}"
