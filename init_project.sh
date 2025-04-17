@@ -76,14 +76,6 @@ else
 fi
 
 # -------------------------------------------------------------------
-# 6. Activate virtual environment
+# 6. Activate script
 # -------------------------------------------------------------------
-echo -e "\n${GREEN}Setup complete! To activate the virtual environment, run:"
-echo -e "  source $VENV_DIR/bin/activate${NC}"
-echo -e "\nThen run your script normally."
-
-# -------------------------------------------------------------------
-# Optional: Auto-activate (uncomment if desired)
-# -------------------------------------------------------------------
-source "$VENV_DIR/bin/activate"
-echo -e "${GREEN}Virtual environment activated!${NC}"
+echo -e "\n${GREEN}Setup complete! To activate the script, run python3 protect.py"
