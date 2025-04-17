@@ -3,8 +3,8 @@ I'm happy to announce that the basic functionality is once again working. I cann
 
 # Fake Viewport
 
-Tired of refreshing the Unifi store to constantly see the Viewport out of stock? Me too. So I made a 50$ alternative.
-Using a used **Dell Wyse 5070 Thin Client** with Linux Mint installed on it (50$ on [ebay](https://www.ebay.com/sch/i.html?_nkw=Dell%20Wyse%205070%20Thin%20Client&_sacat=0)), and this script I made.
+Tired of refreshing the Unifi store to constantly see the Viewport out of stock? Me too. So I made a 30$ alternative.
+Using a used **Dell Wyse Thin Client** with your favorite lightweight Linux distro installed on it (~30$ on [ebay](https://www.ebay.com/sch/i.html?_nkw=wyse%20thin%20client&_sacat=0&_odkw=dell%20wyse%20thin%20client&_osacat=0)) (I've found a few for 20$ in Facebook Marketplace), and this script I made.
 I can automatically, and remotely, launch the Protect Live View website with the desired Live View, automatically handle login if the session expires, handle temporary loss of connection to the console, or any random hiccups of the webpage.
 
 ## Technical Information
@@ -22,4 +22,6 @@ Note that the Thin Client I'm using only has DisplayPort outputs.
 
 ## Requirements 
 
-For this code to work you need to have selenium, webdriver_manager and dotenv installed. You can download the requirements.txt file in the same folder as the script and run `pip install -r requirements.txt` or manually install them yourself. I've included some code to check for webdriver_manager since it tends to be finnicky with the different environments.
+When selecting the Thing Client, make sure it meets the requirements for your linux distro of choice. I've gotten away with Mint installed on a 5070 with 16GB of storage. You could even dedicate a flash drive just for booting up and launching the script, or buy a thin client with upgradable storage.
+
+For this code to work you need to have python3, selenium, webdriver_manager and dotenv installed. You can download the requirements.txt file in the same folder as the script and run `pip install -r requirements.txt` or manually install them yourself. I've included some code to check for webdriver_manager since it tends to be finnicky with the different environments.
