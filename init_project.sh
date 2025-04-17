@@ -63,12 +63,9 @@ if [ -f "$REQUIREMENTS" ]; then
     fi
     
     # Install requirements (with retry logic)
-    if ! pip install --retries 3 --timeout 30 -r "$REQUIREMENTS"; then
+    if ! pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --retries 3 --timeout 30 -r "$REQUIREMENTS"; then
         echo -e "${RED}✗ Failed to install some dependencies${NC}"
-        echo -e "${YELLOW}This might be due to SSL/network issues. Try:"
-        echo -e "1. Checking your internet connection"
-        echo -e "2. Temporarily disabling SSL verification with:"
-        echo -e "   pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt${NC}"
+        echo -e "${YELLOW}This might be due to network issues. "
         INSTALL_SUCCESS=false
     fi
     
