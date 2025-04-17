@@ -106,6 +106,7 @@ if [ -f "DOTenv" ]; then
     if mv -n DOTenv .env; then
         echo -e "${GREEN}✓ Configuration file prepared${NC}"
         echo -e "${YELLOW}Please edit .env to set your UniFi Protect credentials.${NC}"
+        echo -e "${YELLOW}You can do so with the command: nano .env${NC}"
     else
         echo -e "${RED}Failed to rename DOTenv file!${NC}"
         exit 1

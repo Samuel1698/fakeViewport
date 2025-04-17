@@ -11,12 +11,21 @@ import signal
 from datetime import datetime
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
-def install(package):
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-    except subprocess.CalledProcessError as e:
-        logging.critical(f"Failed to install package '{package}': {e}")
-        sys.exit(1)
+def install_package(package):
+    attempts = [
+        [sys.executable, "-m", "pip", "install", package],
+        [sys.executable, "-m", "pip", "install", package,
+        "--trusted-host", "pypi.org",
+        "--trusted-host", "files.pythonhosted.org"],
+        ["pip", "install", "--user", package]  # Final fallback
+    ]
+    for attempt in attempts:
+        try:
+            subprocess.check_call(attempt)
+            return True
+        except subprocess.CalledProcessError:
+            continue         
+    return False
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
