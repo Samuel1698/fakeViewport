@@ -52,9 +52,33 @@ REQUIREMENTS="requirements.txt"
 if [ -f "$REQUIREMENTS" ]; then
     echo -e "${YELLOW}Installing dependencies...${NC}"
     source "$VENV_DIR/bin/activate"
-    pip install --upgrade pip
-    pip install -r "$REQUIREMENTS"
-    echo -e "${GREEN}✓ Dependencies installed${NC}"
+    
+    # Track installation success
+    INSTALL_SUCCESS=true
+    
+    # Upgrade pip first (separate error check)
+    if ! pip install --upgrade pip; then
+        echo -e "${RED}✗ Failed to upgrade pip${NC}"
+        INSTALL_SUCCESS=false
+    fi
+    
+    # Install requirements (with retry logic)
+    if ! pip install --retries 3 --timeout 30 -r "$REQUIREMENTS"; then
+        echo -e "${RED}✗ Failed to install some dependencies${NC}"
+        echo -e "${YELLOW}This might be due to SSL/network issues. Try:"
+        echo -e "1. Checking your internet connection"
+        echo -e "2. Temporarily disabling SSL verification with:"
+        echo -e "   pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt${NC}"
+        INSTALL_SUCCESS=false
+    fi
+    
+    if [ "$INSTALL_SUCCESS" = true ]; then
+        echo -e "${GREEN}✓ All dependencies installed successfully${NC}"
+    else
+        echo -e "${RED}!!! Dependency installation failed !!!${NC}"
+        echo -e "${YELLOW}The script may not work properly.${NC}"
+        exit 1  # Exit with error code
+    fi
 else
     echo -e "${RED}requirements.txt not found!${NC}"
     exit 1
@@ -76,6 +100,13 @@ else
 fi
 
 # -------------------------------------------------------------------
-# 6. Activate script
+# 6. Status check
 # -------------------------------------------------------------------
-echo -e "\n${GREEN}Setup complete! To activate the script, run python3 protect.py"
+if [ "$INSTALL_SUCCESS" = false ]; then
+    echo -e "\n${RED}SETUP INCOMPLETE - Some steps failed${NC}"
+    echo -e "${YELLOW}Check the error messages above and try again.${NC}"
+    exit 1
+else
+    echo -e "\n${GREEN}Setup complete! To activate the script, run python3 protect.py${NC}"
+    exit 0
+fi
