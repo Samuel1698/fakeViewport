@@ -45,13 +45,6 @@ else
     echo -e "${GREEN}✓ Virtual environment already exists${NC}"
 fi
 # -------------------------------------------------------------------
-# Auto-activate the venv
-source "$VENV_DIR/bin/activate"
-# -------------------------------------------------------------------
-echo -e "\n${GREEN}Virtual environment activated!${NC}"
-echo -e "${YELLOW}To exit the virtual environment later, run:${NC}"
-echo -e "  deactivate\n"
-# -------------------------------------------------------------------
 # 4. Install requirements
 # -------------------------------------------------------------------
 REQUIREMENTS="requirements.txt"
@@ -131,6 +124,11 @@ if [ "$INSTALL_SUCCESS" = false ]; then
     echo -e "${YELLOW}Check the error messages above and try again.${NC}"
     exit 1
 else
-    echo -e "\n${GREEN}Setup complete! To activate the script, run python3 protect.py${NC}"
+    echo -e "\n${GREEN}Setup complete! To activate the virtual environment, run:${NC}"
+    echo -e "${YELLOW}source $VENV_DIR/bin/activate${NC}"
+    echo -e "${YELLOW}Then run the script with:${NC}"
+    echo -e "${YELLOW}python3 protect.py${NC}"
+    echo -e "${YELLOW}To deactivate the virtual environment, run:${NC}"
+    echo -e "${YELLOW}deactivate${NC}"
     exit 0
 fi
