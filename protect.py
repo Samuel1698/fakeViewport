@@ -427,11 +427,11 @@ def restart_program(driver):
         api_status("Restarting...")
     logging.info("Gracefully shutting down chrome...")
     driver.quit()
-    if SLEEP_TIME / 120 < 1:
-        logging.info(f"Starting script again in {SLEEP_TIME} seconds.")
+    if WAIT_TIME / 60 < 1:
+        logging.info(f"Starting script again in {WAIT_TIME} seconds.")
     else:
-        logging.info(f"Starting script again in {int(SLEEP_TIME / 120)} minutes.")
-    time.sleep(SLEEP_TIME/2)
+        logging.info(f"Starting script again in {int(WAIT_TIME / 60)} minutes.")
+    time.sleep(WAIT_TIME)
     os.execv(sys.executable, ['python3'] + sys.argv)
 # Handles whether or not the page loaded directly or got redirected to the login page upon chrome opening
 # Restarts program if unexpected results from logging in, or opening the link.
