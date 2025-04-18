@@ -41,6 +41,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import InvalidSessionIdException
 from urllib3.exceptions import NewConnectionError
 try:
     from webdriver_manager.chrome import ChromeDriverManager
@@ -330,6 +331,11 @@ def check_view(driver, url):
     interval_counter = 0
     retry_count = 0
     max_retries = MAX_RETRIES
+    if handle_page(driver):
+        logging.info(f"Checking health of page every {int(SLEEP_TIME/60)} minutes...")
+    else:
+        logging.error("Error loading the live view. Restarting the program.")
+        restart_program(driver)
     while True:
         try:
             WebDriverWait(driver, WAIT_TIME).until(
@@ -353,6 +359,9 @@ def check_view(driver, url):
             if interval_counter % 12 == 0:
                 logging.info("Video feeds healthy.")
             time.sleep(SLEEP_TIME)
+        except InvalidSessionIdException:
+            logging.error("Chrome session is invalid. Restarting the program.")
+            restart_program(driver)
         except (TimeoutException, NoSuchElementException):
             logging.exception("Video feeds not found or page timed out: ")
             time.sleep(WAIT_TIME)
@@ -462,12 +471,7 @@ def main():
     driver = start_chrome(url)
     # Wait for the page to load
     WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
-    if handle_page(driver):
-        # Start the check_view function in a separate thread
-        logging.info(f"Checking health of page every {int(SLEEP_TIME/60)} minutes...")
-        threading.Thread(target=check_view, args=(driver, url)).start()
-    else:
-        logging.error("Error loading the live view. Restarting the program.")
-        restart_program(driver)
+    # Start the check_view function in a separate thread
+    threading.Thread(target=check_view, args=(driver, url)).start()
 if __name__ == "__main__":
     main()
