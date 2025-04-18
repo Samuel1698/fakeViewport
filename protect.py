@@ -427,12 +427,24 @@ def restart_program(driver):
         api_status("Restarting...")
     logging.info("Gracefully shutting down chrome...")
     driver.quit()
-    logging.info(f"Starting script again in {int(SLEEP_TIME/120)} minutes.")
+    if SLEEP_TIME / 120 < 1:
+        logging.info(f"Starting script again in {SLEEP_TIME} seconds.")
+    else:
+        logging.info(f"Starting script again in {int(SLEEP_TIME / 120)} minutes.")
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 # Handles whether or not the page loaded directly or got redirected to the login page upon chrome opening
 # Restarts program if unexpected results from logging in, or opening the link.
 def handle_page(driver):
+    try:
+        # Wait for the page to load
+        WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
+    except TimeoutException:
+        logging.error("Failed to load the page title. Chrome may have crashed.")
+        restart_program(driver)  # Restart the script if the title doesn't load
+    except InvalidSessionIdException:
+        logging.error("Chrome session is invalid. Restarting the program.")
+        restart_program(driver)  # Restart if the session is invalid
     start_time = time.time()  # Capture the starting time
     while True:
         if "Dashboard" in driver.title:
@@ -480,8 +492,6 @@ def main():
         api_status("Starting API...")
     logging.info("Waiting for chrome to load...")
     driver = start_chrome(url)
-    # Wait for the page to load
-    WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
     # Start the check_view function in a separate thread
     threading.Thread(target=check_view, args=(driver, url)).start()
 if __name__ == "__main__":
