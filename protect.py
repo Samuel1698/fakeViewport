@@ -85,12 +85,16 @@ if MAX_RETRIES < 3:
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
 VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
-LOGFILE_PATH = config.get('Logging', 'LOG_FILE_PATH', fallback='~')
-log_file_path = os.path.join(os.path.expanduser(LOGFILE_PATH), 'viewport.log')
-# Validate LOGFILE_PATH
-if not os.path.isdir(os.path.expanduser(LOGFILE_PATH)):
-    logging.error(f"Invalid LOG_FILE_PATH: {LOGFILE_PATH}. The directory does not exist.")
-    sys.exit(1)
+LOG_DAYS = config.getint('Logging', 'LOG_DAYS', fallback=7)
+# Get the directory this script is in
+script_dir = Path(__file__).resolve().parent
+# Define the logs folder path
+logs_dir = script_dir / 'logs'
+# Ensure the logs folder exists
+if not logs_dir.exists():
+    logs_dir.mkdir(parents=True, exist_ok=True)
+# Define the log file path
+log_file_path = logs_dir / 'viewport.log'
 # API
 API = config.getboolean('API', 'USE_API', fallback=False)
 API_PATH = config.get('API', 'API_FILE_PATH', fallback='~').strip()
@@ -135,7 +139,7 @@ def log_error(message, exception=None):
         logging.error(message)  # Logs the message without any exception
 if LOG_FILE:
     #  Define a handler for the file
-    file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=1, backupCount=7)
+    file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=1, backupCount=LOG_DAYS)
     file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
     # Set the formatter for the handler
     file_handler.setFormatter(formatter)

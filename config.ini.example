@@ -25,11 +25,8 @@ CHROME_BINARY=/usr/bin/google-chrome-stable
 LOG_FILE=True
 LOG_CONSOLE=True
 VERBOSE_LOGGING=False
-# Default location of logfile is home directory.
-# If you want to log to a specific file, uncomment the line below and set the path
-# LOG_FILE_PATH=/home/your-user/Documents
-
-
+# How many days to keep the log files. The script will delete the oldest logs when it reaches this number.
+LOG_DAYS=7
 [CSS]
 # These CSS Selectors are updated as of April 14 2025. Subject to change at the whim of Ubiquiti's web developers
 # Parent Div that contains the viewer quality and the fullscreen buttons
