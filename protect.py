@@ -255,7 +255,6 @@ def check_unable_to_stream(driver):
             return Array.from(document.querySelectorAll('*')).filter(el => el.innerHTML.includes('Unable to Stream'));
         """)
         if elements:
-            logging.warning("Detected 'Unable to Stream' message. The browser may not support the encoding of the camera.")
             return True
         return False
     except Exception as e:
