@@ -442,8 +442,10 @@ def handle_page(driver):
     except TimeoutException:
         logging.error("Failed to load the page title. Chrome may have crashed.")
         restart_program(driver)  # Restart the script if the title doesn't load
-    except InvalidSessionIdException:
-        logging.error("Chrome session is invalid. Restarting the program.")
+    except Exception as e:
+        logging.exception("Unexpected error occurred: ")
+        logging.error(str(e))
+        time.sleep(WAIT_TIME)
         restart_program(driver)  # Restart if the session is invalid
     start_time = time.time()  # Capture the starting time
     while True:
