@@ -110,6 +110,11 @@ username = os.getenv('USERNAME')
 password = os.getenv('PASSWORD')
 url = os.getenv('URL')
 driver = None # Declare it globally so that it can be accessed in the signal handler function
+# Check if the URL is still the example URL
+EXAMPLE_URL = "http://192.168.20.2/protect/dashboard/multiviewurl"
+if url == EXAMPLE_URL:
+    logging.error("The URL in the .env file is still set to the example value. Please update it to your actual URL.")
+    sys.exit(1)
 if not url:
     logging.error("No URL detected. Please make sure you have a .env file in the same directory as this script.")
     sys.exit(1)

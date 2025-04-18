@@ -1,3 +1,3 @@
 USERNAME=YourLocalUsername
 PASSWORD=YourLocalPassword
-URL=192.168.20.2/protect/dashboard/multiviewurl
+URL=http://192.168.20.2/protect/dashboard/multiviewurl
