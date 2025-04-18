@@ -15,7 +15,7 @@ def install(package):
     # Check if the script is running inside a virtual environment
     if not os.getenv('VIRTUAL_ENV'):
         logging.warning("The script is not running inside a Python virtual environment.")
-    
+        sys.exit(1)
     attempts = [
         [sys.executable, "-m", "pip", "install", package],
         [sys.executable, "-m", "pip", "install", package,
