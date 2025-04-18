@@ -1,17 +1,10 @@
 #!/bin/bash
-
-# -------------------------------------------------------------------
-# UniFi Protect View Initialization Script
-# -------------------------------------------------------------------
-# Checks for Python 3, creates venv, installs requirements, and activates
-# -------------------------------------------------------------------
-
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}=== UniFi Protect View Setup ===${NC}"
+echo -e "${YELLOW}=== UniFi Protect FakeViewport Setup ===${NC}"
 
 # -------------------------------------------------------------------
 # 1. Verify Python 3 is installed
@@ -125,10 +118,10 @@ if [ "$INSTALL_SUCCESS" = false ]; then
     exit 1
 else
     echo -e "\n${GREEN}Setup complete! To activate the virtual environment, run:${NC}"
-    echo -e "${YELLOW}source $VENV_DIR/bin/activate${NC}"
-    echo -e "${YELLOW}Then run the script with:${NC}"
-    echo -e "${YELLOW}python3 protect.py${NC}"
-    echo -e "${YELLOW}To deactivate the virtual environment, run:${NC}"
+    echo -e "${YELLOW}  source $VENV_DIR/bin/activate${NC}"
+    echo -e "${GREEN}Then run the script with:${NC}"
+    echo -e "${YELLOW}  python3 protect.py${NC}"
+    echo -e "${GREEN}To deactivate the virtual environment, run:${NC}"
     echo -e "${YELLOW}deactivate${NC}"
     exit 0
 fi
