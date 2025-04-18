@@ -295,15 +295,26 @@ def check_view(driver, url):
             api_status(f"Retrying: {attempt} of {max_retries}")
         if attempt < max_retries - 1:
             try:
-                logging.info("Attempting to load page from url.")
-                driver.get(url)
-                if handle_page(driver):
-                    if not click_fullscreen_button(driver):
-                        logging.warning("Failed to activate fullscreen, but continuing anyway.")
-                if API:
-                    api_status("Feed Healthy")
+                if "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
+                    logging.info("Log-in page found. Inputting credentials...")
+                    if login(driver):
+                        if not click_fullscreen_button(driver):
+                            logging.warning("Failed to activate fullscreen, but continuing anyway.")
+                    if API:
+                        api_status("Feed Healthy")
+                else:
+                    logging.info("Attempting to load page from URL.")
+                    driver.get(url)
+                    if handle_page(driver):
+                        if not click_fullscreen_button(driver):
+                            logging.warning("Failed to activate fullscreen, but continuing anyway.")
+                    if API:
+                        api_status("Feed Healthy")
+            except InvalidSessionIdException:
+                logging.error("Chrome session is invalid. Restarting the program.")
+                restart_program(driver)
             except Exception as e:
-                logging.exception("Error refreshing chrome tab: ")
+                logging.exception("Error while handling retry logic: ")
                 logging.error(str(e))
                 if API:
                     api_status("Error refreshing")
