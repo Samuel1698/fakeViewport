@@ -112,12 +112,16 @@ fi
 # 7: Rename config.ini.example to config.ini
 # -------------------------------------------------------------------
 if [ -f "config.ini.example" ]; then
-    echo -e "${YELLOW}Renaming config.ini.example to config.ini${NC}"
-    if mv -n config.ini.example config.ini; then
-        echo -e "${GREEN}✓ Configuration file prepared${NC}"
+    if [ -f "config.ini" ]; then
+        echo -e "${GREEN}✓ config.ini already exists. Skipping...${NC}"
     else
-        echo -e "${RED}Failed to rename configuration file!${NC}"
-        exit 1
+        echo -e "${YELLOW}Renaming config.ini.example to config.ini...${NC}"
+        if cp -n config.ini.example config.ini; then
+            echo -e "${GREEN}✓ Configuration file prepared${NC}"
+        else
+            echo -e "${RED}Failed to rename configuration file!${NC}"
+            exit 1
+        fi
     fi
 elif [ ! -f "config.ini" ]; then
     echo -e "${RED}Missing configuration file!${NC}"

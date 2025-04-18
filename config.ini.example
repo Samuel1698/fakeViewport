@@ -27,18 +27,6 @@ LOG_CONSOLE=True
 VERBOSE_LOGGING=False
 # How many days to keep the log files. The script will delete the oldest logs when it reaches this number.
 LOG_DAYS=7
-[CSS]
-# These CSS Selectors are updated as of April 14 2025. Subject to change at the whim of Ubiquiti's web developers
-# Parent Div that contains the viewer quality and the fullscreen buttons
-CSS_FULLSCREEN_PARENT=div[class*='LiveviewControls__ButtonGroup']
-# Child button corresponding to the fullscreen button
-CSS_FULLSCREEN_BUTTON=:nth-child(2) > button
-# Div containing the dots of death (Constant loading after leaving website open for days without a refresh)
-CSS_LOADING_DOTS=div[class*='TimedDotsLoader']
-# Wrapper that corresponds to the cameras being present. If the cameras don't load for some reason, this element will not exists in the webpage and the script will attempt to refresh the page, or restart chrome
-CSS_LIVEVIEW_WRAPPER=div[class*='liveview__ViewportsWrapper']
-# Class that belongs to the parent of all the player controls in each individual camera. This is used to remove visibility of those elements so that while in fullscreen, the mouse wont activate one of the cameras.
-CSS_PLAYER_OPTIONS=aeugT
 
 [API]
 # The API is something I made for myself. It allows me to remotely monitor
