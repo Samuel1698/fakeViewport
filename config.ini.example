@@ -10,8 +10,8 @@ WAIT_TIME=30
 # different kinds of errors with the cameras not loading correctly.
 # Increasing is useful for when you have connectivity issues, and waiting 2-3 minutes before a refresh is the solution.
 # First amount of attempts will just reload the page. Second to last attempt will restart chrome, and the last attempt will restart the script. 
-MAX_RETRIES=3 # Has to be 3 or more
-
+MAX_RETRIES=3
+# Must be 3 or greater.
 [Chrome]
 # Chrome directory found by navigating to chrome://version/ and copying the Profile Path
 # The script will default to the path location in Linux. 

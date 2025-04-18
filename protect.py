@@ -78,7 +78,7 @@ if SLEEP_TIME <= 0:
 if WAIT_TIME <= 5:
     logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
     sys.exit(1)
-if MAX_RETRIES <= 3:
+if MAX_RETRIES < 3:
     logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
     sys.exit(1)
 # Logging
@@ -221,7 +221,7 @@ def start_chrome(url):
             if retry_count == max_retries:
                 logging.info("Killing existing Chrome processes...")
                 subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            time.sleep(5)  # wait for a while before retrying
+            time.sleep(5)
     logging.info("Failed to start Chrome after maximum retries.")
     logging.info(f"Starting script again in {int(SLEEP_TIME/120)} minutes.")
     if API:
@@ -238,7 +238,8 @@ def click_fullscreen_button(driver):
         # Move to the parent to trigger hover effects.
         actions = ActionChains(driver)
         actions.move_to_element(parent).perform()
-        time.sleep(0.5)  # A small delay to allow UI elements to become interactive
+        # A small delay to allow UI elements to become interactive
+        time.sleep(0.5)  
         # Wait until the child button is visible and clickable.
         button = WebDriverWait(parent, WAIT_TIME).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_FULLSCREEN_BUTTON))
@@ -390,7 +391,7 @@ def check_view(driver, url):
             time.sleep(WAIT_TIME)
         except NewConnectionError:
             log_error("Connection error occurred. Retrying...")
-            time.sleep(SLEEP_TIME/2)  # Wait for 2 minutes before retrying
+            time.sleep(SLEEP_TIME/2)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
@@ -426,7 +427,7 @@ def login(driver):
         submit_button.click()
         # Verify successful login
         return wait_for_title(driver, "Dashboard")
-    except Exception as e:  # Catch broader exceptions
+    except Exception as e: 
         log_error("Error during login: ", e)
         return False
 # Restarts the program with execv to prevent stack overflow
