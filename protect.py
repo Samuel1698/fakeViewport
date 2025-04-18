@@ -11,7 +11,7 @@ import signal
 from datetime import datetime
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
-def install_package(package):
+def install(package):
     attempts = [
         [sys.executable, "-m", "pip", "install", package],
         [sys.executable, "-m", "pip", "install", package,

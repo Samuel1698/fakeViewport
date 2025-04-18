@@ -44,7 +44,13 @@ if [ ! -d "$VENV_DIR" ]; then
 else
     echo -e "${GREEN}✓ Virtual environment already exists${NC}"
 fi
-
+# -------------------------------------------------------------------
+# Auto-activate the venv
+source "$VENV_DIR/bin/activate"
+# -------------------------------------------------------------------
+echo -e "\n${GREEN}Virtual environment activated!${NC}"
+echo -e "${YELLOW}To exit the virtual environment later, run:${NC}"
+echo -e "  deactivate\n"
 # -------------------------------------------------------------------
 # 4. Install requirements
 # -------------------------------------------------------------------
