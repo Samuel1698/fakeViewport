@@ -78,8 +78,8 @@ if SLEEP_TIME <= 0:
 if WAIT_TIME <= 5:
     logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
     sys.exit(1)
-if MAX_RETRIES <= 1:
-    logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 1.")
+if MAX_RETRIES <= 3:
+    logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
     sys.exit(1)
 # Logging
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
@@ -132,10 +132,7 @@ def log_error(message, exception=None):
     if VERBOSE_LOGGING and exception:
         logging.exception(message)  # Logs the message with the stacktrace
     else:
-        if exception:
-            logging.error(f"{message}: {str(exception)}")  # Logs the message with the exception message
-        else:
-            logging.error(message)  # Logs the message without any exception
+        logging.error(message)  # Logs the message without any exception
 if LOG_FILE:
     #  Define a handler for the file
     file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=1, backupCount=7)
@@ -317,6 +314,8 @@ def check_view(driver, url):
                     logging.info("Attempting to load page from URL.")
                     driver.get(url)
                     if handle_page(driver):
+                        logging.info("Page successfully reloaded.")
+                        time.sleep(WAIT_TIME)
                         if not click_fullscreen_button(driver):
                             logging.warning("Failed to activate fullscreen, but continuing anyway.")
                     if API:
@@ -338,6 +337,7 @@ def check_view(driver, url):
                 WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
                 if handle_page(driver):
                     logging.info("Page successfully reloaded.")
+                    time.sleep(WAIT_TIME)
                     if API:
                         api_status("Feed Healthy")
             except Exception as e:
