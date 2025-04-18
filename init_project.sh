@@ -122,6 +122,6 @@ else
     echo -e "${GREEN}Then run the script with:${NC}"
     echo -e "${YELLOW}  python3 protect.py${NC}"
     echo -e "${GREEN}To deactivate the virtual environment, run:${NC}"
-    echo -e "${YELLOW}deactivate${NC}"
+    echo -e "${YELLOW}  deactivate${NC}"
     exit 0
 fi

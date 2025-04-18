@@ -52,6 +52,10 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    **I strongly recommend to use a local account for this.**
 
 4. **Run the Script**  
+   Start the virtual environment:
+   ```bash
+    source venv/bin/activate
+   ```
    Start the script using the following command:
    ```bash
     python3 protect.py
