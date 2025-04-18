@@ -12,6 +12,10 @@ from datetime import datetime
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
 def install(package):
+    # Check if the script is running inside a virtual environment
+    if not os.getenv('VIRTUAL_ENV'):
+        logging.warning("The script is not running inside a Python virtual environment.")
+    
     attempts = [
         [sys.executable, "-m", "pip", "install", package],
         [sys.executable, "-m", "pip", "install", package,
@@ -24,7 +28,7 @@ def install(package):
             subprocess.check_call(attempt)
             return True
         except subprocess.CalledProcessError:
-            continue         
+            continue
     return False
 from dotenv import load_dotenv
 from selenium import webdriver
