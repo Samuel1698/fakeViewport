@@ -247,6 +247,20 @@ def wait_for_title(driver, title):
         logging.exception(f"Failed to load the {title} page.")
         return False
     return True
+# Checks if the "Unable to Stream" message is present in the live view
+def check_unable_to_stream(driver):
+    try:
+        # Use JavaScript to find elements with innerHTML containing "Unable to Stream"
+        elements = driver.execute_script("""
+            return Array.from(document.querySelectorAll('*')).filter(el => el.innerHTML.includes('Unable to Stream'));
+        """)
+        if elements:
+            logging.warning("Detected 'Unable to Stream' message. The browser may not support the encoding of the camera.")
+            return True
+        return False
+    except Exception as e:
+        logging.exception("Error while checking for 'Unable to Stream' message: ")
+        return False
 # Checks if the live view feed is constantly loading with the three dots and needs a refresh
 def check_loading_issue(driver):
     trouble_loading_start_time = None
@@ -326,6 +340,9 @@ def check_view(driver, url):
                 logging.info("Attempting to make live-view fullscreen.")
                 if not click_fullscreen_button(driver):
                     logging.warning("Failed to activate fullscreen, but continuing anyway.")
+            # Check for "Unable to Stream" message
+            if check_unable_to_stream(driver):
+                logging.warning("Live view contains cameras that the browser cannot decode.")
             check_loading_issue(driver)
             hide_cursor(driver)
             interval_counter += 1
