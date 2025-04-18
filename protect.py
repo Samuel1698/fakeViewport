@@ -84,6 +84,7 @@ if MAX_RETRIES <= 1:
 # Logging
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
+VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
 LOGFILE_PATH = config.get('Logging', 'LOG_FILE_PATH', fallback='~')
 log_file_path = os.path.join(os.path.expanduser(LOGFILE_PATH), 'viewport.log')
 # Validate LOGFILE_PATH
@@ -127,6 +128,14 @@ if not url:
 logger = logging.getLogger()
 formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 logger.setLevel(logging.INFO)
+def log_error(message, exception=None):
+    if VERBOSE_LOGGING and exception:
+        logging.exception(message)  # Logs the message with the stacktrace
+    else:
+        if exception:
+            logging.error(f"{message}: {str(exception)}")  # Logs the message with the exception message
+        else:
+            logging.error(message)  # Logs the message without any exception
 if LOG_FILE:
     #  Define a handler for the file
     file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=1, backupCount=7)
@@ -207,8 +216,8 @@ def start_chrome(url):
             )
             driver.get(url)
             return driver
-        except Exception:
-            logging.exception(f"An error occurred while starting Chrome: ")
+        except Exception as e:
+            log_error("Error starting Chrome: ", e)
             retry_count += 1
             logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
             # If this is the final attempt, kill all existing Chrome processes
@@ -241,8 +250,7 @@ def click_fullscreen_button(driver):
         logging.info("Fullscreen activated")
         return True
     except Exception as e:
-        logging.exception("Failed to click the fullscreen button: ")
-        logging.error(str(e))
+        log_error("Error while clicking the fullscreen button: ", e)
         return False
 # Waits for the specified title to appear
 def wait_for_title(driver, title):
@@ -250,7 +258,10 @@ def wait_for_title(driver, title):
         WebDriverWait(driver, WAIT_TIME).until(EC.title_contains(title))
         logging.info(f"Loaded {title}")
     except TimeoutException:
-        logging.exception(f"Failed to load the {title} page.")
+        log_error(f"Timed out waiting for the title '{title}' to load.")
+        return False
+    except Exception as e:
+        log_error(f"Error while waiting for title '{title}': ", e)
         return False
     return True
 # Checks if the "Unable to Stream" message is present in the live view
@@ -264,7 +275,7 @@ def check_unable_to_stream(driver):
             return True
         return False
     except Exception as e:
-        logging.exception("Error while checking for 'Unable to Stream' message: ")
+        log_error("Error while checking for 'Unable to Stream' message: ", e)
         return False
 # Checks if the live view feed is constantly loading with the three dots and needs a refresh
 def check_loading_issue(driver):
@@ -311,11 +322,10 @@ def check_view(driver, url):
                     if API:
                         api_status("Feed Healthy")
             except InvalidSessionIdException:
-                logging.error("Chrome session is invalid. Restarting the program.")
+                log_error("Chrome session is invalid. Restarting the program.")
                 restart_program(driver)
             except Exception as e:
-                logging.exception("Error while handling retry logic: ")
-                logging.error(str(e))
+                log_error("Error while handling retry logic: ", e)
                 if API:
                     api_status("Error refreshing")
         if attempt == max_retries - 1:
@@ -331,8 +341,7 @@ def check_view(driver, url):
                     if API:
                         api_status("Feed Healthy")
             except Exception as e:
-                logging.exception("Error killing chrome: ")
-                logging.error(str(e))
+                log_error("Error while killing Chrome processes: ", e)
                 if API:
                     api_status("Error Killing Chrome")
         elif attempt == max_retries:
@@ -345,7 +354,7 @@ def check_view(driver, url):
     if handle_page(driver):
         logging.info(f"Checking health of page every {int(SLEEP_TIME/60)} minutes...")
     else:
-        logging.error("Error loading the live view. Restarting the program.")
+        log_error("Error loading the live view. Restarting the program.")
         restart_program(driver)
     while True:
         try:
@@ -371,23 +380,22 @@ def check_view(driver, url):
                 logging.info("Video feeds healthy.")
             time.sleep(SLEEP_TIME)
         except InvalidSessionIdException:
-            logging.error("Chrome session is invalid. Restarting the program.")
+            log_error("Chrome session is invalid. Restarting the program.")
             restart_program(driver)
         except (TimeoutException, NoSuchElementException):
-            logging.exception("Video feeds not found or page timed out: ")
+            log_error("Video feeds not found or page timed out.")
             time.sleep(WAIT_TIME)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except NewConnectionError:
-            logging.exception("Connection error occurred: ")
+            log_error("Connection error occurred. Retrying...")
             time.sleep(SLEEP_TIME/2)  # Wait for 2 minutes before retrying
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except Exception as e:
-            logging.exception("Unexpected error occurred: ")
-            logging.error(str(e))
+            log_error("Unexpected error occurred: ", e)
             time.sleep(WAIT_TIME)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
@@ -419,7 +427,7 @@ def login(driver):
         # Verify successful login
         return wait_for_title(driver, "Dashboard")
     except Exception as e:  # Catch broader exceptions
-        logging.exception(f"Login failed: {str(e)}")
+        log_error("Error during login: ", e)
         return False
 # Restarts the program with execv to prevent stack overflow
 def restart_program(driver):
@@ -440,11 +448,10 @@ def handle_page(driver):
         # Wait for the page to load
         WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
     except TimeoutException:
-        logging.error("Failed to load the page title. Chrome may have crashed.")
+        log_error("Failed to load the page title. Chrome may have crashed.")
         restart_program(driver)  # Restart the script if the title doesn't load
     except Exception as e:
-        logging.exception("Unexpected error occurred: ")
-        logging.error(str(e))
+        log_error("Error while waiting for page title: ", e)
         restart_program(driver)  # Restart if the session is invalid
     start_time = time.time()  # Capture the starting time
     while True:
