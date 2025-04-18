@@ -19,21 +19,11 @@ fi
 # -------------------------------------------------------------------
 # 2. Verify python3-venv is available
 # -------------------------------------------------------------------
-echo -e "${YELLOW}Checking if python3-venv is available...${NC}"
-TEMP_VENV_DIR="temp_venv_check"
-if python3 -m venv "$TEMP_VENV_DIR" &> /dev/null; then
-    echo -e "${GREEN}✓ python3-venv is available${NC}"
-    rm -rf "$TEMP_VENV_DIR"  # Clean up the temporary virtual environment
-else
-    echo -e "${RED}python3-venv not found or not functional! Installing...${NC}"
+if ! python3 -c "import ensurepip; import venv" &> /dev/null; then
+    echo -e "${RED}python3-venv not found! Installing...${NC}"
     sudo apt install -y python3-venv
-    if python3 -m venv "$TEMP_VENV_DIR" &> /dev/null; then
-        echo -e "${GREEN}✓ python3-venv installed successfully${NC}"
-        rm -rf "$TEMP_VENV_DIR"  # Clean up the temporary virtual environment
-    else
-        echo -e "${RED}Failed to install or verify python3-venv!${NC}"
-        exit 1
-    fi
+else
+    echo -e "${GREEN}✓ python3-venv is available${NC}"
 fi
 
 # -------------------------------------------------------------------
