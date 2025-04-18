@@ -1,22 +1,90 @@
-# Important!
-
-This code is out of date. I'm remotely working on it, but without a device on hand I'm very limited in the type of testing I can do. Go to the [Snapshot releases](https://github.com/Samuel1698/fakeViewport/releases) as I iron out all the kinks and slowly bring back functionality. Approximately in June I will be able to fully test this code and release version 2.0.0 of the script.
-
 # Fake Viewport
 
-Tired of refreshing the unifi store to constantly see the Viewport out of stock? Me too. So I made a 40$ alternative.
-Using a used **Dell Wyse 5070 Thin Client** with Linux Mint installed on it (50$ on [ebay](https://www.ebay.com/sch/i.html?_nkw=Dell%20Wyse%205070%20Thin%20Client&_sacat=0)), and this script I made
-I can automatically, and remotely, launch the Protect Live View website with the desired Live View, automatically handle login if the session expires, handle temporary loss of connection to the console, or any random hiccups of the webpage.
+Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. With this setup, you can automatically and remotely launch the Protect Live View website, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
 
-The API file is optional. I made a simple API to gather some data for me to display on my main computer, since the fake viewport is in another location.
-You'll need a .env file in the same location as your protect.py file, with your login information as well as the live view link you want to see.
-I've included an example .env for you to modify and rename.
+---
 
-I chose to put this script in /usr/local/bin but you can put it anywhere you want (That doesnt require root permission).
-Execute it with `python3 protect.py`, `python3 /usr/local/bin/protect.py` or `nohup python3 protect.py` if you're remotely executing it.
+## Features
 
-Note that the Thin Client I'm using only has DisplayPort outputs.
+- Automatically launches the Protect Live View website with your desired url.
+- Handles login expiration and reconnects automatically.
+- Detects and resolves temporary connection issues or webpage errors.
+- Optional API integration for remote monitoring (e.g., with [Rainmeter](https://www.rainmeter.net/)).
+
+---
 
 ## Requirements
 
-For this code to work you need to have selenium, webdriver_manager and dotenv installed. You can download the requirements.txt file in the same folder as the script and run `pip install -r requirements.txt` or manually install them yourself. I've included some code to check for webdriver_manager since it tends to be finnicky with the different environments.
+### Hardware
+- A **Dell Wyse Thin Client** or similar device.
+- Tested on:
+  - Dell Wyse 5070 with Linux Mint. 
+  - Dell Wyse Dx0Q with antiX Linux.
+
+### Software
+- A lightweight Linux distribution of your choice (Preferably Debian based).
+- Chrome installed.
+
+---
+
+## Installation
+
+1. **Clone the Repository**  
+   Clone the repo or download the zip file from the [latest release](https://github.com/Samuel1698/fakeViewport/releases).
+
+   ```bash
+   git clone https://github.com/Samuel1698/fakeViewport.git
+   cd fakeViewport
+   ```
+
+2. **Run the Initialization Script**  
+   Execute the `init_project.sh` script to set up the environment.
+
+   ```bash
+   ./init_project.sh
+   ```
+
+3. **Configure the `.env` File**  
+   The `init_project.sh` script will rename the `DOTenv` file to `.env`. 
+   
+   Open the `.env` file and update it with your credentials and the URL of your Protect Live View. You can use vim or nano for this.
+
+   **I strongly recommend to use a local account for this.**
+
+4. **Run the Script**  
+   Start the virtual environment:
+   ```bash
+    source venv/bin/activate
+   ```
+   Start the script using the following command:
+   ```bash
+    python3 protect.py
+   ```
+
+   If running remotely or in a detached session, use:
+   ```bash
+    nohup python3 protect.py > nohup.out 2>&1 &
+   ```
+
+---
+
+## Usage
+
+### Stopping the Script
+If the script is running and you cannot use `CTRL+C` to stop it, you can manually kill the process: 
+```bash
+ps aux | grep protect.py
+kill <pid>
+```
+
+### API Integration (Optional)
+The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, you can access the script's status remotely (with appropriate network permissions) by navigating to the Thin Client's IP address in your browser. For example: `http://[machine's IP]:5000/admin.`
+
+---
+
+## Notes
+
+- The thin clients used in this setup only have DisplayPort outputs. Ensure your monitor or TV supports DisplayPort, or use a compatible adapter.
+- The tested Thin Clients do not include built-in WiFi antennas. However, you can use a USB WiFi adapter to connect wirelessly, provided your network has sufficient bandwidth for the video streams.
+
+---
