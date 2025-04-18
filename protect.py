@@ -51,7 +51,7 @@ except ImportError:
     from webdriver_manager.chrome import ChromeDriverManager
     from webdriver_manager.core.os_manager import ChromeType
 try:
-    from selectors import (
+    from css_selectors import (
         CSS_FULLSCREEN_PARENT,
         CSS_FULLSCREEN_BUTTON,
         CSS_LOADING_DOTS,
