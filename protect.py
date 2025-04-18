@@ -14,7 +14,8 @@ from logging.handlers import TimedRotatingFileHandler
 def install(package):
     # Check if the script is running inside a virtual environment
     if not os.getenv('VIRTUAL_ENV'):
-        logging.warning("The script is not running inside a Python virtual environment.")
+        logging.warning("The script is not running inside a Python virtual environment."
+                        "Start it with: source venv/bin/activate")
         sys.exit(1)
     attempts = [
         [sys.executable, "-m", "pip", "install", package],
