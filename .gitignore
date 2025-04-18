@@ -1,3 +1,4 @@
 .env
+config.ini
 nohup.out
 .vscode/
