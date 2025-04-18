@@ -424,7 +424,7 @@ def handle_page(driver):
             logging.info("Log-in page found. Inputting credentials...")
             if not login(driver):
                 return False
-        elif time.time() - start_time > WAIT_TIME:  # If timeout limit is reached
+        elif time.time() - start_time > WAIT_TIME * 2:  # If timeout limit is reached
             logging.error("Unexpected page loaded. The page title is: " + driver.title)
             return False
         time.sleep(3)
@@ -453,7 +453,7 @@ def hide_cursor(driver):
     }
     """, CSS_PLAYER_OPTIONS)
 def main():
-    logging.info("Starting Fake Viewport v2.0.0-alpha.2")
+    logging.info("Starting Fake Viewport v2.0.0")
     if API:
         check_python_script()
         # Defaults to 'False' until status updates
