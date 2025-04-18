@@ -445,7 +445,6 @@ def handle_page(driver):
     except Exception as e:
         logging.exception("Unexpected error occurred: ")
         logging.error(str(e))
-        time.sleep(WAIT_TIME)
         restart_program(driver)  # Restart if the session is invalid
     start_time = time.time()  # Capture the starting time
     while True:
