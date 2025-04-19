@@ -317,9 +317,9 @@ def check_loading_issue(driver):
 # Checks every 5 minutes if the live view is loaded. Calls the fullscreen function if it is
 # If it unloads for any reason and it can't find the live view container, it navigates to the page again
 def check_view(driver, url):
-    def get_next_whole_interval():
+    def get_next_whole_interval(interval_minutes):
         now = datetime.now()
-        seconds_to_next_interval = (LOG_INTERVAL * 60) - (now.minute % LOG_INTERVAL) * 60 - now.second
+        seconds_to_next_interval = (interval_minutes * 60) - (now.minute % interval_minutes) * 60 - now.second
         next_interval = now + timedelta(seconds=seconds_to_next_interval)
         return next_interval.timestamp()
     def handle_retry(driver, url, attempt, max_retries):
