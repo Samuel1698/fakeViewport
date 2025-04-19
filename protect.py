@@ -371,6 +371,18 @@ def check_view(driver, url):
         restart_program(driver)
     while True:
         try:
+            # Check for "Console Offline" or "Protect Offline"
+            offline_status = driver.execute_script("""
+                return Array.from(document.querySelectorAll('span')).find(el => 
+                    el.innerHTML.includes('Console Offline') || el.innerHTML.includes('Protect Offline')
+                );
+            """)
+            if offline_status:
+                logging.warning("Detected offline status: Console or Protect Offline.")
+                if API:
+                    api_status("Offline: Console or Protect Offline")
+                time.sleep(SLEEP_TIME)  # Wait before retrying
+                handle_retry(driver, url, retry_count, max_retries)
             WebDriverWait(driver, WAIT_TIME).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
             )
