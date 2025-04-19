@@ -318,8 +318,11 @@ def check_loading_issue(driver):
 # If it unloads for any reason and it can't find the live view container, it navigates to the page again
 def check_view(driver, url):
     def get_next_whole_interval(interval_seconds):
+        # Calculates the next whole interval based on the current time
+        # Seconds until next interval would for a time of 10:51 and interval of 5 minutes, calculate
+        # 300 - (51*60 + 0) mod 300 = 240 seconds until next interval
+        # Which would be 10:55
         now = datetime.now()
-        # Calculate the number of seconds until the next whole interval
         seconds_until_next_interval = interval_seconds - (now.minute * 60 + now.second) % interval_seconds
         next_interval = now + timedelta(seconds=seconds_until_next_interval)
         return next_interval.timestamp()
@@ -381,7 +384,7 @@ def check_view(driver, url):
     log_interval_iterations = max(1, round(LOG_INTERVAL / (SLEEP_TIME / 60)))
     iteration_counter = 0
     if handle_page(driver):
-        logging.info(f"Checking health of page every {int(SLEEP_TIME/60)} minutes...")
+        logging.info(f"Checking health of page every {SLEEP_TIME} seconds...")
     else:
         log_error("Error loading the live view. Restarting the program.")
         restart_program(driver)
@@ -421,10 +424,12 @@ def check_view(driver, url):
             if iteration_counter >= log_interval_iterations:
                 logging.info("Video feeds healthy.")
                 iteration_counter = 0  # Reset the counter
-            # Report the health of the video feeds
+            # Check if the next health check time has been reached
+            # Then increase the next health check time by SLEEP_TIME
             if time.time() >= next_health_check:
                 next_health_check += SLEEP_TIME
             # Calculate the time to sleep until the next health check
+            # Based on the difference between the current time and the next health check time
             sleep_duration = max(0, next_health_check - time.time())
             time.sleep(sleep_duration)
         except InvalidSessionIdException:

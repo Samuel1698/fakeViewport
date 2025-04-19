@@ -27,7 +27,7 @@ LOG_CONSOLE=True
 VERBOSE_LOGGING=False
 # How many log files to keeps. It will keep the last 7 days of logs by default.
 LOG_DAYS=7
-# Interval of how often the script will log the status of the cameras, in minutes. You should see "Feed Healthy" if everything is working. once every 60 minutes by default.
+# Interval of how often the script will log the status of the cameras, in minutes. You should see "Feed Healthy" if everything is working once every 60 minutes by default.
 LOG_INTERVAL=60
 
 [API]
