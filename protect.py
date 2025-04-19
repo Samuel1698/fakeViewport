@@ -317,17 +317,11 @@ def check_loading_issue(driver):
 # Checks every 5 minutes if the live view is loaded. Calls the fullscreen function if it is
 # If it unloads for any reason and it can't find the live view container, it navigates to the page again
 def check_view(driver, url):
-    def get_next_whole_interval(interval_minutes):
-        #Calculate the timestamp for the next whole interval in minutes.
+    def get_next_whole_interval(interval_seconds):
         now = datetime.now()
-        # Calculate the number of minutes to the next whole interval
-        next_interval_minute = (now.minute // interval_minutes + 1) * interval_minutes
-        # If the next interval exceeds 60 minutes, move to the next hour
-        if next_interval_minute >= 60:
-            next_hour = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-            next_interval = next_hour
-        else:
-            next_interval = now.replace(minute=next_interval_minute, second=0, microsecond=0)
+        # Calculate the number of seconds until the next whole interval
+        seconds_until_next_interval = interval_seconds - (now.minute * 60 + now.second) % interval_seconds
+        next_interval = now + timedelta(seconds=seconds_until_next_interval)
         return next_interval.timestamp()
     def handle_retry(driver, url, attempt, max_retries):
         logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
@@ -382,7 +376,10 @@ def check_view(driver, url):
         return driver
     retry_count = 0
     max_retries = MAX_RETRIES
-    next_health_check = get_next_whole_interval(LOG_INTERVAL)
+    next_health_check = get_next_whole_interval(SLEEP_TIME)
+    # Calculate how many iterations correspond to one LOG_INTERVAL
+    log_interval_iterations = max(1, round(LOG_INTERVAL / (SLEEP_TIME / 60)))
+    iteration_counter = 0
     if handle_page(driver):
         logging.info(f"Checking health of page every {int(SLEEP_TIME/60)} minutes...")
     else:
@@ -420,11 +417,16 @@ def check_view(driver, url):
                 logging.warning("Live view contains cameras that the browser cannot decode.")
             check_loading_issue(driver)
             hide_cursor(driver)
+            iteration_counter += 1
+            if iteration_counter >= log_interval_iterations:
+                logging.info("Video feeds healthy.")
+                iteration_counter = 0  # Reset the counter
             # Report the health of the video feeds
             if time.time() >= next_health_check:
-                logging.info("Video feeds healthy.")
-                next_health_check = get_next_whole_interval(LOG_INTERVAL)
-            time.sleep(SLEEP_TIME)
+                next_health_check += SLEEP_TIME
+            # Calculate the time to sleep until the next health check
+            sleep_duration = max(0, next_health_check - time.time())
+            time.sleep(sleep_duration)
         except InvalidSessionIdException:
             log_error("Chrome session is invalid. Restarting the program.")
             restart_program(driver)

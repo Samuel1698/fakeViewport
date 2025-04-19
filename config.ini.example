@@ -1,5 +1,5 @@
 [General]
-# How long the script will wait before checking the health of the live view page
+# How long the script will wait before checking the health of the live view page, or refreshing if the console is offline.
 # Don't recommend reducing this number too much unless you're troubleshooting
 SLEEP_TIME=300
 # How long the script will wait for elements to appear
