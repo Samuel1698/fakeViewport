@@ -49,7 +49,7 @@ if [ -f "$REQUIREMENTS" ]; then
     INSTALL_SUCCESS=true
     
     # Upgrade pip first (separate error check)
-    if ! pip install --upgrade pip; then
+    if ! pip install --upgrade pip --quiet; then
         echo -e "${RED}✗ Failed to upgrade pip${NC}"
         INSTALL_SUCCESS=false
     fi
@@ -95,13 +95,18 @@ fi
 # -------------------------------------------------------------------
 if [ -f "DOTenv" ]; then
     echo -e "${YELLOW}Renaming DOTenv to .env...${NC}"
-    if mv -n DOTenv .env; then
-        echo -e "${GREEN}✓ Configuration file prepared${NC}"
-        echo -e "${YELLOW}Please edit .env to set your UniFi Protect credentials.${NC}"
-        echo -e "${YELLOW}You can do so with the command: nano .env${NC}"
+    if [ -f ".env" ]; then
+        echo -e "${GREEN}✓ .env already exists. Skipping...${NC}"
     else
-        echo -e "${RED}Failed to rename DOTenv file!${NC}"
-        exit 1
+        echo -e "${YELLOW}Renaming DOTenv to .env...${NC}"
+        if mv -n DOTenv .env; then
+            echo -e "${GREEN}✓ Configuration file prepared${NC}"
+            echo -e "${YELLOW}Please edit .env to set your UniFi Protect credentials.${NC}"
+            echo -e "${YELLOW}You can do so with the command: nano .env\n${NC}"
+        else
+            echo -e "${RED}Failed to rename DOTenv file!${NC}"
+            exit 1
+        fi
     fi
 elif [ ! -f ".env" ]; then
     echo -e "${RED}Missing configuration file!${NC}"
