@@ -168,11 +168,7 @@ if [ "$INSTALL_SUCCESS" = false ]; then
     echo -e "${YELLOW}Check the error messages above and try again.${NC}"
     exit 1
 else
-    echo -e "\n${GREEN}Setup complete! To activate the virtual environment, run:${NC}"
-    echo -e "${YELLOW}  source $VENV_DIR/bin/activate${NC}"
-    echo -e "${GREEN}Then run the script with:${NC}"
+    echo -e "\n${GREEN}Setup complete! To launch the script, run:${NC}"
     echo -e "${YELLOW}  python3 protect.py${NC}"
-    echo -e "${GREEN}To deactivate the virtual environment, run:${NC}"
-    echo -e "${YELLOW}  deactivate${NC}"
     exit 0
 fi

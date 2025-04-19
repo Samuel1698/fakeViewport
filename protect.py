@@ -164,8 +164,8 @@ def install(package):
         venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
         os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
     attempts = [
-        [sys.executable, "-m", "pip", "install", package],
-        [sys.executable, "-m", "pip", "install", package,
+        [sys.executable, "-m", "pip", "install", package, "--quiet"],
+        [sys.executable, "-m", "pip", "install", package, "--quiet",
         "--trusted-host", "pypi.org",
         "--trusted-host", "files.pythonhosted.org"],
         ["pip", "install", "--user", package]  # Final fallback
