@@ -293,20 +293,28 @@ def check_next_interval(interval_seconds):
         seconds_until_next_interval += interval_seconds
     next_interval = now + timedelta(seconds=seconds_until_next_interval)
     return next_interval.timestamp()
-def check_for_title(driver, title):
+def check_for_title(driver, title=None):
     # Waits for the title of the page to contain a specific string
     # If the title is not found within the specified time, it logs an error and returns false.
     # If the title is found, it logs the title and returns true.
     try:
-        WebDriverWait(driver, WAIT_TIME).until(EC.title_contains(title))
-        logging.info(f"Loaded {title}")
+        if title is None:
+            # Wait for the title to not be empty
+            WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
+        else:
+            # Wait for the title to contain the specified string
+            WebDriverWait(driver, WAIT_TIME).until(EC.title_contains(title))
+            logging.info(f"Loaded page: '{title}'")
+        return True
     except TimeoutException:
-        log_error(f"Timed out waiting for the title '{title}' to load.")
+        if title is None:
+            log_error("Timed out waiting for the page title to not be empty.")
+        else:
+            log_error(f"Timed out waiting for the title '{title}' to load.")
         return False
     except Exception as e:
         log_error(f"Error while waiting for title '{title}': ", e)
         return False
-    return True
 def check_unable_to_stream(driver):
     # Checks if the "Unable to Stream" message is present in the live view
     # If it is, it returns true. Otherwise, it returns false.
@@ -434,22 +442,14 @@ def handle_page(driver):
     # Handles the page loading and login process
     # It waits for the page title to load and checks if it contains "Dashboard" or "Ubiquiti Account" (login page)
     # If it contains "Dashboard", it calls the hide_cursor function and returns true.
-    try:
-        # Wait for the page to load
-        WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
-    except TimeoutException:
-        log_error("Failed to load the page title. Chrome may have crashed.")
-        restart_program(driver)  # Restart the script if the title doesn't load
-    except Exception as e:
-        log_error("Error while waiting for page title: ", e)
-        restart_program(driver)  # Restart if the session is invalid
+    check_for_title(driver)
     start_time = time.time()  # Capture the starting time
     while True:
         if "Dashboard" in driver.title:
             time.sleep(3)
             hide_cursor(driver)
             return True
-        elif "Ubiquiti Account" or "UniFi OS" in driver.title:
+        elif "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
             logging.info("Log-in page found. Inputting credentials...")
             if not handle_login(driver):
                 return False
@@ -498,7 +498,7 @@ def handle_retry(driver, url, attempt, max_retries):
             time.sleep(5)
             logging.info("Starting chrome instance...")
             driver = start_chrome(url)
-            WebDriverWait(driver, WAIT_TIME).until(lambda d: d.title != "")
+            check_for_title(driver)
             if handle_page(driver):
                 logging.info("Page successfully reloaded.")
                 time.sleep(WAIT_TIME)
@@ -591,7 +591,7 @@ def handle_view(driver, url):
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():
-    logging.info("Starting Fake Viewport v2.0.1")
+    logging.info("Starting Fake Viewport v2.0.2")
     if API:
         logging.info("Checking if API is running...")
         if not handle_process('api.py', action="continue"):
