@@ -324,6 +324,8 @@ def check_view(driver, url):
         # Which would be 10:55
         now = datetime.now()
         seconds_until_next_interval = interval_seconds - (now.minute * 60 + now.second) % interval_seconds
+        if seconds_until_next_interval <= 30:
+            seconds_until_next_interval += interval_seconds
         next_interval = now + timedelta(seconds=seconds_until_next_interval)
         return next_interval.timestamp()
     def handle_retry(driver, url, attempt, max_retries):
@@ -420,7 +422,7 @@ def check_view(driver, url):
             check_loading_issue(driver)
             hide_cursor(driver)
             iteration_counter += 1
-            if iteration_counter >= log_interval_iterations:
+            if iteration_counter == log_interval_iterations:
                 logging.info("Video feeds healthy.")
                 iteration_counter = 0  # Reset the counter
             # Calculate the time to sleep until the next health check
