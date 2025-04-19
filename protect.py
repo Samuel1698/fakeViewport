@@ -190,15 +190,12 @@ def handle_process(process_name, action="continue"):
         # Use pgrep to check if the process is running
         result = subprocess.run(['pgrep', '-f', process_name], stdout=subprocess.PIPE, text=True)
         if result.stdout:
-            pids = result.stdout.strip().split('\n')  # Get all matching PIDs
-            logging.info(f"Found running process '{process_name}' with PIDs: {', '.join(pids)}")
-            
+            pids = result.stdout.strip().split('\n')  # Get all matching PIDs            
             if action == "kill":
                 for pid in pids:
                     if int(pid) != current_pid:  # Skip the current instance
                         logging.warning(f"Killing process '{process_name}' with PID: {pid}")
                         os.kill(int(pid), signal.SIGTERM)  # Send termination signal
-                logging.info(f"All other instances of '{process_name}' have been terminated.")
                 return False
             elif action == "continue":
                 logging.info(f"'{process_name}' is already running. Continuing...")
