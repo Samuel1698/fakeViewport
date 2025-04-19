@@ -227,6 +227,13 @@ def signal_handler(signum, frame):
 # Register the signal handler
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
+# Get the path to the ChromeDriver, caching the result to avoid redundant initialization.
+_chrome_driver_path = None  # Cache for the ChromeDriver path
+def get_chrome_driver():
+    global _chrome_driver_path
+    if not _chrome_driver_path:
+        _chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
+    return _chrome_driver_path
 # Starts a chrome 'driver' and handles error reattempts
 def start_chrome(url):
     retry_count = 0
@@ -253,11 +260,7 @@ def start_chrome(url):
                 "credentials_enable_service": False,
                 "profile.password_manager_enabled": False
             })
-            driver = webdriver.Chrome(
-                service=Service(ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()),
-                options=chrome_options
-            )
-            driver.get(url)
+            driver = webdriver.Chrome(service=Service(get_chrome_driver()), options=chrome_options).get(url)
             return driver
         except Exception as e:
             log_error("Error starting Chrome: ", e)
