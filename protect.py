@@ -318,9 +318,16 @@ def check_loading_issue(driver):
 # If it unloads for any reason and it can't find the live view container, it navigates to the page again
 def check_view(driver, url):
     def get_next_whole_interval(interval_minutes):
+        #Calculate the timestamp for the next whole interval in minutes.
         now = datetime.now()
-        seconds_to_next_interval = (interval_minutes * 60) - (now.minute % interval_minutes) * 60 - now.second
-        next_interval = now + timedelta(seconds=seconds_to_next_interval)
+        # Calculate the number of minutes to the next whole interval
+        next_interval_minute = (now.minute // interval_minutes + 1) * interval_minutes
+        # If the next interval exceeds 60 minutes, move to the next hour
+        if next_interval_minute >= 60:
+            next_hour = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+            next_interval = next_hour
+        else:
+            next_interval = now.replace(minute=next_interval_minute, second=0, microsecond=0)
         return next_interval.timestamp()
     def handle_retry(driver, url, attempt, max_retries):
         logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
