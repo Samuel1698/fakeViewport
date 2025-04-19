@@ -394,6 +394,7 @@ def check_view(driver, url):
                 if API:
                     api_status("Offline: Console or Protect Offline")
                 time.sleep(SLEEP_TIME)  # Wait before retrying
+                retry_count += 1
                 handle_retry(driver, url, retry_count, max_retries)
             WebDriverWait(driver, WAIT_TIME).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
