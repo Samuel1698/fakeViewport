@@ -299,11 +299,17 @@ def check_loading_issue(driver):
                 if trouble_loading_start_time is None:
                     trouble_loading_start_time = time.time()
                 elif time.time() - trouble_loading_start_time >= 15:  # if loading issue persists for 15 seconds
+                    log_error("Video feed trouble persisting for 15 seconds, refreshing the page.")
                     logging.info("Video feed trouble persisting for 15 seconds, refreshing the page.")
                     driver.refresh()
-                    handle_page(driver)
-                    time.sleep(5)
-                    return  # Exit the function
+                    time.sleep(5)  # Allow the page to load after refresh
+                    
+                    # Validate the page after refresh
+                    if not handle_page(driver):
+                        logging.error("Unexpected page loaded after refresh. Waiting before retrying...")
+                        time.sleep(SLEEP_TIME)
+                        return  # Exit the function to allow retry logic in the caller
+                    return  # Exit the function if the page is valid
         except TimeoutException:
             trouble_loading_start_time = None  # Reset the timer if the issue resolved
         time.sleep(1)
