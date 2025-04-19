@@ -94,7 +94,7 @@ load_dotenv()
 username = os.getenv('USERNAME')
 password = os.getenv('PASSWORD')
 url = os.getenv('URL')
-EXAMPLE_URL = "http://192.168.20.2/protect/dashboard/multiviewurl"
+EXAMPLE_URL = "http://192.168.100.100/protect/dashboard/multiviewurl"
 if url == EXAMPLE_URL:
     logging.error("The URL in the .env file is still set to the example value. Please update it to your actual URL.")
     sys.exit(1)
@@ -180,7 +180,7 @@ def install(package):
 def handle_process(process_name, action="continue"):
     # Handles process management for the script. Checks if a process is running and takes action based on the specified behavior
     # Ensures the current instance is not affected if told to kill the process
-    # Args: process_name (str): The name of the process to check (e.g., 'api.py', 'protect.py').
+    # Args: process_name (str): The name of the process to check (e.g., 'monitoring.py', 'viewport.py').
     # action (str): The action to take if the process is found. Options are:
     # - "continue": Log that the process is running and do nothing. 
     # - "kill": Kill the process if it is running (excluding the current instance).
@@ -590,15 +590,15 @@ def main():
     logging.info("Starting Fake Viewport v2.0.2")
     if API:
         logging.info("Checking if API is running...")
-        if not handle_process('api.py', action="continue"):
+        if not handle_process('monitoring.py', action="continue"):
             logging.info("Starting API...")
-            # construct the path to api.py
-            api_script = os.path.join(script_dir, 'api.py')
+            # construct the path to monitoring.py
+            api_script = os.path.join(script_dir, 'monitoring.py')
             subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             # Defaults to 'False' until status updates
             api_status("Starting API...")
-    # Check and kill any existing instance of protect.py
-    handle_process('protect.py', action="kill")
+    # Check and kill any existing instance of viewport.py
+    handle_process('viewport.py', action="kill")
     logging.info("Waiting for chrome to load...")
     driver = start_chrome(url)
     # Start the handle_view function in a separate thread

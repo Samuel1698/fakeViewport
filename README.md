@@ -38,14 +38,14 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ```
 
 2. **Run the Initialization Script**  
-   Execute the `init_project.sh` script to set up the environment.
+   Execute the `setup.sh` script to set up the environment.
 
    ```bash
-   ./init_project.sh
+   ./setup.sh
    ```
 
 3. **Configure the `.env` File**  
-   The `init_project.sh` script will rename the `DOTenv` file to `.env`. 
+   The `setup.sh` script will rename the `.env.example` file to `.env`. 
    
    Open the `.env` file and update it with your credentials and the URL of your Protect Live View. You can use vim or nano for this.
 
@@ -58,12 +58,12 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ```
    Start the script using the following command:
    ```bash
-    python3 protect.py
+    python3 viewport.py
    ```
 
    If running remotely or in a detached session, use:
    ```bash
-    nohup python3 protect.py > nohup.out 2>&1 &
+    nohup python3 viewport.py > nohup.out 2>&1 &
    ```
 
 ---
@@ -73,7 +73,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 ### Stopping the Script
 If the script is running and you cannot use `CTRL+C` to stop it, you can manually kill the process: 
 ```bash
-ps aux | grep protect.py
+ps aux | grep viewport.py
 kill <pid>
 ```
 
