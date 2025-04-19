@@ -160,9 +160,9 @@ signal.signal(signal.SIGTERM, signal_handler)
 def install(package):
     # Check if the script is running inside a virtual environment
     if not os.getenv('VIRTUAL_ENV'):
-        logging.warning("The script is not running inside a Python virtual environment. "
-                        "\nStart it with: source venv/bin/activate")
-        sys.exit(1)
+        logging.warning("Starting virtual environment...")
+        venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
+        os.execv('/bin/bash', ['bash', '-c', f"source {venv_path}"])
     attempts = [
         [sys.executable, "-m", "pip", "install", package],
         [sys.executable, "-m", "pip", "install", package,
@@ -204,7 +204,6 @@ def handle_process(process_name, action="continue"):
                 logging.info(f"'{process_name}' is already running. Continuing...")
                 return True
         else:
-            logging.info(f"No running process found for '{process_name}'.")
             return False
     except Exception as e:
         logging.error(f"Error while handling process '{process_name}': {e}")
