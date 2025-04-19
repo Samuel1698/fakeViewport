@@ -58,8 +58,8 @@ if [ -f "$REQUIREMENTS" ]; then
     if ! pip install --quiet --trusted-host pypi.org --trusted-host files.pythonhosted.org --retries 3 --timeout 30 -r "$REQUIREMENTS"; then
         echo -e "${RED}✗ Failed to install some dependencies${NC}"
         echo -e "${YELLOW}This might be due to network issues."
-        echo -e "Try manually running this command: "
-        echo -e "pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt"
+        echo -e "Try manually running the command: "
+        echo -e "pip install -r requirements.txt"
         INSTALL_SUCCESS=false
     fi
     
