@@ -73,6 +73,43 @@ def check_chrome_version():
     except Exception as e:
         logging.error(f"Could not verify Chrome version: {e}")
         return None
+def handle_process(process_name, action="continue"):
+    """
+    Check if a process is running and take action based on the specified behavior.
+    Ensures the current instance is not affected.
+    
+    Args:
+        process_name (str): The name of the process to check (e.g., 'api.py', 'protect.py').
+        action (str): The action to take if the process is found. Options are:
+                    - "continue": Log that the process is running and do nothing.
+                    - "kill": Kill the process if it is running (excluding the current instance).
+    Returns:
+        bool: True if a process exists with that name, False otherwise.
+    """
+    current_pid = os.getpid()  # Get the PID of the current process
+    try:
+        # Use pgrep to check if the process is running
+        result = subprocess.run(['pgrep', '-f', process_name], stdout=subprocess.PIPE, text=True)
+        if result.stdout:
+            pids = result.stdout.strip().split('\n')  # Get all matching PIDs
+            logging.info(f"Found running process '{process_name}' with PIDs: {', '.join(pids)}")
+            
+            if action == "kill":
+                for pid in pids:
+                    if int(pid) != current_pid:  # Skip the current instance
+                        logging.warning(f"Killing process '{process_name}' with PID: {pid}")
+                        os.kill(int(pid), signal.SIGTERM)  # Send termination signal
+                logging.info(f"All other instances of '{process_name}' have been terminated.")
+                return False
+            elif action == "continue":
+                logging.info(f"'{process_name}' is already running. Continuing...")
+                return True
+        else:
+            logging.info(f"No running process found for '{process_name}'.")
+            return False
+    except Exception as e:
+        logging.error(f"Error while handling process '{process_name}': {e}")
+        return True
 config = configparser.ConfigParser()
 config.read('config.ini')
 # General
@@ -178,17 +215,6 @@ if API:
     def api_status(msg):
         with open(view_status_file, 'w') as f:
             f.write(msg)
-    # Check if the API is already running, start it otherwise
-    def check_python_script():
-        logging.info("Checking if API is already running...")
-        result = subprocess.run(['pgrep', '-f', 'api.py'], stdout=subprocess.PIPE)
-        if result.stdout:
-            logging.info("API already running.")
-        else:
-            logging.info("Starting API...")
-            # construct the path to api.py
-            api_script = os.path.join(current_dir, 'api.py')
-            subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 # Handles the closing of the script with CTRL+C
 def signal_handler(signum, frame):
     logging.info('Gracefully shutting down Chrome.')
@@ -552,9 +578,16 @@ def hide_cursor(driver):
 def main():
     logging.info("Starting Fake Viewport v2.0.0")
     if API:
-        check_python_script()
-        # Defaults to 'False' until status updates
-        api_status("Starting API...")
+        logging.info("Checking if API is running...")
+        if not handle_process('api.py', action="continue"):
+            logging.info("Starting API...")
+            # construct the path to api.py
+            api_script = os.path.join(current_dir, 'api.py')
+            subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # Defaults to 'False' until status updates
+            api_status("Starting API...")
+    # Check and kill any existing instance of protect.py
+    handle_process('protect.py', action="kill")
     logging.info("Waiting for chrome to load...")
     driver = start_chrome(url)
     # Start the check_view function in a separate thread
