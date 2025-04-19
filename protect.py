@@ -228,6 +228,7 @@ def get_chrome_driver():
     return _chrome_driver_path
 # Starts a chrome 'driver' and handles error reattempts
 def start_chrome(url):
+    handle_process("chrome", action="kill")
     retry_count = 0
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
