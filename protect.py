@@ -162,7 +162,7 @@ def install(package):
     if not os.getenv('VIRTUAL_ENV'):
         logging.warning("Starting virtual environment...")
         venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
-        os.execv('/bin/bash', ['bash', '-c', f"source {venv_path}"])
+        os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
     attempts = [
         [sys.executable, "-m", "pip", "install", package],
         [sys.executable, "-m", "pip", "install", package,
