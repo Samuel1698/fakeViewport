@@ -65,6 +65,7 @@ if [ -f "$REQUIREMENTS" ]; then
     
     if [ "$INSTALL_SUCCESS" = true ]; then
         echo -e "${GREEN}✓ All dependencies installed successfully${NC}"
+        sleep 1
     else
         echo -e "${RED}!!! Dependency installation failed !!!${NC}"
         echo -e "${YELLOW}The script may not work properly.${NC}"
