@@ -92,25 +92,25 @@ else
 fi
 
 # -------------------------------------------------------------------
-# 6: Rename DOTenv to .env
+# 6: Rename .env.example to .env
 # -------------------------------------------------------------------
-if [ -f "DOTenv" ]; then
+if [ -f ".env.example" ]; then
     if [ -f ".env" ]; then
         echo -e "${GREEN}✓ .env already exists. Skipping...${NC}"
     else
-        echo -e "${YELLOW}Renaming DOTenv to .env...${NC}"
-        if mv -n DOTenv .env; then
+        echo -e "${YELLOW}Renaming .env.example to .env...${NC}"
+        if mv -n .env.example .env; then
             echo -e "${GREEN}✓ Configuration file prepared${NC}"
             echo -e "${YELLOW}Please edit .env to set your UniFi Protect credentials.${NC}"
             echo -e "${YELLOW}You can do so with the command: nano .env\n${NC}"
         else
-            echo -e "${RED}Failed to rename DOTenv file!${NC}"
+            echo -e "${RED}Failed to rename .env.example file!${NC}"
             exit 1
         fi
     fi
 elif [ ! -f ".env" ]; then
     echo -e "${RED}Missing configuration file!${NC}"
-    echo -e "${YELLOW}Either DOTenv or .env must exist${NC}"
+    echo -e "${YELLOW}Either .env.example or .env must exist${NC}"
     exit 1
 fi
 # -------------------------------------------------------------------
@@ -140,7 +140,7 @@ read -r create_shortcut
 if [[ "$create_shortcut" =~ ^[Yy]$ ]]; then
     DESKTOP_PATH="$HOME/Desktop"
     SHORTCUT_PATH="$DESKTOP_PATH/FakeViewport.desktop"
-    SCRIPT_PATH="$(pwd)/protect.py"
+    SCRIPT_PATH="$(pwd)/viewport.py"
     VENV_PYTHON="$(pwd)/venv/bin/activate"
     echo -e "${YELLOW}Creating desktop shortcut...${NC}"
     cat > "$SHORTCUT_PATH" <<EOL
@@ -169,6 +169,6 @@ if [ "$INSTALL_SUCCESS" = false ]; then
     exit 1
 else
     echo -e "\n${GREEN}Setup complete! To launch the script, run:${NC}"
-    echo -e "${YELLOW}  python3 protect.py${NC}"
+    echo -e "${YELLOW}  python3 viewport.py${NC}"
     exit 0
 fi
