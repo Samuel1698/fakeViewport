@@ -8,7 +8,7 @@ import getpass
 import configparser
 import logging
 import signal
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
 def install(package):
@@ -94,6 +94,7 @@ LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
 VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
 LOG_DAYS = config.getint('Logging', 'LOG_DAYS', fallback=7)
+LOG_INTERVAL = config.getint('Logging', 'LOG_INTERVAL', fallback=60)
 # Get the directory this script is in
 script_dir = Path(__file__).resolve().parent
 # Define the logs folder path
@@ -316,6 +317,11 @@ def check_loading_issue(driver):
 # Checks every 5 minutes if the live view is loaded. Calls the fullscreen function if it is
 # If it unloads for any reason and it can't find the live view container, it navigates to the page again
 def check_view(driver, url):
+    def get_next_whole_interval():
+        now = datetime.now()
+        seconds_to_next_interval = (LOG_INTERVAL * 60) - (now.minute % LOG_INTERVAL) * 60 - now.second
+        next_interval = now + timedelta(seconds=seconds_to_next_interval)
+        return next_interval.timestamp()
     def handle_retry(driver, url, attempt, max_retries):
         logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
         if API:
@@ -367,9 +373,9 @@ def check_view(driver, url):
             logging.info("Max Attempts reached, restarting script...")
             restart_program(driver)
         return driver
-    interval_counter = 0
     retry_count = 0
     max_retries = MAX_RETRIES
+    next_health_check = get_next_whole_interval(LOG_INTERVAL)
     if handle_page(driver):
         logging.info(f"Checking health of page every {int(SLEEP_TIME/60)} minutes...")
     else:
@@ -406,9 +412,10 @@ def check_view(driver, url):
                 logging.warning("Live view contains cameras that the browser cannot decode.")
             check_loading_issue(driver)
             hide_cursor(driver)
-            interval_counter += 1
-            if interval_counter % 12 == 0:
+            # Report the health of the video feeds
+            if time.time() >= next_health_check:
                 logging.info("Video feeds healthy.")
+                next_health_check = get_next_whole_interval(LOG_INTERVAL)
             time.sleep(SLEEP_TIME)
         except InvalidSessionIdException:
             log_error("Chrome session is invalid. Restarting the program.")
