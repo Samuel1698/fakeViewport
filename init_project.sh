@@ -133,6 +133,34 @@ elif [ ! -f "config.ini" ]; then
     exit 1
 fi
 # -------------------------------------------------------------------
+# 8: Create Desktop Shortcut
+# -------------------------------------------------------------------
+echo -e "${YELLOW}]\nWould you like to create a desktop shortcut for FakeViewport? (y/n)${NC}"
+read -r create_shortcut
+if [[ "$create_shortcut" =~ ^[Yy]$ ]]; then
+    DESKTOP_PATH="$HOME/Desktop"
+    SHORTCUT_PATH="$DESKTOP_PATH/FakeViewport.desktop"
+    SCRIPT_PATH="$(pwd)/protect.py"
+
+    echo -e "${YELLOW}Creating desktop shortcut...${NC}"
+    cat > "$SHORTCUT_PATH" <<EOL
+[Desktop Entry]
+Version=1.0
+Name=FakeViewport
+Comment=Run the FakeViewport script
+Exec=bash -c "source $(pwd)/venv/bin/activate && nohup python3 $SCRIPT_PATH > nohup.out 2>&1 &"
+Icon=camera-web
+Terminal=false
+Type=Application
+Categories=Utility;
+EOL
+
+    chmod +x "$SHORTCUT_PATH"
+    echo -e "${GREEN}✓ Desktop shortcut created at $SHORTCUT_PATH${NC}"
+else
+    echo -e "${GREEN}✓ Skipping desktop shortcut creation.${NC}"
+fi
+# -------------------------------------------------------------------
 # Final Report
 # -------------------------------------------------------------------
 if [ "$INSTALL_SUCCESS" = false ]; then
