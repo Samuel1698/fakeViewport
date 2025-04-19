@@ -160,7 +160,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 def install(package):
     # Check if the script is running inside a virtual environment
     if not os.getenv('VIRTUAL_ENV'):
-        logging.warning("Starting virtual environment...")
+        logging.warning("Starting virtual environment and restarting script...")
         venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
         os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
     attempts = [
