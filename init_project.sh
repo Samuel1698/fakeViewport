@@ -55,7 +55,7 @@ if [ -f "$REQUIREMENTS" ]; then
     fi
     
     # Install requirements (with retry logic)
-    if ! pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --retries 3 --timeout 30 -r "$REQUIREMENTS"; then
+    if ! pip install --quiet --trusted-host pypi.org --trusted-host files.pythonhosted.org --retries 3 --timeout 30 -r "$REQUIREMENTS"; then
         echo -e "${RED}✗ Failed to install some dependencies${NC}"
         echo -e "${YELLOW}This might be due to network issues."
         echo -e "Try manually running this command: "
@@ -94,7 +94,6 @@ fi
 # 6: Rename DOTenv to .env
 # -------------------------------------------------------------------
 if [ -f "DOTenv" ]; then
-    echo -e "${YELLOW}Renaming DOTenv to .env...${NC}"
     if [ -f ".env" ]; then
         echo -e "${GREEN}✓ .env already exists. Skipping...${NC}"
     else
