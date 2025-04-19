@@ -379,7 +379,6 @@ def check_view(driver, url):
         return driver
     retry_count = 0
     max_retries = MAX_RETRIES
-    next_health_check = get_next_whole_interval(SLEEP_TIME)
     # Calculate how many iterations correspond to one LOG_INTERVAL
     log_interval_iterations = max(1, round(LOG_INTERVAL / (SLEEP_TIME / 60)))
     iteration_counter = 0
@@ -424,13 +423,9 @@ def check_view(driver, url):
             if iteration_counter >= log_interval_iterations:
                 logging.info("Video feeds healthy.")
                 iteration_counter = 0  # Reset the counter
-            # Check if the next health check time has been reached
-            # Then increase the next health check time by SLEEP_TIME
-            if time.time() >= next_health_check:
-                next_health_check += SLEEP_TIME
             # Calculate the time to sleep until the next health check
             # Based on the difference between the current time and the next health check time
-            sleep_duration = max(0, next_health_check - time.time())
+            sleep_duration = max(0, get_next_whole_interval(SLEEP_TIME) - time.time())
             time.sleep(sleep_duration)
         except InvalidSessionIdException:
             log_error("Chrome session is invalid. Restarting the program.")
