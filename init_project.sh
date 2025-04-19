@@ -141,7 +141,6 @@ if [[ "$create_shortcut" =~ ^[Yy]$ ]]; then
     DESKTOP_PATH="$HOME/Desktop"
     SHORTCUT_PATH="$DESKTOP_PATH/FakeViewport.desktop"
     SCRIPT_PATH="$(pwd)/protect.py"
-    VENV_PATH="$(pwd)/venv/bin/python3"
 
     echo -e "${YELLOW}Creating desktop shortcut...${NC}"
     cat > "$SHORTCUT_PATH" <<EOL
@@ -149,7 +148,7 @@ if [[ "$create_shortcut" =~ ^[Yy]$ ]]; then
 Version=1.0
 Name=FakeViewport
 Comment=Run the FakeViewport script
-Exec=venv $VENV_PATH $SCRIPT_PATH
+Exec=$SCRIPT_PATH
 Icon=camera-web
 Terminal=false
 Type=Application
