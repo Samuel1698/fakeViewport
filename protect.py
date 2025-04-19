@@ -80,8 +80,8 @@ SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
 MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
 # Validate config variables
-if SLEEP_TIME <= 0:
-    logging.error("Invalid value for SLEEP_TIME. It should be a positive integer.")
+if SLEEP_TIME < 60:
+    logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
     sys.exit(1)
 if WAIT_TIME <= 5:
     logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
@@ -95,6 +95,13 @@ LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
 VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
 LOG_DAYS = config.getint('Logging', 'LOG_DAYS', fallback=7)
 LOG_INTERVAL = config.getint('Logging', 'LOG_INTERVAL', fallback=60)
+# Validate LOG Variables
+if LOG_DAYS < 1:
+    logging.error("Invalid value for LOG_DAYS. It should be a positive integer greater than 0.")
+    sys.exit(1)
+if LOG_INTERVAL < 1:
+    logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
+    sys.exit(1)
 # Get the directory this script is in
 script_dir = Path(__file__).resolve().parent
 # Define the logs folder path
