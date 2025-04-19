@@ -11,26 +11,6 @@ import signal
 from datetime import datetime, timedelta
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
-def install(package):
-    # Check if the script is running inside a virtual environment
-    if not os.getenv('VIRTUAL_ENV'):
-        logging.warning("The script is not running inside a Python virtual environment. "
-                        "\nStart it with: source venv/bin/activate")
-        sys.exit(1)
-    attempts = [
-        [sys.executable, "-m", "pip", "install", package],
-        [sys.executable, "-m", "pip", "install", package,
-        "--trusted-host", "pypi.org",
-        "--trusted-host", "files.pythonhosted.org"],
-        ["pip", "install", "--user", package]  # Final fallback
-    ]
-    for attempt in attempts:
-        try:
-            subprocess.check_call(attempt)
-            return True
-        except subprocess.CalledProcessError:
-            continue
-    return False
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -65,14 +45,26 @@ except ImportError:
     CSS_LOADING_DOTS = "div[class*='TimedDotsLoader']"
     CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
     CSS_PLAYER_OPTIONS = "aeugT"
-def check_chrome_version():
-    try:
-        chrome_version = subprocess.check_output(["google-chrome-stable", "--version"]).decode('utf-8').strip()
-        logging.info(f"Chrome version: {chrome_version}")
-        return chrome_version.split()[-1].split('.')[0]  # Returns major version number
-    except Exception as e:
-        logging.error(f"Could not verify Chrome version: {e}")
-        return None
+def install(package):
+    # Check if the script is running inside a virtual environment
+    if not os.getenv('VIRTUAL_ENV'):
+        logging.warning("The script is not running inside a Python virtual environment. "
+                        "\nStart it with: source venv/bin/activate")
+        sys.exit(1)
+    attempts = [
+        [sys.executable, "-m", "pip", "install", package],
+        [sys.executable, "-m", "pip", "install", package,
+        "--trusted-host", "pypi.org",
+        "--trusted-host", "files.pythonhosted.org"],
+        ["pip", "install", "--user", package]  # Final fallback
+    ]
+    for attempt in attempts:
+        try:
+            subprocess.check_call(attempt)
+            return True
+        except subprocess.CalledProcessError:
+            continue
+    return False
 def handle_process(process_name, action="continue"):
     """
     Check if a process is running and take action based on the specified behavior.
