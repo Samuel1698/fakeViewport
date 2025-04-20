@@ -57,7 +57,7 @@ log_file_path = logs_dir / 'viewport.log'
 # Config file setup
 # -------------------------------------------------------------------
 def config_initialize():
-    global CHROME_PROFILE_PATH, CHROME_BINARY, SLEEP_TIME, WAIT_TIME, MAX_RETRIES, LOG_DAYS, LOG_INTERVAL, API_PATH, LOG_FILE, LOG_CONSOLE, VERBOSE_LOGGING, API
+    global CHROME_PROFILE_PATH, CHROME_BINARY, SLEEP_TIME, WAIT_TIME, MAX_RETRIES, LOG_DAYS, LOG_INTERVAL, API_PATH, LOG_FILE, LOG_CONSOLE, VERBOSE_LOGGING, API, view_status_file, script_start_time_file
     config = configparser.ConfigParser()
     config.read('config.ini')
     # Get the config variables
@@ -75,6 +75,9 @@ def config_initialize():
     LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
     API = config.getboolean('API', 'USE_API', fallback=False)
     API_PATH = config.get('API', 'API_FILE_PATH', fallback='~').strip()
+    if API:
+        view_status_file = os.path.join(os.path.expanduser(API_PATH), 'view_status.txt')
+        script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
     config_log()
     config_validate()
     config_dotenv()
@@ -151,9 +154,6 @@ def api_handler():
     if not os.path.isdir(os.path.expanduser(API_PATH)):
         logging.error(f"Invalid API_PATH: {API_PATH}. The directory does not exist.")
         sys.exit(1)
-    # Construct the path to the file in the user's home directory
-    view_status_file = os.path.join(os.path.expanduser(API_PATH), 'view_status.txt')
-    script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
     with open(script_start_time_file, 'w') as f:
         f.write(str(datetime.now()))
     logging.info("Checking if API is running...")
@@ -650,7 +650,6 @@ def handle_view(driver, url):
 # -------------------------------------------------------------------
 def main():
     config_initialize()
-    if API: api_handler()
     args = arguments_handler()
     if args.status is not None:
         try:
@@ -690,6 +689,7 @@ def main():
         venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
         os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
     logging.info(f"===== Fake Viewport {viewport_version} =====")
+    if API: api_handler()
     # Check and kill any existing instance of viewport.py
     process_handler('viewport.py', action="kill")
     driver = chrome_handler(url)
