@@ -54,72 +54,61 @@ if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file_path = logs_dir / 'viewport.log'
 # -------------------------------------------------------------------
-# Config file setup
+# Config file initialization
 # -------------------------------------------------------------------
-def config_initialize():
-    global CHROME_PROFILE_PATH, CHROME_BINARY, SLEEP_TIME, WAIT_TIME, MAX_RETRIES, LOG_DAYS, LOG_INTERVAL, API_PATH, LOG_FILE, LOG_CONSOLE, VERBOSE_LOGGING, API, view_status_file, script_start_time_file
-    config = configparser.ConfigParser()
-    config.read('config.ini')
-    # Get the config variables
-    user = getpass.getuser()
-    default_profile_path = f"/home/{user}/.config/google-chrome/Default"
-    CHROME_PROFILE_PATH = config.get('Chrome', 'CHROME_PROFILE_PATH', fallback=default_profile_path).strip()
-    CHROME_BINARY = config.get('Chrome', 'CHROME_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
-    SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
-    WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
-    MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
-    LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
-    LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
-    VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
-    LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
-    LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
-    API = config.getboolean('API', 'USE_API', fallback=False)
-    API_PATH = config.get('API', 'API_FILE_PATH', fallback='~').strip()
-    if API:
-        view_status_file = os.path.join(os.path.expanduser(API_PATH), 'view_status.txt')
-        script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
-    config_log()
-    config_validate()
-    config_dotenv()
-def config_validate():
-    if SLEEP_TIME < 60:
-        logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
-        sys.exit(1)
-    if WAIT_TIME <= 5:
-        logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
-        sys.exit(1)
-    if MAX_RETRIES < 3:
-        logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
-        sys.exit(1)
-    if LOG_DAYS < 1:
-        logging.error("Invalid value for LOG_DAYS. It should be a positive integer greater than 0.")
-        sys.exit(1)
-    if LOG_INTERVAL < 1:
+config = configparser.ConfigParser()
+config.read('config.ini')
+# Get the config variables
+user = getpass.getuser()
+default_profile_path = f"/home/{user}/.config/google-chrome/Default"
+CHROME_PROFILE_PATH = config.get('Chrome', 'CHROME_PROFILE_PATH', fallback=default_profile_path).strip()
+CHROME_BINARY = config.get('Chrome', 'CHROME_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
+SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
+WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
+MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
+LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
+LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
+VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
+LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
+LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
+API = config.getboolean('API', 'USE_API', fallback=False)
+API_PATH = config.get('API', 'API_FILE_PATH', fallback='~').strip()
+# -------------------------------------------------------------------
+# Config variables validation
+# -------------------------------------------------------------------
+if SLEEP_TIME < 60:
+    logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
+    sys.exit(1)
+if WAIT_TIME <= 5:
+    logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
+    sys.exit(1)
+if MAX_RETRIES < 3:
+    logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
+    sys.exit(1)
+if LOG_DAYS < 1:
+    logging.error("Invalid value for LOG_DAYS. It should be a positive integer greater than 0.")
+    sys.exit(1)
+if LOG_INTERVAL < 1:
         logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
         sys.exit(1)
-def config_dotenv():
-    if not env_dir.exists():
-        logging.error("Missing .env file.")
-        sys.exit(1)
-    global username, password, url
-    load_dotenv()
-    username = os.getenv('USERNAME')
-    password = os.getenv('PASSWORD')
-    url = os.getenv('URL')
-    EXAMPLE_URL = "http://192.168.100.100/protect/dashboard/multiviewurl"
-    if url == EXAMPLE_URL:
-        logging.error("The URL in the .env file is still set to the example value. Please update it to your actual URL.")
-        sys.exit(1)
-    if not url:
-        logging.error("No URL detected. Please make sure you have a .env file in the same directory as this script.")
-        sys.exit(1)
-def config_load():
-    logging.info("Reloading configuration from config.ini...")
-    try:
-        config_initialize()
-        logging.info("Configuration reloaded successfully.")
-    except Exception as e:
-        log_error("Failed to reload configuration: ", e)
+# -------------------------------------------------------------------
+# .env variables validation
+# -------------------------------------------------------------------
+if not env_dir.exists():
+    logging.error("Missing .env file.")
+    sys.exit(1)
+global username, password, url
+load_dotenv()
+username = os.getenv('USERNAME')
+password = os.getenv('PASSWORD')
+url = os.getenv('URL')
+EXAMPLE_URL = "http://192.168.100.100/protect/dashboard/multiviewurl"
+if url == EXAMPLE_URL:
+    logging.error("The URL in the .env file is still set to the example value. Please update it to your actual URL.")
+    sys.exit(1)
+if not url:
+    logging.error("No URL detected. Please make sure you have a .env file in the same directory as this script.")
+    sys.exit(1)
 # -------------------------------------------------------------------
 # Logging setup
 # -------------------------------------------------------------------
@@ -131,15 +120,15 @@ def log_error(message, exception=None):
         logging.exception(message)  # Logs the message with the stacktrace
     else:
         logging.error(message)  # Logs the message without any exception
-def config_log():
-    if LOG_FILE:
-        #  Define a handler for the file
-        file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=1, backupCount=LOG_DAYS)
-        file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
-        # Set the formatter for the handler
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-    if LOG_CONSOLE:
+
+if LOG_FILE:
+    #  Define a handler for the file
+    file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=1, backupCount=LOG_DAYS)
+    file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
+    # Set the formatter for the handler
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+if LOG_CONSOLE:
         # Define a handler for the console
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
@@ -149,24 +138,27 @@ def config_log():
 # -------------------------------------------------------------------
 # API setup
 # -------------------------------------------------------------------
-def api_handler():
-    global view_status_file, script_start_time_file
+if API:
     if not os.path.isdir(os.path.expanduser(API_PATH)):
         logging.error(f"Invalid API_PATH: {API_PATH}. The directory does not exist.")
         sys.exit(1)
+    # Construct the path to the api files
+    view_status_file = os.path.join(os.path.expanduser(API_PATH), 'view_status.txt')
+    script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
     with open(script_start_time_file, 'w') as f:
         f.write(str(datetime.now()))
-    logging.info("Checking if API is running...")
-    if not process_handler('monitoring.py', action="continue"):
-        logging.info("Starting API...")
-        # construct the path to monitoring.py
-        api_script = os.path.join(script_dir, 'monitoring.py')
-        subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        # Defaults to 'False' until status updates
-        api_status("Starting API...")
-def api_status(msg):
-    with open(view_status_file, 'w') as f:
-        f.write(msg)
+    def api_status(msg):
+        with open(view_status_file, 'w') as f:
+            f.write(msg)
+    def api_handler():
+        logging.info("Checking if API is running...")
+        if not process_handler('monitoring.py', action="continue"):
+            logging.info("Starting API...")
+            # construct the path to monitoring.py
+            api_script = os.path.join(script_dir, 'monitoring.py')
+            subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # Defaults to 'False' until status updates
+            api_status("Starting API...")
 # -------------------------------------------------------------------
 # Signal Handler (Closing gracefully with CTRL+C)
 # -------------------------------------------------------------------
@@ -194,11 +186,6 @@ def arguments_handler():
         type=int,
         const=5,  # Default to 10 lines if no number is provided
         help="Display the last n lines from the log file (default: 5)."
-    )
-    parser.add_argument(
-        "--reload-config",
-        action="store_true",
-        help="Reload any changes from config.ini and .env"
     )
     parser.add_argument(
         "--background",
@@ -660,7 +647,6 @@ def handle_view(driver, url):
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():
-    config_initialize()
     args = arguments_handler()
     if args.status is not None:
         try:
@@ -672,9 +658,6 @@ def main():
             print(f"Log file not found: {log_file_path}")
         except Exception as e:
             log_error(f"Error reading log file: {e}")
-        sys.exit(0)
-    if args.reload_config:
-        config_load()
         sys.exit(0)
     if args.background:
         logging.info("Starting the script in the background...")
