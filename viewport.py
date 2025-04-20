@@ -6,6 +6,7 @@ import os
 import sys
 import getpass
 import configparser
+import argparse
 import logging
 import signal
 from datetime import datetime, timedelta
@@ -181,6 +182,32 @@ signal.signal(signal.SIGHUP, config_load)
 # -------------------------------------------------------------------
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
+def arguments_handler():
+    # Parse command-line arguments for the script.
+    parser = argparse.ArgumentParser(
+        description="Fake Viewport Script - Manage live view monitoring and configuration."
+    )
+    parser.add_argument(
+        "--help",
+        action="help",
+        help="Display this help message and exit."
+    )
+    parser.add_argument(
+        "--reload-config",
+        action="store_true",
+        help="Reload the configuration from config.ini."
+    )
+    parser.add_argument(
+        "--stop",
+        action="store_true",
+        help="Stop the currently running Fake Viewport script."
+    )
+    # Parse the arguments
+    args = parser.parse_args()
+    # If no arguments are provided, default to starting the script
+    if not any(vars(args).values()):
+        args.start = True  # Add a default "start" action
+    return args
 def install_handler(package):
     attempts = [
         [sys.executable, "-m", "pip", "install", package, "--quiet"],
@@ -614,6 +641,17 @@ def handle_view(driver, url):
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():
+    args = arguments_handler()
+    # Handle the --reload-config command
+    if args.reload_config:
+        logging.info("Reloading configuration...")
+        config_load(None, None)
+        sys.exit(0)
+    # Handle the --stop command
+    if args.stop:
+        logging.info("Stopping the Fake Viewport script...")
+        process_handler('viewport.py', action="kill")
+        sys.exit(0)
     # Check if the script is running inside a virtual environment
     if not os.getenv('VIRTUAL_ENV'):
         logging.warning("Starting virtual environment...")
