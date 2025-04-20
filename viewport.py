@@ -141,6 +141,15 @@ if API:
     def api_status(msg):
         with open(view_status_file, 'w') as f:
             f.write(msg)
+    def api_handler():
+        logging.info("Checking if API is running...")
+        if not process_handler('monitoring.py', action="continue"):
+            logging.info("Starting API...")
+            # construct the path to monitoring.py
+            api_script = os.path.join(script_dir, 'monitoring.py')
+            subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # Defaults to 'False' until status updates
+            api_status("Starting API...")
 # -------------------------------------------------------------------
 # Signal Handler (Closing gracefully with CTRL+C)
 # -------------------------------------------------------------------
@@ -595,15 +604,7 @@ def main():
         venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
         os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
     logging.info("===== Fake Viewport v2.0.3 =====")
-    if API:
-        logging.info("Checking if API is running...")
-        if not process_handler('monitoring.py', action="continue"):
-            logging.info("Starting API...")
-            # construct the path to monitoring.py
-            api_script = os.path.join(script_dir, 'monitoring.py')
-            subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            # Defaults to 'False' until status updates
-            api_status("Starting API...")
+    if API: api_handler()
     # Check and kill any existing instance of viewport.py
     process_handler('viewport.py', action="kill")
     driver = chrome_handler(url)
