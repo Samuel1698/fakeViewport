@@ -78,7 +78,6 @@ def config_initialize():
     config_log()
     config_validate()
     config_dotenv()
-    logging.info("Configuration loaded successfully.")
 def config_validate():
     if SLEEP_TIME < 60:
         logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
@@ -649,6 +648,7 @@ def handle_view(driver, url):
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():
+    config_initialize()
     args = arguments_handler()
     if args.status is not None:
         try:
@@ -689,7 +689,6 @@ def main():
         venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
         os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
     logging.info(f"===== Fake Viewport {viewport_version} =====")
-    config_initialize()
     if API: api_handler()
     # Check and kill any existing instance of viewport.py
     process_handler('viewport.py', action="kill")
