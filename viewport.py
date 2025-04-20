@@ -183,6 +183,7 @@ def process_handler(process_name, action="continue"):
     current_pid = os.getpid()  # Get the PID of the current process
     killed = False  # Flag to check if any process was killed
     try:
+        time.sleep(5) # Sleep for 5 seconds to allow the process to stop on their own
         # Use pgrep to check if the process is running
         result = subprocess.run(['pgrep', '-f', process_name], stdout=subprocess.PIPE, text=True)
         if result.stdout:
