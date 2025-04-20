@@ -197,13 +197,17 @@ def process_handler(process_name, action="continue"):
         result = subprocess.run(['pgrep', '-f', process_name], stdout=subprocess.PIPE, text=True)
         if result.stdout:
             pids = result.stdout.strip().split('\n')  # Get all matching PIDs
+            # Filter out the current process's PID
+            filtered_pids = [pid for pid in pids if int(pid) != current_pid]
             if action == "kill":
-                for pid in pids:
-                    if int(pid) != current_pid:  # Skip the current instance            
+                for pid in filtered_pids:
+                    try:    
                         os.kill(int(pid), signal.SIGTERM)  # Send termination signal
-                        killed = True  # Set the flag to indicate a process was killed
+                    except ProcessLookupError:
+                        logging.warning(f"Process with PID {pid} no longer exists.")
+                    killed = True  # Set the flag to indicate a process was killed
             if killed:
-                logging.info(f"Killed process '{process_name}' with PID(s): {', '.join(pids)}")
+                logging.info(f"Killed process '{process_name}' with PID(s): {', '.join(filtered_pids)}")
                 return False  # Return False if a process was killed - No process exists with that name
             elif action == "continue":
                 logging.info(f"'{process_name}' is already running. Continuing...")
