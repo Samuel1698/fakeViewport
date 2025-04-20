@@ -157,7 +157,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 # -------------------------------------------------------------------
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
-def install(package):
+def install_handler(package):
     # Check if the script is running inside a virtual environment
     if not os.getenv('VIRTUAL_ENV'):
         logging.warning("Starting virtual environment and restarting script...")
@@ -177,7 +177,7 @@ def install(package):
         except subprocess.CalledProcessError:
             continue
     return False
-def handle_process(process_name, action="continue"):
+def process_handler(process_name, action="continue"):
     # Handles process management for the script. Checks if a process is running and takes action based on the specified behavior
     # Ensures the current instance is not affected if told to kill the process
     # Args: process_name (str): The name of the process to check (e.g., 'monitoring.py', 'viewport.py').
@@ -205,20 +205,20 @@ def handle_process(process_name, action="continue"):
     except Exception as e:
         logging.error(f"Error while handling process '{process_name}': {e}")
         return True
-def get_chrome_driver():
+def driver_handler():
     # Gets the path to the ChromeDriver executable
     # This function is called only once to avoid multiple installations of the driver
-    install('webdriver_manager')
+    install_handler('webdriver_manager')
     from webdriver_manager.chrome import ChromeDriverManager
     from webdriver_manager.core.os_manager import ChromeType
     global _chrome_driver_path
     if not _chrome_driver_path:
-        _chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
+        _chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install_handler()
     return _chrome_driver_path
-def start_chrome(url):
+def chrome_handler(url):
     # Starts a chrome 'driver' and handles error reattempts
     # If the driver fails to start, it will retry a few times before killing all existing chrome processes and restarting the script
-    handle_process("chrome", action="kill")
+    process_handler("chrome", action="kill")
     retry_count = 0
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
@@ -243,7 +243,7 @@ def start_chrome(url):
                 "credentials_enable_service": False,
                 "profile.password_manager_enabled": False
             })
-            driver = webdriver.Chrome(service=Service(get_chrome_driver()), options=chrome_options)
+            driver = webdriver.Chrome(service=Service(driver_handler()), options=chrome_options)
             driver.get(url)
             return driver
         except Exception as e:
@@ -261,7 +261,7 @@ def start_chrome(url):
         api_status("Restarting Chrome")
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
-def restart_program(driver):
+def restart_handler(driver):
     # Kills the current process and starts a new one with the same arguments
     # This is done to avoid stack overflow when the script is restarted multiple times
     if API:
@@ -325,7 +325,35 @@ def check_unable_to_stream(driver):
     except Exception as e:
         log_error("Error while checking for 'Unable to Stream' message: ", e)
         return False
-def check_loading_issue(driver):
+# -------------------------------------------------------------------
+# Interactive Functions for main logic
+# These functions directly interact with the webpage
+# -------------------------------------------------------------------
+def handle_elements(driver):
+    # Removes ubiquiti's custom cursor from the page
+    driver.execute_script("""
+    var styleId = 'hideCursorStyle';
+    if (!document.getElementById(styleId)) {
+        var style = document.createElement('style');
+        style.type = 'text/css';
+        style.id = styleId;
+        style.innerHTML = '.hMbAUy { cursor: none !important; }';
+        document.head.appendChild(style);
+    }
+    """)
+    # Remove visibility of the player options elements
+    driver.execute_script("""
+    var styleId = 'hidePlayerOptionsStyle';
+    var cssClass = arguments[0];
+    if (!document.getElementById(styleId)) {
+        var style = document.createElement('style');
+        style.type = 'text/css';
+        style.id = styleId;
+        style.innerHTML = '.' + cssClass + ' { z-index: 0 !important; }';
+        document.head.appendChild(style);
+    }
+    """, CSS_PLAYER_OPTIONS)
+def handle_loading_issue(driver):
     # Checks if the loading dots are present in the live view
     # If they are, it starts a timer to check if the loading issue persists for 15 seconds and log as an error.
     # If the loading issue persists for 15 seconds, it refreshes the page and waits for it to load.
@@ -354,34 +382,6 @@ def check_loading_issue(driver):
         except TimeoutException:
             trouble_loading_start_time = None  # Reset the timer if the issue resolved
         time.sleep(1)
-def hide_elements(driver):
-    # Removes ubiquiti's custom cursor from the page
-    driver.execute_script("""
-    var styleId = 'hideCursorStyle';
-    if (!document.getElementById(styleId)) {
-        var style = document.createElement('style');
-        style.type = 'text/css';
-        style.id = styleId;
-        style.innerHTML = '.hMbAUy { cursor: none !important; }';
-        document.head.appendChild(style);
-    }
-    """)
-    # Remove visibility of the player options elements
-    driver.execute_script("""
-    var styleId = 'hidePlayerOptionsStyle';
-    var cssClass = arguments[0];
-    if (!document.getElementById(styleId)) {
-        var style = document.createElement('style');
-        style.type = 'text/css';
-        style.id = styleId;
-        style.innerHTML = '.' + cssClass + ' { z-index: 0 !important; }';
-        document.head.appendChild(style);
-    }
-    """, CSS_PLAYER_OPTIONS)
-# -------------------------------------------------------------------
-# Interactive Functions for main logic
-# These functions directly interact with the webpage
-# -------------------------------------------------------------------
 def handle_fullscreen_button(driver):
     # Clicks the fullscreen button in the live view. If it fails, it will log the error and return false.
     # If it succeeds, it logs "Fullscreen activated" and returns true.
@@ -437,13 +437,13 @@ def handle_login(driver):
 def handle_page(driver):
     # Handles the page loading and login process
     # It waits for the page title to load and checks if it contains "Dashboard" or "Ubiquiti Account" (login page)
-    # If it contains "Dashboard", it calls the hide_elements function and returns true.
+    # If it contains "Dashboard", it calls the handle_elements function and returns true.
     check_for_title(driver)
     start_time = time.time()  # Capture the starting time
     while True:
         if "Dashboard" in driver.title:
             time.sleep(3)
-            hide_elements(driver)
+            handle_elements(driver)
             return True
         elif "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
             logging.info("Log-in page found. Inputting credentials...")
@@ -456,7 +456,7 @@ def handle_page(driver):
 def handle_retry(driver, url, attempt, max_retries):
     # Handles the retry logic for the main loop
     # First checks if the title of the page indicate a login page, and if not, reloads the page.
-    # If it's the second to last attempt, it kills all existing Chrome processes and calls start_chrome again.
+    # If it's the second to last attempt, it kills all existing Chrome processes and calls chrome_handler again.
     # If it's the last attempt, it restarts the script.
     logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
     if API:
@@ -482,7 +482,7 @@ def handle_retry(driver, url, attempt, max_retries):
                     api_status("Feed Healthy")
         except InvalidSessionIdException:
             log_error("Chrome session is invalid. Restarting the program.")
-            restart_program(driver)
+            restart_handler(driver)
         except Exception as e:
             log_error("Error while handling retry logic: ", e)
             if API:
@@ -493,7 +493,7 @@ def handle_retry(driver, url, attempt, max_retries):
             subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             time.sleep(5)
             logging.info("Starting chrome instance...")
-            driver = start_chrome(url)
+            driver = chrome_handler(url)
             check_for_title(driver)
             if handle_page(driver):
                 logging.info("Page successfully reloaded.")
@@ -506,23 +506,23 @@ def handle_retry(driver, url, attempt, max_retries):
                 api_status("Error Killing Chrome")
     elif attempt == max_retries:
         logging.info("Max Attempts reached, restarting script...")
-        restart_program(driver)
+        restart_handler(driver)
     return driver
 def handle_view(driver, url):
     # Main process that checks the health of the live view
     # It checks first for a truthy return of handle_page function, then checks "Console Offline" or "Protect Offline" messages.
     # It's main check is of the CSS_LIVEVIEW_WRAPPER element, which is the main wrapper for the live view.
-    # While on the main loop, it calls the handle_retry, handle_fullscreen_button, check_unable_to_stream, check_loading_issue, and hide_elements functions.
+    # While on the main loop, it calls the handle_retry, handle_fullscreen_button, check_unable_to_streamf handle_loading_issue, and handle_elements functions.
     retry_count = 0
     max_retries = MAX_RETRIES
     # Calculate how many iterations correspond to one LOG_INTERVAL
-    log_interval_iterations = max(1, round(LOG_INTERVAL / (SLEEP_TIME / 60)))
-    iteration_counter = 0
+    log_interval_iterations = max(1, round((LOG_INTERVAL * 60) / SLEEP_TIME))
+    iteration_counter = 1
     if handle_page(driver):
         logging.info(f"Checking health of page every {SLEEP_TIME} seconds...")
     else:
         log_error("Error loading the live view. Restarting the program.")
-        restart_program(driver)
+        restart_handler(driver)
     while True:
         try:
             # Check for "Console Offline" or "Protect Offline"
@@ -553,19 +553,19 @@ def handle_view(driver, url):
             # Check for "Unable to Stream" message
             if check_unable_to_stream(driver):
                 logging.warning("Live view contains cameras that the browser cannot decode.")
-            check_loading_issue(driver)
-            hide_elements(driver)
+            handle_loading_issue(driver)
+            handle_elements(driver)
             iteration_counter += 1
-            if iteration_counter == log_interval_iterations:
+            if iteration_counter >= log_interval_iterations:
                 logging.info("Video feeds healthy.")
-                iteration_counter = 0  # Reset the counter
+                iteration_counter = 1  # Reset the counter
             # Calculate the time to sleep until the next health check
             # Based on the difference between the current time and the next health check time
             sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
             time.sleep(sleep_duration)
         except InvalidSessionIdException:
             log_error("Chrome session is invalid. Restarting the program.")
-            restart_program(driver)
+            restart_handler(driver)
         except (TimeoutException, NoSuchElementException):
             log_error("Video feeds not found or page timed out.")
             time.sleep(WAIT_TIME)
@@ -587,10 +587,10 @@ def handle_view(driver, url):
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():
-    logging.info("Starting Fake Viewport v2.0.2")
+    logging.info("Starting Fake Viewport v2.0.3")
     if API:
         logging.info("Checking if API is running...")
-        if not handle_process('monitoring.py', action="continue"):
+        if not process_handler('monitoring.py', action="continue"):
             logging.info("Starting API...")
             # construct the path to monitoring.py
             api_script = os.path.join(script_dir, 'monitoring.py')
@@ -598,9 +598,9 @@ def main():
             # Defaults to 'False' until status updates
             api_status("Starting API...")
     # Check and kill any existing instance of viewport.py
-    handle_process('viewport.py', action="kill")
+    process_handler('viewport.py', action="kill")
     logging.info("Waiting for chrome to load...")
-    driver = start_chrome(url)
+    driver = chrome_handler(url)
     # Start the handle_view function in a separate thread
     threading.Thread(target=handle_view, args=(driver, url)).start()
 if __name__ == "__main__":
