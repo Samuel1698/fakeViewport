@@ -186,10 +186,10 @@ def process_handler(process_name, action="continue"):
         # Use pgrep to check if the process is running
         result = subprocess.run(['pgrep', '-f', process_name], stdout=subprocess.PIPE, text=True)
         if result.stdout:
-            pids = result.stdout.strip().split('\n')  # Get all matching PIDs            
-            for pid in pids:
-                if int(pid) != current_pid:  # Skip the current instance
-                    if action == "kill":
+            pids = result.stdout.strip().split('\n')  # Get all matching PIDs
+            if action == "kill":
+                for pid in pids:
+                    if int(pid) != current_pid:  # Skip the current instance            
                         os.kill(int(pid), signal.SIGTERM)  # Send termination signal
                         killed = True  # Set the flag to indicate a process was killed
             if killed:
@@ -516,7 +516,7 @@ def handle_view(driver, url):
     max_retries = MAX_RETRIES
     # Calculate how many iterations correspond to one LOG_INTERVAL
     log_interval_iterations = max(1, round((LOG_INTERVAL * 60) / SLEEP_TIME))
-    iteration_counter = 1
+    iteration_counter = 1 # Important to start at 1
     if handle_page(driver):
         logging.info(f"Checking health of page every {SLEEP_TIME} seconds...")
     else:
@@ -557,7 +557,8 @@ def handle_view(driver, url):
             iteration_counter += 1
             if iteration_counter >= log_interval_iterations:
                 logging.info("Video feeds healthy.")
-                iteration_counter = 1  # Reset the counter
+                iteration_counter = 0  # Reset the counter
+                # Must be 1 the first time it runs
             # Calculate the time to sleep until the next health check
             # Based on the difference between the current time and the next health check time
             sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
