@@ -650,6 +650,7 @@ def handle_view(driver, url):
 # -------------------------------------------------------------------
 def main():
     config_initialize()
+    if API: api_handler()
     args = arguments_handler()
     if args.status is not None:
         try:
@@ -689,7 +690,6 @@ def main():
         venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
         os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
     logging.info(f"===== Fake Viewport {viewport_version} =====")
-    if API: api_handler()
     # Check and kill any existing instance of viewport.py
     process_handler('viewport.py', action="kill")
     driver = chrome_handler(url)
