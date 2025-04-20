@@ -218,6 +218,7 @@ def chrome_handler(url):
     # Starts a chrome 'driver' and handles error reattempts
     # If the driver fails to start, it will retry a few times before killing all existing chrome processes and restarting the script
     process_handler("chrome", action="kill")
+    logging.info("Waiting for chrome to load...")
     retry_count = 0
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
@@ -593,7 +594,7 @@ def main():
         logging.warning("Starting virtual environment...")
         venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
         os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
-    logging.info("Starting Fake Viewport v2.0.3")
+    logging.info("=== Starting Fake Viewport v2.0.3 ===")
     if API:
         logging.info("Checking if API is running...")
         if not process_handler('monitoring.py', action="continue"):
@@ -605,7 +606,6 @@ def main():
             api_status("Starting API...")
     # Check and kill any existing instance of viewport.py
     process_handler('viewport.py', action="kill")
-    logging.info("Waiting for chrome to load...")
     driver = chrome_handler(url)
     # Start the handle_view function in a separate thread
     threading.Thread(target=handle_view, args=(driver, url)).start()
