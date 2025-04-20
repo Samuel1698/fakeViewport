@@ -648,7 +648,7 @@ def main():
         sys.exit(0)
     if args.background:
         logging.info("Starting the script in the background...")
-        log_file = open("/logs/viewport.log", "a")  # Redirect output to a log file
+        log_file = open(log_file_path, "a")  # Redirect output to a log file
         subprocess.Popen(
             [sys.executable, __file__] + [arg for arg in sys.argv[1:] if arg != "--background"],
             stdout=log_file,
