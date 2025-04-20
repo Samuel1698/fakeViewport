@@ -206,6 +206,11 @@ def arguments_handler():
         help="Run the script in the background."
     )
     parser.add_argument(
+        "--restart",
+        action="store_true",
+        help="Force restarts the script."
+    )
+    parser.add_argument(
         "--stop",
         action="store_true",
         help="Stop the currently running Fake Viewport script."
@@ -325,18 +330,13 @@ def chrome_handler(url):
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 def restart_handler(driver):
-    # Kills the current process and starts a new one with the same arguments
-    # This is done to avoid stack overflow when the script is restarted multiple times
+    # Kills the current chrome process and starts a new script with the same arguments
     if API:
         api_status("Restarting...")
     if driver is not None:
         logging.info("Gracefully shutting down chrome...")
         driver.quit()
-    if WAIT_TIME / 60 < 1:
-        logging.info(f"Starting script again in {WAIT_TIME} seconds.")
-    else:
-        logging.info(f"Starting script again in {int(WAIT_TIME / 60)} minutes.")
-    time.sleep(WAIT_TIME)
+    time.sleep(5)
     os.execv(sys.executable, ['python3'] + sys.argv)
 # -------------------------------------------------------------------
 # Helper Functions for main script
@@ -680,6 +680,9 @@ def main():
         logging.info("Stopping the Fake Viewport script...")
         process_handler('viewport.py', action="kill")
         sys.exit(0)
+    if args.restart:
+        logging.info("Restarting the Fake Viewport script...")
+        restart_handler(driver)
     # Check if the script is running inside a virtual environment
     if not os.getenv('VIRTUAL_ENV'):
         logging.warning("Starting virtual environment...")
