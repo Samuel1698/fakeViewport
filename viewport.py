@@ -155,9 +155,6 @@ def api_handler():
     script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
     with open(script_start_time_file, 'w') as f:
         f.write(str(datetime.now()))
-    def api_status(msg):
-        with open(view_status_file, 'w') as f:
-            f.write(msg)
     logging.info("Checking if API is running...")
     if not process_handler('monitoring.py', action="continue"):
         logging.info("Starting API...")
@@ -166,6 +163,9 @@ def api_handler():
         subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # Defaults to 'False' until status updates
         api_status("Starting API...")
+def api_status(msg):
+    with open(view_status_file, 'w') as f:
+        f.write(msg)
 # -------------------------------------------------------------------
 # Signal Handler (Closing gracefully with CTRL+C)
 # -------------------------------------------------------------------
