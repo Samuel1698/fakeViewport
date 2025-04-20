@@ -150,7 +150,7 @@ def signal_handler(signum, frame):
         driver.quit()
     if API:
         api_status("Quit")
-    logging.info("Quitting.")
+    logging.info("Gracefully shutting down script instance.")
     sys.exit(0)
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
@@ -594,7 +594,7 @@ def main():
         logging.warning("Starting virtual environment...")
         venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
         os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
-    logging.info("=== Starting Fake Viewport v2.0.3 ===")
+    logging.info("===== Fake Viewport v2.0.3 =====")
     if API:
         logging.info("Checking if API is running...")
         if not process_handler('monitoring.py', action="continue"):
