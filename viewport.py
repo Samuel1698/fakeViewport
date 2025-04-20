@@ -567,15 +567,14 @@ def handle_view(driver, url):
             if check_unable_to_stream(driver): logging.warning("Live view contains cameras that the browser cannot decode.")
             handle_loading_issue(driver)
             handle_elements(driver)
-            iteration_counter += 1
-            if iteration_counter > log_interval_iterations:
+            if iteration_counter >= log_interval_iterations:
                 logging.info("Video feeds healthy.")
                 iteration_counter = 0  # Reset the counter
-                # Must be 1 the first time it runs
             # Calculate the time to sleep until the next health check
             # Based on the difference between the current time and the next health check time
             sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
             time.sleep(sleep_duration)
+            iteration_counter += 1
         except InvalidSessionIdException:
             log_error("Chrome session is invalid. Restarting the program.")
             restart_handler(driver)
