@@ -52,9 +52,6 @@ env_dir = script_dir / '.env'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file_path = logs_dir / 'viewport.log'
-if not env_dir.exists():
-    logging.error("Missing .env file.")
-    sys.exit(1)
 # -------------------------------------------------------------------
 # Config file setup
 # -------------------------------------------------------------------
@@ -77,7 +74,7 @@ def config_initialize():
     LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
     API = config.getboolean('API', 'USE_API', fallback=False)
     API_PATH = config.get('API', 'API_FILE_PATH', fallback='~').strip()
-    
+    config_log()
     config_validate()
     config_dotenv()
     logging.info("Configuration loaded successfully.")
@@ -98,6 +95,9 @@ def config_validate():
         logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
         sys.exit(1)
 def config_dotenv():
+    if not env_dir.exists():
+        logging.error("Missing .env file.")
+        sys.exit(1)
     global username, password, url
     load_dotenv()
     username = os.getenv('USERNAME')
@@ -127,24 +127,25 @@ def log_error(message, exception=None):
         logging.exception(message)  # Logs the message with the stacktrace
     else:
         logging.error(message)  # Logs the message without any exception
-if LOG_FILE:
-    #  Define a handler for the file
-    file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=1, backupCount=LOG_DAYS)
-    file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
-    # Set the formatter for the handler
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-if LOG_CONSOLE:
-    # Define a handler for the console
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    # Set the formatter for the handler
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+def config_log():
+    if LOG_FILE:
+        #  Define a handler for the file
+        file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=1, backupCount=LOG_DAYS)
+        file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
+        # Set the formatter for the handler
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    if LOG_CONSOLE:
+        # Define a handler for the console
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        # Set the formatter for the handler
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
 # -------------------------------------------------------------------
 # API setup
 # -------------------------------------------------------------------
-if API:
+def api_handler():
     if not os.path.isdir(os.path.expanduser(API_PATH)):
         logging.error(f"Invalid API_PATH: {API_PATH}. The directory does not exist.")
         sys.exit(1)
@@ -156,15 +157,14 @@ if API:
     def api_status(msg):
         with open(view_status_file, 'w') as f:
             f.write(msg)
-    def api_handler():
-        logging.info("Checking if API is running...")
-        if not process_handler('monitoring.py', action="continue"):
-            logging.info("Starting API...")
-            # construct the path to monitoring.py
-            api_script = os.path.join(script_dir, 'monitoring.py')
-            subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            # Defaults to 'False' until status updates
-            api_status("Starting API...")
+    logging.info("Checking if API is running...")
+    if not process_handler('monitoring.py', action="continue"):
+        logging.info("Starting API...")
+        # construct the path to monitoring.py
+        api_script = os.path.join(script_dir, 'monitoring.py')
+        subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Defaults to 'False' until status updates
+        api_status("Starting API...")
 # -------------------------------------------------------------------
 # Signal Handler (Closing gracefully with CTRL+C)
 # -------------------------------------------------------------------
