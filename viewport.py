@@ -682,7 +682,7 @@ def main():
         sys.exit(0)
     if args.restart:
         logging.info("Restarting the Fake Viewport script...")
-        restart_handler(driver)
+        restart_handler(driver=None)
     # Check if the script is running inside a virtual environment
     if not os.getenv('VIRTUAL_ENV'):
         logging.warning("Starting virtual environment...")
