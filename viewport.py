@@ -193,6 +193,11 @@ def arguments_handler():
         help="Reload the configuration from config.ini."
     )
     parser.add_argument(
+        "--background",
+        action="store_true",
+        help="Run the script in the background."
+    )
+    parser.add_argument(
         "--stop",
         action="store_true",
         help="Stop the currently running Fake Viewport script."
@@ -640,6 +645,18 @@ def main():
     if args.reload_config:
         logging.info("Reloading configuration...")
         config_load(None, None)
+        sys.exit(0)
+    if args.background:
+        logging.info("Starting the script in the background...")
+        log_file = open("/logs/viewport.log", "a")  # Redirect output to a log file
+        subprocess.Popen(
+            [sys.executable, __file__] + [arg for arg in sys.argv[1:] if arg != "--background"],
+            stdout=log_file,
+            stderr=log_file,
+            stdin=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True  # Detach from the terminal
+        )
         sys.exit(0)
     if args.stop:
         logging.info("Stopping the Fake Viewport script...")
