@@ -202,6 +202,13 @@ def arguments_handler():
         action="store_true",
         help="Stop the currently running Fake Viewport script."
     )
+    parser.add_argument(
+        "--status",
+        nargs="?",
+        type=int,
+        const=5,  # Default to 10 lines if no number is provided
+        help="Display the last n lines from the log file (default: 5)."
+    )
     # Parse the arguments
     args = parser.parse_args()
     # If no arguments are provided, default to starting the script
@@ -642,6 +649,17 @@ def handle_view(driver, url):
 # -------------------------------------------------------------------
 def main():
     args = arguments_handler()
+    if args.status is not None:
+        try:
+            with open(log_file_path, "r") as f:
+                # Read the last X lines from the log file
+                lines = f.readlines()[-args.status:]
+                print("".join(lines))  # Print the lines to the console
+        except FileNotFoundError:
+            print(f"Log file not found: {log_file_path}")
+        except Exception as e:
+            log_error(f"Error reading log file: {e}")
+        sys.exit(0)
     if args.reload_config:
         logging.info("Reloading configuration...")
         config_load(None, None)
