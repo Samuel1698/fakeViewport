@@ -208,7 +208,7 @@ def arguments_handler():
     parser.add_argument(
         "--restart",
         action="store_true",
-        help="Force restarts the script."
+        help="Force restarts the script (in background)."
     )
     parser.add_argument(
         "--stop",
@@ -330,14 +330,25 @@ def chrome_handler(url):
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 def restart_handler(driver):
-    # Kills the current chrome process and starts a new script with the same arguments
-    if API:
-        api_status("Restarting...")
-    if driver is not None:
-        logging.info("Gracefully shutting down chrome...")
-        driver.quit()
-    time.sleep(5)
-    os.execv(sys.executable, ['python3'] + sys.argv)
+    # Gracefully shuts down the script and restarts it with the same arguments.
+    # Args:
+    #    driver: The Selenium WebDriver instance to be closed (if any).
+    try:
+        if API:
+            api_status("Restarting...")
+        if driver is not None:
+            logging.info("Gracefully shutting down Chrome...")
+            driver.quit()
+        time.sleep(2)
+        # Modify sys.argv to replace --restart with --background
+        new_args = [arg for arg in sys.argv if arg != "--restart"]
+        if "--background" not in new_args:
+            new_args.append("--background")
+        # Restart the script with the modified arguments
+        os.execv(sys.executable, [sys.executable] + new_args)
+    except Exception as e:
+        log_error("Error during restart process: ", e)
+        sys.exit(1)  # Exit with an error code if restart fails
 # -------------------------------------------------------------------
 # Helper Functions for main script
 # These functions return true or false but don't interact directly with the webpage
