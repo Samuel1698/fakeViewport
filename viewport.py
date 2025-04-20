@@ -203,7 +203,7 @@ def process_handler(process_name, action="continue"):
         else:
             return False
     except Exception as e:
-        logging.error(f"Error while handling process '{process_name}': {e}")
+        log_error(f"Error while checking process '{process_name}'", e)
         return True
 def driver_handler():
     # Gets the path to the ChromeDriver executable
@@ -376,7 +376,7 @@ def handle_loading_issue(driver):
                     
                     # Validate the page after refresh
                     if not handle_page(driver):
-                        logging.error("Unexpected page loaded after refresh. Waiting before retrying...")
+                        log_error("Unexpected page loaded after refresh. Waiting before retrying...")
                         time.sleep(SLEEP_TIME)
                         return  # Exit the function to allow retry logic in the caller
                     return  # Exit the function if the page is valid
@@ -451,7 +451,7 @@ def handle_page(driver):
             if not handle_login(driver):
                 return False
         elif time.time() - start_time > WAIT_TIME * 2:  # If timeout limit is reached
-            logging.error("Unexpected page loaded. The page title is: " + driver.title)
+            log_error("Unexpected page loaded. The page title is: " + driver.title)
             return False
         time.sleep(3)
 def handle_retry(driver, url, attempt, max_retries):
