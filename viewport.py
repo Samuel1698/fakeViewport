@@ -57,7 +57,7 @@ log_file_path = logs_dir / 'viewport.log'
 # Config file setup
 # -------------------------------------------------------------------
 def config_initialize():
-    global CHROME_PROFILE_PATH, CHROME_BINARY, SLEEP_TIME, WAIT_TIME, MAX_RETRIES, LOG_DAYS, LOG_INTERVAL, API_PATH, LOG_FILE, LOG_CONSOLE, VERBOSE_LOGGING, API, log_file_path, view_status_file, script_start_time_file
+    global CHROME_PROFILE_PATH, CHROME_BINARY, SLEEP_TIME, WAIT_TIME, MAX_RETRIES, LOG_DAYS, LOG_INTERVAL, API_PATH, LOG_FILE, LOG_CONSOLE, VERBOSE_LOGGING, API
     config = configparser.ConfigParser()
     config.read('config.ini')
     # Get the config variables
@@ -110,10 +110,11 @@ def config_dotenv():
     if not url:
         logging.error("No URL detected. Please make sure you have a .env file in the same directory as this script.")
         sys.exit(1)
-def config_load(signum, frame):
+def config_load():
     logging.info("Reloading configuration from config.ini...")
     try:
         config_initialize()
+        logging.info("Configuration reloaded successfully.")
     except Exception as e:
         log_error("Failed to reload configuration: ", e)
 # -------------------------------------------------------------------
@@ -146,6 +147,7 @@ def config_log():
 # API setup
 # -------------------------------------------------------------------
 def api_handler():
+    global view_status_file, script_start_time_file
     if not os.path.isdir(os.path.expanduser(API_PATH)):
         logging.error(f"Invalid API_PATH: {API_PATH}. The directory does not exist.")
         sys.exit(1)
@@ -178,7 +180,6 @@ def signal_handler(signum, frame):
     sys.exit(0)
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
-signal.signal(signal.SIGHUP, config_load)
 # -------------------------------------------------------------------
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
@@ -662,7 +663,6 @@ def main():
             log_error(f"Error reading log file: {e}")
         sys.exit(0)
     if args.reload_config:
-        logging.info("Reloading configuration...")
         config_load(None, None)
         sys.exit(0)
     if args.background:
