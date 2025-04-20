@@ -198,7 +198,7 @@ def arguments_handler():
     parser.add_argument(
         "--reload-config",
         action="store_true",
-        help="Reload the configuration from config.ini."
+        help="Reload any changes from config.ini and .env"
     )
     parser.add_argument(
         "--background",
@@ -674,7 +674,7 @@ def main():
             log_error(f"Error reading log file: {e}")
         sys.exit(0)
     if args.reload_config:
-        config_load(None, None)
+        config_load()
         sys.exit(0)
     if args.background:
         logging.info("Starting the script in the background...")
