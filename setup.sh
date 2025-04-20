@@ -168,7 +168,8 @@ if [ "$INSTALL_SUCCESS" = false ]; then
     echo -e "${YELLOW}Check the error messages above and try again.${NC}"
     exit 1
 else
-    echo -e "\n${GREEN}Setup complete! To launch the script, run:${NC}"
-    echo -e "${YELLOW}  python3 viewport.py${NC}"
+    echo -e "\n${GREEN}Setup complete!${NC}"
+    echo -e "${GREEN}Check the different ways to launch the script with:${NC}"
+    echo -e "${YELLOW}  python3 viewport.py --help${NC}"
     exit 0
 fi
