@@ -1,14 +1,17 @@
 # Fake Viewport
 
-Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. With this setup, you can automatically and remotely launch the Protect Live View website, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
+Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. With this setup, you can automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
 
 ---
 
 ## Features
 
-- Automatically launches the Protect Live View website with your desired url.
+- Automatically launches the Protect LiveView of your choosing.
 - Handles login expiration and reconnects automatically.
 - Detects and resolves temporary connection issues or webpage errors.
+- Detects if the console or application are offline and waits before reloading.
+- Detects if chrome is running too slow and restarts it.
+- Logs output of the terminal to logs/viewport.log for troubleshooting or checking status remotely.
 - Optional API integration for remote monitoring (e.g., with [Rainmeter](https://www.rainmeter.net/)).
 
 ---
@@ -24,6 +27,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 ### Software
 - A lightweight Linux distribution of your choice (Preferably Debian based).
 - Chrome installed.
+- OPTIONAL but recommended: ssh installed and configured for remote monitoring.
 
 ---
 
@@ -44,18 +48,16 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ./setup.sh
    ```
 
-3. **Configure the `.env` File**  
+3. **Configure the `.env` and `config.ini` File**  
    The `setup.sh` script will rename the `.env.example` file to `.env`. 
    
-   Open the `.env` file and update it with your credentials and the URL of your Protect Live View. You can use vim or nano for this.
+   Open the `.env` file and update it with your credentials* and the URL of your Protect Live View. You can use vim or nano for this.
 
-   **I strongly recommend to use a local account for this.**
-
-4. **Run the Script**  
-   Start the virtual environment:
-   ```bash
-    source venv/bin/activate
+   You will also see a `config.ini` file, open it and check what options there are available for customization of how the script runs.
    ```
+   *I strongly recommend to use a local ubiquiti account for this.
+   ```
+4. **Run the Script**  
    Start the script using the following command:
    ```bash
     python3 viewport.py
@@ -66,6 +68,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
     nohup python3 viewport.py > nohup.out 2>&1 &
    ```
 
+   If you chose to install the desktop shortcut during setup, simply click on it.
 ---
 
 ## Usage
