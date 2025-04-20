@@ -43,6 +43,7 @@ except ImportError:
     CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
     CSS_PLAYER_OPTIONS = "aeugT"
 driver = None # Declare it globally so that it can be accessed in the signal handler function
+viewport_version = "2.1.0-alpha" # Version of the script
 _chrome_driver_path = None  # Cache for the ChromeDriver path
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 # Directory and file paths
@@ -185,7 +186,14 @@ signal.signal(signal.SIGHUP, config_load)
 def arguments_handler():
     # Parse command-line arguments for the script.
     parser = argparse.ArgumentParser(
-        description="Fake Viewport Script - Manage live view monitoring and configuration."
+        description=f"===== Fake Viewport {viewport_version} ====="
+    )
+    parser.add_argument(
+        "--status",
+        nargs="?",
+        type=int,
+        const=5,  # Default to 10 lines if no number is provided
+        help="Display the last n lines from the log file (default: 5)."
     )
     parser.add_argument(
         "--reload-config",
@@ -201,13 +209,6 @@ def arguments_handler():
         "--stop",
         action="store_true",
         help="Stop the currently running Fake Viewport script."
-    )
-    parser.add_argument(
-        "--status",
-        nargs="?",
-        type=int,
-        const=5,  # Default to 10 lines if no number is provided
-        help="Display the last n lines from the log file (default: 5)."
     )
     # Parse the arguments
     args = parser.parse_args()
@@ -684,7 +685,7 @@ def main():
         logging.warning("Starting virtual environment...")
         venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
         os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
-    logging.info("===== Fake Viewport v2.1.0-alpha =====")
+    logging.info(f"===== Fake Viewport {viewport_version} =====")
     config_initialize()
     if API: api_handler()
     # Check and kill any existing instance of viewport.py
