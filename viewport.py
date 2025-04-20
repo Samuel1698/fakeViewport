@@ -266,8 +266,9 @@ def restart_handler(driver):
     # This is done to avoid stack overflow when the script is restarted multiple times
     if API:
         api_status("Restarting...")
-    logging.info("Gracefully shutting down chrome...")
-    driver.quit()
+    if driver is not None:
+        logging.info("Gracefully shutting down chrome...")
+        driver.quit()
     if WAIT_TIME / 60 < 1:
         logging.info(f"Starting script again in {WAIT_TIME} seconds.")
     else:
