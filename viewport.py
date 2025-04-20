@@ -188,11 +188,6 @@ def arguments_handler():
         description="Fake Viewport Script - Manage live view monitoring and configuration."
     )
     parser.add_argument(
-        "--help",
-        action="help",
-        help="Display this help message and exit."
-    )
-    parser.add_argument(
         "--reload-config",
         action="store_true",
         help="Reload the configuration from config.ini."
@@ -642,12 +637,10 @@ def handle_view(driver, url):
 # -------------------------------------------------------------------
 def main():
     args = arguments_handler()
-    # Handle the --reload-config command
     if args.reload_config:
         logging.info("Reloading configuration...")
         config_load(None, None)
         sys.exit(0)
-    # Handle the --stop command
     if args.stop:
         logging.info("Stopping the Fake Viewport script...")
         process_handler('viewport.py', action="kill")
