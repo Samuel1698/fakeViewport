@@ -650,6 +650,8 @@ def main():
         logging.info("Starting the script in the background...")
         subprocess.Popen(
             [sys.executable, __file__] + [arg for arg in sys.argv[1:] if arg != "--background"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
             close_fds=True,
             start_new_session=True  # Detach from the terminal
