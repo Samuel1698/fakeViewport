@@ -65,10 +65,15 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 
    If running remotely or in a detached session, use:
    ```bash
-    nohup python3 viewport.py > nohup.out 2>&1 &
+    python3 viewport.py --background
    ```
 
+   Run this command to see helpful arguments
+   ```bash
+    python3 viewport.py --help
+   ```
    If you chose to install the desktop shortcut during setup, simply click on it.
+
 ---
 
 ## Usage
@@ -78,6 +83,10 @@ If the script is running and you cannot use `CTRL+C` to stop it, you can manuall
 ```bash
 ps aux | grep viewport.py
 kill <pid>
+```
+or run the script with the --stop argument:
+```bash
+python3 viewport.py --stop
 ```
 
 ### API Integration (Optional)
