@@ -531,7 +531,7 @@ def handle_view(driver, url):
     max_retries = MAX_RETRIES
     # Calculate how many iterations correspond to one LOG_INTERVAL
     log_interval_iterations = max(1, round((LOG_INTERVAL * 60) / SLEEP_TIME))
-    iteration_counter = 1 # Important to start at 1
+    iteration_counter = 0
     if handle_page(driver):
         logging.info(f"Checking health of page every {SLEEP_TIME} seconds...")
     else:
@@ -555,8 +555,7 @@ def handle_view(driver, url):
             WebDriverWait(driver, WAIT_TIME).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
             )
-            if API:
-                api_status("Feed Healthy")
+            if API: api_status("Feed Healthy")
             retry_count = 0
             screen_size = driver.get_window_size()
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
@@ -565,12 +564,11 @@ def handle_view(driver, url):
                 if not handle_fullscreen_button(driver):
                     logging.warning("Failed to activate fullscreen, but continuing anyway.")
             # Check for "Unable to Stream" message
-            if check_unable_to_stream(driver):
-                logging.warning("Live view contains cameras that the browser cannot decode.")
+            if check_unable_to_stream(driver): logging.warning("Live view contains cameras that the browser cannot decode.")
             handle_loading_issue(driver)
             handle_elements(driver)
             iteration_counter += 1
-            if iteration_counter >= log_interval_iterations:
+            if iteration_counter > log_interval_iterations:
                 logging.info("Video feeds healthy.")
                 iteration_counter = 0  # Reset the counter
                 # Must be 1 the first time it runs
