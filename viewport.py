@@ -213,7 +213,7 @@ def driver_handler():
     from webdriver_manager.core.os_manager import ChromeType
     global _chrome_driver_path
     if not _chrome_driver_path:
-        _chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install_handler()
+        _chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
     return _chrome_driver_path
 def chrome_handler(url):
     # Starts a chrome 'driver' and handles error reattempts
