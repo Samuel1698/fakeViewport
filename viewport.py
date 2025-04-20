@@ -129,10 +129,10 @@ if LOG_CONSOLE:
 # -------------------------------------------------------------------
 # API setup
 # -------------------------------------------------------------------
-if not os.path.isdir(os.path.expanduser(API_PATH)):
-    logging.error(f"Invalid API_PATH: {API_PATH}. The directory does not exist.")
-    sys.exit(1)
 if API:
+    if not os.path.isdir(os.path.expanduser(API_PATH)):
+        logging.error(f"Invalid API_PATH: {API_PATH}. The directory does not exist.")
+        sys.exit(1)
     # Construct the path to the file in the user's home directory
     view_status_file = os.path.join(os.path.expanduser(API_PATH), 'view_status.txt')
     script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
@@ -145,8 +145,8 @@ if API:
 # Signal Handler (Closing gracefully with CTRL+C)
 # -------------------------------------------------------------------
 def signal_handler(signum, frame):
-    logging.info('Gracefully shutting down Chrome.')
     if driver is not None:
+        logging.info('Gracefully shutting down Chrome.')
         driver.quit()
     if API:
         api_status("Quit")
@@ -354,7 +354,7 @@ def check_loading_issue(driver):
         except TimeoutException:
             trouble_loading_start_time = None  # Reset the timer if the issue resolved
         time.sleep(1)
-def hide_cursor(driver):
+def hide_elements(driver):
     # Removes ubiquiti's custom cursor from the page
     driver.execute_script("""
     var styleId = 'hideCursorStyle';
@@ -437,13 +437,13 @@ def handle_login(driver):
 def handle_page(driver):
     # Handles the page loading and login process
     # It waits for the page title to load and checks if it contains "Dashboard" or "Ubiquiti Account" (login page)
-    # If it contains "Dashboard", it calls the hide_cursor function and returns true.
+    # If it contains "Dashboard", it calls the hide_elements function and returns true.
     check_for_title(driver)
     start_time = time.time()  # Capture the starting time
     while True:
         if "Dashboard" in driver.title:
             time.sleep(3)
-            hide_cursor(driver)
+            hide_elements(driver)
             return True
         elif "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
             logging.info("Log-in page found. Inputting credentials...")
@@ -512,7 +512,7 @@ def handle_view(driver, url):
     # Main process that checks the health of the live view
     # It checks first for a truthy return of handle_page function, then checks "Console Offline" or "Protect Offline" messages.
     # It's main check is of the CSS_LIVEVIEW_WRAPPER element, which is the main wrapper for the live view.
-    # While on the main loop, it calls the handle_retry, handle_fullscreen_button, check_unable_to_stream, check_loading_issue, and hide_cursor functions.
+    # While on the main loop, it calls the handle_retry, handle_fullscreen_button, check_unable_to_stream, check_loading_issue, and hide_elements functions.
     retry_count = 0
     max_retries = MAX_RETRIES
     # Calculate how many iterations correspond to one LOG_INTERVAL
@@ -554,7 +554,7 @@ def handle_view(driver, url):
             if check_unable_to_stream(driver):
                 logging.warning("Live view contains cameras that the browser cannot decode.")
             check_loading_issue(driver)
-            hide_cursor(driver)
+            hide_elements(driver)
             iteration_counter += 1
             if iteration_counter == log_interval_iterations:
                 logging.info("Video feeds healthy.")
