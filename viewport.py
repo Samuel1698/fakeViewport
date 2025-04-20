@@ -158,11 +158,6 @@ signal.signal(signal.SIGTERM, signal_handler)
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
 def install_handler(package):
-    # Check if the script is running inside a virtual environment
-    if not os.getenv('VIRTUAL_ENV'):
-        logging.warning("Starting virtual environment and restarting script...")
-        venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
-        os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
     attempts = [
         [sys.executable, "-m", "pip", "install", package, "--quiet"],
         [sys.executable, "-m", "pip", "install", package, "--quiet",
@@ -588,6 +583,11 @@ def handle_view(driver, url):
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():
+    # Check if the script is running inside a virtual environment
+    if not os.getenv('VIRTUAL_ENV'):
+        logging.warning("Starting virtual environment...")
+        venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
+        os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
     logging.info("Starting Fake Viewport v2.0.3")
     if API:
         logging.info("Checking if API is running...")
