@@ -24,7 +24,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import InvalidSessionIdException
 from urllib3.exceptions import NewConnectionError
 # -------------------------------------------------------------------
-# Config and Variable Declaration
+# Variable Declaration and file paths
 # -------------------------------------------------------------------
 try:
     from css_selectors import (
@@ -44,39 +44,6 @@ except ImportError:
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
-config = configparser.ConfigParser()
-config.read('config.ini')
-# Get the config variables
-user = getpass.getuser()
-default_profile_path = f"/home/{user}/.config/google-chrome/Default"
-CHROME_PROFILE_PATH = config.get('Chrome', 'CHROME_PROFILE_PATH', fallback=default_profile_path).strip()
-CHROME_BINARY = config.get('Chrome', 'CHROME_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
-SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
-WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
-MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
-LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
-LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
-VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
-LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
-LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
-API = config.getboolean('API', 'USE_API', fallback=False)
-API_PATH = config.get('API', 'API_FILE_PATH', fallback='~').strip()
-# Validate config variables
-if SLEEP_TIME < 60:
-    logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
-    sys.exit(1)
-if WAIT_TIME <= 5:
-    logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
-    sys.exit(1)
-if MAX_RETRIES < 3:
-    logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
-    sys.exit(1)
-if LOG_DAYS < 1:
-    logging.error("Invalid value for LOG_DAYS. It should be a positive integer greater than 0.")
-    sys.exit(1)
-if LOG_INTERVAL < 1:
-    logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
-    sys.exit(1)
 # Directory and file paths
 script_dir = Path(__file__).resolve().parent
 logs_dir = script_dir / 'logs'
@@ -88,19 +55,66 @@ if not env_dir.exists():
     logging.error("Missing .env file.")
     sys.exit(1)
 # -------------------------------------------------------------------
-# .env variables
+# Config file setup
 # -------------------------------------------------------------------
-load_dotenv()
-username = os.getenv('USERNAME')
-password = os.getenv('PASSWORD')
-url = os.getenv('URL')
-EXAMPLE_URL = "http://192.168.100.100/protect/dashboard/multiviewurl"
-if url == EXAMPLE_URL:
-    logging.error("The URL in the .env file is still set to the example value. Please update it to your actual URL.")
-    sys.exit(1)
-if not url:
-    logging.error("No URL detected. Please make sure you have a .env file in the same directory as this script.")
-    sys.exit(1)
+def config_initialize():
+    global CHROME_PROFILE_PATH, CHROME_BINARY, SLEEP_TIME, WAIT_TIME, MAX_RETRIES, LOG_DAYS, LOG_INTERVAL, API_PATH, LOG_FILE, LOG_CONSOLE, VERBOSE_LOGGING, API, log_file_path, view_status_file, script_start_time_file
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    # Get the config variables
+    user = getpass.getuser()
+    default_profile_path = f"/home/{user}/.config/google-chrome/Default"
+    CHROME_PROFILE_PATH = config.get('Chrome', 'CHROME_PROFILE_PATH', fallback=default_profile_path).strip()
+    CHROME_BINARY = config.get('Chrome', 'CHROME_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
+    SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
+    WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
+    MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
+    LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
+    LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
+    VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
+    LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
+    LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
+    API = config.getboolean('API', 'USE_API', fallback=False)
+    API_PATH = config.get('API', 'API_FILE_PATH', fallback='~').strip()
+    
+    config_validate()
+    config_dotenv()
+    logging.info("Configuration loaded successfully.")
+def config_validate():
+    if SLEEP_TIME < 60:
+        logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
+        sys.exit(1)
+    if WAIT_TIME <= 5:
+        logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
+        sys.exit(1)
+    if MAX_RETRIES < 3:
+        logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
+        sys.exit(1)
+    if LOG_DAYS < 1:
+        logging.error("Invalid value for LOG_DAYS. It should be a positive integer greater than 0.")
+        sys.exit(1)
+    if LOG_INTERVAL < 1:
+        logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
+        sys.exit(1)
+def config_dotenv():
+    global username, password, url
+    load_dotenv()
+    username = os.getenv('USERNAME')
+    password = os.getenv('PASSWORD')
+    url = os.getenv('URL')
+    EXAMPLE_URL = "http://192.168.100.100/protect/dashboard/multiviewurl"
+    if url == EXAMPLE_URL:
+        logging.error("The URL in the .env file is still set to the example value. Please update it to your actual URL.")
+        sys.exit(1)
+    if not url:
+        logging.error("No URL detected. Please make sure you have a .env file in the same directory as this script.")
+        sys.exit(1)
+def config_load(signum, frame):
+    logging.info("Reloading configuration from config.ini...")
+    try:
+        config_initialize()
+    except Exception as e:
+        log_error("Failed to reload configuration: ", e)
 # -------------------------------------------------------------------
 # Logging setup
 # -------------------------------------------------------------------
@@ -163,6 +177,7 @@ def signal_handler(signum, frame):
     sys.exit(0)
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGHUP, config_load)
 # -------------------------------------------------------------------
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
@@ -604,7 +619,8 @@ def main():
         logging.warning("Starting virtual environment...")
         venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
         os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
-    logging.info("===== Fake Viewport v2.0.3 =====")
+    logging.info("===== Fake Viewport v2.1.0-alpha =====")
+    config_initialize()
     if API: api_handler()
     # Check and kill any existing instance of viewport.py
     process_handler('viewport.py', action="kill")
