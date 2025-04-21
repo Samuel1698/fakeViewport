@@ -24,6 +24,8 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import InvalidSessionIdException
 from urllib3.exceptions import NewConnectionError
+from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.os_manager import ChromeType
 # -------------------------------------------------------------------
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
@@ -217,21 +219,6 @@ def arguments_handler():
     if not any(vars(args).values()):
         args.start = True  # Add a default "start" action
     return args
-def install_handler(package):
-    attempts = [
-        [sys.executable, "-m", "pip", "install", package, "--quiet"],
-        [sys.executable, "-m", "pip", "install", package, "--quiet",
-        "--trusted-host", "pypi.org",
-        "--trusted-host", "files.pythonhosted.org"],
-        ["pip", "install", "--user", package]  # Final fallback
-    ]
-    for attempt in attempts:
-        try:
-            subprocess.check_call(attempt)
-            return True
-        except subprocess.CalledProcessError:
-            continue
-    return False
 def process_handler(process_name, action="continue"):
     # Handles process management for the script. Checks if a process is running and takes action based on the specified behavior
     # Ensures the current instance is not affected if told to kill the process
@@ -270,10 +257,6 @@ def process_handler(process_name, action="continue"):
         return True
 def driver_handler():
     # Gets the path to the ChromeDriver executable
-    # This function is called only once to avoid multiple installations of the driver
-    install_handler('webdriver_manager')
-    from webdriver_manager.chrome import ChromeDriverManager
-    from webdriver_manager.core.os_manager import ChromeType
     global _chrome_driver_path
     if not _chrome_driver_path:
         _chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
