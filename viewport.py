@@ -675,8 +675,8 @@ def main():
         if process_handler('monitoring.py', action="continue"):
             logging.info("Stopping the API...")
             process_handler('monitoring.py', action="kill")
-        else:
-            api_handler()
+        elif API: api_handler()
+        else: logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
         sys.exit(0)
     if args.restart:
         logging.info("Restarting the Fake Viewport script...")
