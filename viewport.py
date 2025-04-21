@@ -74,7 +74,7 @@ VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False
 LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
 LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
 API = config.getboolean('API', 'USE_API', fallback=False)
-API_PATH = config.get('API', 'API_FILE_PATH').strip()
+API_PATH = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
 # -------------------------------------------------------------------
 # Config variables validation
 # -------------------------------------------------------------------

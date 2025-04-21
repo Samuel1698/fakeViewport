@@ -9,7 +9,7 @@ from flask import Flask, jsonify
 config = configparser.ConfigParser()
 config.read('config.ini')
 script_dir = Path(__file__).resolve().parent
-API_PATH = config.get('API', 'API_FILE_PATH')
+API_PATH = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api'))
 
 # Check if API_PATH exists; if not, create an 'api' folder in the current directory
 API_PATH = os.path.expanduser(API_PATH)
