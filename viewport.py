@@ -58,7 +58,11 @@ env_dir = script_dir / '.env'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file = logs_dir / 'viewport.log'
-
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN = "\033[36m"
+NC='\033[0m' # No Color
 # -------------------------------------------------------------------
 # Config file initialization
 # -------------------------------------------------------------------
@@ -102,7 +106,6 @@ if not api_dir.exists():
     api_dir.mkdir(parents=True, exist_ok=True)
 sst_file = api_dir / 'sst.txt'
 status_file = api_dir / 'status.txt'
-
 # -------------------------------------------------------------------
 # .env variables validation
 # -------------------------------------------------------------------
@@ -124,6 +127,21 @@ if not url:
 # -------------------------------------------------------------------
 # Logging setup
 # -------------------------------------------------------------------
+class ColoredFormatter(logging.Formatter):
+    def format(self, record):
+        # Add colors based on the log level
+        if record.levelno == logging.ERROR:
+            color = self.RED
+        elif record.levelno == logging.WARNING:
+            color = self.YELLOW
+        elif record.levelno == logging.INFO:
+            color = self.GREEN
+        else:
+            color = self.CYAN  # Default color for other levels (e.g., DEBUG)
+
+        # Format the message with the color
+        record.msg = f"{color}{record.msg}{self.NC}"
+        return super().format(record)
 logger = logging.getLogger()
 formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 logger.setLevel(logging.INFO)
@@ -140,12 +158,13 @@ if LOG_FILE:
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 if LOG_CONSOLE:
-        # Define a handler for the console
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        # Set the formatter for the handler
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
+    # Define a handler for the console
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    # Set the formatter for the handler
+    console_formatter = ColoredFormatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
 # -------------------------------------------------------------------
 # API setup
 # -------------------------------------------------------------------
@@ -188,7 +207,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 def arguments_handler():
     # Parse command-line arguments for the script.
     parser = argparse.ArgumentParser(
-        description=f"===== Fake Viewport {viewport_version} ====="
+        description=f"{YELLOW}===== Fake Viewport {viewport_version} ====={NC}"
     )
     parser.add_argument(
         "--status",
@@ -229,12 +248,6 @@ def arguments_handler():
         args.start = True  # Add a default "start" action
     return args
 def status_handler():
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    CYAN = "\033[36m"
-    NC='\033[0m' # No Color
-
     # Displays the status of the script, including system uptime and script uptime.
     try:
         with open(sst_file, 'r') as f:
