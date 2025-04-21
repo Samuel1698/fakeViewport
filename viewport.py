@@ -176,7 +176,7 @@ def api_status(msg):
     with open(status_file, 'w') as f:
         f.write(msg)
 def api_handler():
-    if not process_handler('monitoring.py', action="continue"):
+    if not process_handler('monitoring.py', action="check"):
         logging.info("Starting API...")
         # construct the path to monitoring.py
         api_script = script_dir / 'monitoring.py'
@@ -264,9 +264,9 @@ def status_handler():
         hours = int((uptime_seconds % 86400) // 3600)
         minutes = int((uptime_seconds % 3600) // 60)
         seconds = int(uptime_seconds % 60)
-        uptime_str = f"{GREEN}{days}d {hours}h {minutes}m {seconds}s{NC}" if process_handler('viewport.py', action="continue") else f"{RED}Not Running{NC}"
+        uptime_str = f"{GREEN}{days}d {hours}h {minutes}m {seconds}s{NC}" if process_handler('viewport.py', action="check") else f"{RED}Not Running{NC}"
         # Check if monitoring.py is running
-        monitoring = f"{GREEN}Running{NC}" if process_handler('monitoring.py', action="continue") else f"{RED}Not Running{NC}"
+        monitoring = f"{GREEN}Running{NC}" if process_handler('monitoring.py', action="check") else f"{RED}Not Running{NC}"
         # Display Status
         print(f"{YELLOW}===== Fake Viewport {viewport_version} ======{NC}")
         print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
@@ -287,12 +287,12 @@ def status_handler():
             print(f"{RED}Log file not found.{NC}")
     except Exception as e:
         log_error("Error while checking system uptime: ", e)
-def process_handler(process_name, action="continue"):
+def process_handler(process_name, action="check"):
     # Handles process management for the script. Checks if a process is running and takes action based on the specified behavior
     # Ensures the current instance is not affected if told to kill the process
     # Args: process_name (str): The name of the process to check (e.g., 'monitoring.py', 'viewport.py').
     # action (str): The action to take if the process is found. Options are:
-    # - "continue": Log that the process is running and do nothing. 
+    # - "check": Checks that the process is running and return True. 
     # - "kill": Kill the process if it is running (excluding the current instance).
     # Returns: bool: True if a process exists with that name, False otherwise.
     current_pid = os.getpid()  # Get the PID of the current process
@@ -315,7 +315,7 @@ def process_handler(process_name, action="continue"):
             if killed:
                 logging.info(f"Killed process '{process_name}' with PID(s): {', '.join(filtered_pids)}")
                 return False  # Return False if a process was killed - No process exists with that name
-            elif action == "continue":
+            elif action == "check":
                 return True
         else:
             return False
@@ -730,7 +730,7 @@ def main():
         process_handler('chrome', action="kill")
         sys.exit(0)
     if args.api:
-        if process_handler('monitoring.py', action="continue"):
+        if process_handler('monitoring.py', action="check"):
             logging.info("Stopping the API...")
             process_handler('monitoring.py', action="kill")
         elif API: api_handler()
