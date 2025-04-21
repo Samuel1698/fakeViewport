@@ -219,6 +219,11 @@ def arguments_handler():
         action="store_true",
         help="Stop the currently running Fake Viewport script."
     )
+    parser.add_argument(
+        "--api",
+        action="store_true",
+        help="Stops the API if it's running in the background."
+    )
     # Parse the arguments
     args = parser.parse_args()
     # If no arguments are provided, default to starting the script
@@ -663,6 +668,10 @@ def main():
     if args.stop:
         logging.info("Stopping the Fake Viewport script...")
         process_handler('viewport.py', action="kill")
+        sys.exit(0)
+    if args.api:
+        logging.info("Stopping the API...")
+        process_handler('monitoring.py', action="kill")
         sys.exit(0)
     if args.restart:
         logging.info("Restarting the Fake Viewport script...")
