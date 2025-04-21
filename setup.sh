@@ -41,35 +41,44 @@ fi
 # 4. Install requirements
 # -------------------------------------------------------------------
 REQUIREMENTS="requirements.txt"
-# Upgrade pip first (separate error check)
-if ! pip install --upgrade pip --quiet; then
-    echo -e "${RED}✗ Failed to upgrade pip${NC}"
-    INSTALL_SUCCESS=false
-else
-    echo -e "${GREEN}✓ Pip upgraded successfully${NC}"
-fi
-# Install requirements (with progress dots)
-if [ "$INSTALL_SUCCESS" = true ]; then
-    echo -e "${YELLOW}Installing dependencies...${NC}"
-    # Run pip install in the background
-    pip install --quiet --trusted-host pypi.org --trusted-host files.pythonhosted.org --retries 3 --timeout 30 -r "$REQUIREMENTS" &
-    PIP_PID=$!
-    # Print green dots while pip is running
-    while kill -0 "$PIP_PID" 2>/dev/null; do
-        echo -ne "${GREEN}.${NC}"
-        sleep 0.5
-    done
-    # Wait for pip to finish and check the exit code
-    wait "$PIP_PID"
-    if [ $? -eq 0 ]; then
-        echo -e "\n${GREEN}✓ All dependencies installed successfully${NC}"
-    else
-        echo -e "\n${RED}✗ Failed to install some dependencies${NC}"
-        echo -e "${YELLOW}This might be due to network issues."
-        echo -e "Try manually running the command: "
-        echo -e "pip install -r requirements.txt"
+if [ -f "$REQUIREMENTS" ]; then
+    # Activate virtual environment
+    source "$VENV_DIR/bin/activate"
+    # Track installation success
+    INSTALL_SUCCESS=true
+    # Upgrade pip first (separate error check)
+    if ! pip install --upgrade pip --quiet; then
+        echo -e "${RED}✗ Failed to upgrade pip${NC}"
         INSTALL_SUCCESS=false
+    else
+        echo -e "${GREEN}✓ Pip upgraded successfully${NC}"
     fi
+    # Install requirements (with progress dots)
+    if [ "$INSTALL_SUCCESS" = true ]; then
+        echo -e "${YELLOW}Installing dependencies...${NC}"
+        # Run pip install in the background
+        pip install --quiet --trusted-host pypi.org --trusted-host files.pythonhosted.org --retries 3 --timeout 30 -r "$REQUIREMENTS" &
+        PIP_PID=$!
+        # Print green dots while pip is running
+        while kill -0 "$PIP_PID" 2>/dev/null; do
+            echo -ne "${GREEN}.${NC}"
+            sleep 0.5
+        done
+        # Wait for pip to finish and check the exit code
+        wait "$PIP_PID"
+        if [ $? -eq 0 ]; then
+            echo -e "\n${GREEN}✓ All dependencies installed successfully${NC}"
+        else
+            echo -e "\n${RED}✗ Failed to install some dependencies${NC}"
+            echo -e "${YELLOW}This might be due to network issues."
+            echo -e "Try manually running the command: "
+            echo -e "pip install -r requirements.txt"
+            INSTALL_SUCCESS=false
+        fi
+    fi
+else
+    echo -e "${RED}requirements.txt not found!${NC}"
+    exit 1
 fi
 # -------------------------------------------------------------------
 # 5. Verify Chrome/Chromium and ChromeDriver
