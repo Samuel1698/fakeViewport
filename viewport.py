@@ -161,8 +161,8 @@ if API:
             try:
                 subprocess.Popen(
                     [sys.executable, api_script],
-                    stdout=open('api_stdout.log', 'w'),
-                    stderr=open('api_stderr.log', 'w'),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                     stdin=subprocess.DEVNULL,
                     close_fds=True,
                     start_new_session=True  # Detach from the terminal
