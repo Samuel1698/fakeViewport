@@ -255,15 +255,20 @@ def status_handler():
         print(f"{YELLOW}===== Fake Viewport {viewport_version} ======{NC}")
         print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
         print(f"{CYAN}Monitoring API:{NC} {monitoring}")
-        with open(status_file, "r") as f:
-            # Read the last line from the status file
-            lines = f.readlines()[-1].strip()
-            print(f"{CYAN}Last Status Update:{NC} {lines}")
-        print(f"{CYAN}Last Log Entry:{NC}")
-        with open(log_file, "r") as f:
-            # Read the last line from the log file
-            lines = f.readlines()[-1].strip()
-            print(lines)
+        try:
+            with open(status_file, "r") as f:
+                # Read the last line from the status file
+                lines = f.readlines()[-1].strip()
+                print(f"{CYAN}Last Status Update:{NC} {GREEN}{lines}{NC}")
+        except FileNotFoundError:
+            print(f"{RED}Status file not found.{NC}")
+        try:
+            with open(log_file, "r") as f:
+                # Read the last line from the log file
+                lines = f.readlines()[-1].strip()
+                print(f"{CYAN}Last Log Entry:{NC}{GREEN}{lines}{NC}")
+        except FileNotFoundError:
+            print(f"{RED}Log file not found.{NC}")
     except Exception as e:
         log_error("Error while checking system uptime: ", e)
 def process_handler(process_name, action="continue"):
