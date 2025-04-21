@@ -45,7 +45,7 @@ except ImportError:
     CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
     CSS_PLAYER_OPTIONS = "aeugT"
 driver = None # Declare it globally so that it can be accessed in the signal handler function
-viewport_version = "2.1.0-alpha" # Version of the script
+viewport_version = "2.1.0" # Version of the script
 _chrome_driver_path = None  # Cache for the ChromeDriver path
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 # Directory and file paths
