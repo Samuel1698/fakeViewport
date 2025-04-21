@@ -12,7 +12,7 @@ script_dir = Path(__file__).resolve().parent
 API_PATH = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api'))
 
 # Check if API_PATH exists; if not, create an 'api' folder in the current directory
-api_dir = API_PATH
+api_dir = Path(API_PATH)
 if not api_dir.exists():
     api_dir.mkdir(parents=True, exist_ok=True)
 sst_file = api_dir / 'sst.txt'
