@@ -156,7 +156,9 @@ if API:
             logging.info("Starting API...")
             # construct the path to monitoring.py
             api_script = os.path.join(script_dir, 'monitoring.py')
-            subprocess.Popen(['python3', api_script], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.Popen(['python3', api_script], stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL)
             # Defaults to 'False' until status updates
             api_status("Starting API...")
 # -------------------------------------------------------------------
