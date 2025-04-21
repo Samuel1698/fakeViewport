@@ -57,7 +57,7 @@ logs_dir = script_dir / 'logs'
 env_dir = script_dir / '.env'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
-log_file_path = logs_dir / 'viewport.log'
+log_file = logs_dir / 'viewport.log'
 # -------------------------------------------------------------------
 # Config file initialization
 # -------------------------------------------------------------------
@@ -96,11 +96,12 @@ if LOG_DAYS < 1:
 if LOG_INTERVAL < 1:
         logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
         sys.exit(1)
-if API:
-    API_PATH = os.path.expanduser(API_PATH)
-    if not os.path.isdir(API_PATH):
-        API_PATH = script_dir / 'api'
-        os.makedirs(API_PATH, exist_ok=True)
+API_PATH = os.path.expanduser(API_PATH)
+if not os.path.isdir(API_PATH):
+    API_PATH = script_dir / 'api'
+    os.makedirs(API_PATH, exist_ok=True)
+sst_file = API_PATH / 'sst.txt'
+status_file = API_PATH / 'status.txt'
 # -------------------------------------------------------------------
 # .env variables validation
 # -------------------------------------------------------------------
@@ -130,10 +131,9 @@ def log_error(message, exception=None):
         logging.exception(message)  # Logs the message with the stacktrace
     else:
         logging.error(message)  # Logs the message without any exception
-
 if LOG_FILE:
     #  Define a handler for the file
-    file_handler = TimedRotatingFileHandler(log_file_path, when="D", interval=1, backupCount=LOG_DAYS)
+    file_handler = TimedRotatingFileHandler(log_file, when="D", interval=1, backupCount=LOG_DAYS)
     file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
     # Set the formatter for the handler
     file_handler.setFormatter(formatter)
@@ -148,36 +148,27 @@ if LOG_CONSOLE:
 # -------------------------------------------------------------------
 # API setup
 # -------------------------------------------------------------------
-if API:
-    if not os.path.isdir(os.path.expanduser(API_PATH)):
-        logging.error(f"Invalid API_PATH: {API_PATH}. The directory does not exist.")
-        sys.exit(1)
-    # Construct the path to the api files
-    view_status_file = os.path.join(os.path.expanduser(API_PATH), 'view_status.txt')
-    script_start_time_file = os.path.join(os.path.expanduser(API_PATH), 'script_start_time.txt')
-    with open(script_start_time_file, 'w') as f:
-        f.write(str(datetime.now()))
-    def api_status(msg):
-        with open(view_status_file, 'w') as f:
-            f.write(msg)
-    def api_handler():
-        if not process_handler('monitoring.py', action="continue"):
-            logging.info("Starting API...")
-            # construct the path to monitoring.py
-            api_script = script_dir / 'monitoring.py'
-            try:
-                subprocess.Popen(
-                    [sys.executable, api_script],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    stdin=subprocess.DEVNULL,
-                    close_fds=True,
-                    start_new_session=True  # Detach from the terminal
-                )
-                api_status("Starting API...")
-            except Exception as e:
-                log_error("Error starting API: ", e)
-        api_status("Starting...")
+def api_status(msg):
+    with open(status_file, 'w') as f:
+        f.write(msg)
+def api_handler():
+    if not process_handler('monitoring.py', action="continue"):
+        logging.info("Starting API...")
+        # construct the path to monitoring.py
+        api_script = script_dir / 'monitoring.py'
+        try:
+            subprocess.Popen(
+                [sys.executable, api_script],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                close_fds=True,
+                start_new_session=True  # Detach from the terminal
+            )
+            api_status("Starting API...")
+        except Exception as e:
+            log_error("Error starting API: ", e)
+    api_status("Starting...")
 # -------------------------------------------------------------------
 # Signal Handler (Closing gracefully with CTRL+C)
 # -------------------------------------------------------------------
@@ -185,8 +176,7 @@ def signal_handler(signum, frame):
     if driver is not None:
         logging.info('Gracefully shutting down Chrome.')
         driver.quit()
-    if API:
-        api_status("Stopped")
+    api_status("Stopped")
     logging.info("Gracefully shutting down script instance.")
     sys.exit(0)
 signal.signal(signal.SIGINT, signal_handler)
@@ -201,15 +191,13 @@ def arguments_handler():
     )
     parser.add_argument(
         "--status",
-        nargs="?",
-        type=int,
-        const=5,  # Default to 10 lines if no number is provided
-        help="Display the last n lines from the log file (default: 5)."
+        action="store_true",
+        help="Display status information about the script."
     )
     parser.add_argument(
         "--background",
         action="store_true",
-        help="Run the script in the background."
+        help="Runs the script in the background."
     )
     parser.add_argument(
         "--restart",
@@ -219,7 +207,14 @@ def arguments_handler():
     parser.add_argument(
         "--stop",
         action="store_true",
-        help="Stop the currently running Fake Viewport script."
+        help="Stops the currently running Fake Viewport script."
+    )
+    parser.add_argument(
+        "--logs",
+        nargs="?",
+        type=int,
+        const=5,  # Default to 10 lines if no number is provided
+        help="Display the last n lines from the log file (default: 5)."
     )
     parser.add_argument(
         "--api",
@@ -232,6 +227,39 @@ def arguments_handler():
     if not any(vars(args).values()):
         args.start = True  # Add a default "start" action
     return args
+def status_handler():
+    # Displays the status of the script, including system uptime and script uptime.
+    try:
+        with open(sst_file, 'r') as f:
+            script_start_time = datetime.strptime(f.read(), '%Y-%m-%d %H:%M:%S.%f')
+        script_uptime = datetime.now() - script_start_time
+        uptime_seconds = script_uptime.total_seconds()
+
+        # Convert uptime_seconds to days, hours, minutes, and seconds
+        days = uptime_seconds // 86400
+        hours = (uptime_seconds % 86400) // 3600
+        minutes = (uptime_seconds % 3600) // 60
+        seconds = uptime_seconds % 60
+        uptime_str = f"{days}d {hours}h {minutes}m {seconds}s"
+
+        monitoring = "Running" if process_handler('monitoring.py', action="continue") else "Not Running"
+
+        # Display Status
+        print(f"===== Fake Viewport {viewport_version}")
+        print(f"Script Uptime: {uptime_str}")
+        print(f"Monitoring API: {monitoring}")
+        print("Last Status Update:")
+        with open(status_file, "r") as f:
+            # Read the last line from the status file
+            lines = f.readlines()[-1]
+            print(lines.strip())
+        print("Last Log Entry:")
+        with open(log_file, "r") as f:
+            # Read the last line from the log file
+            lines = f.readlines()[-1]
+            print(lines.strip())
+    except Exception as e:
+        log_error("Error while checking system uptime: ", e)
 def process_handler(process_name, action="continue"):
     # Handles process management for the script. Checks if a process is running and takes action based on the specified behavior
     # Ensures the current instance is not affected if told to kill the process
@@ -316,7 +344,7 @@ def chrome_handler(url):
             time.sleep(5)
     logging.info("Failed to start Chrome after maximum retries.")
     logging.info(f"Starting script again in {int(SLEEP_TIME/2)} seconds.")
-    if API: api_status("Restarting Chrome")
+    api_status("Restarting Chrome")
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 def restart_handler(driver):
@@ -324,7 +352,7 @@ def restart_handler(driver):
     # Args:
     #    driver: The Selenium WebDriver instance to be closed (if any).
     try:
-        if API: api_status("Restarting...")
+        api_status("Restarting...")
         if driver is not None:
             logging.info("Gracefully shutting down Chrome...")
             driver.quit()
@@ -429,7 +457,7 @@ def handle_loading_issue(driver):
                 EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LOADING_DOTS))
             )
             if trouble_loading:
-                if API: api_status("Loading Issue")
+                api_status("Loading Issue")
                 if trouble_loading_start_time is None:
                     trouble_loading_start_time = time.time()
                 elif time.time() - trouble_loading_start_time >= 15:  # if loading issue persists for 15 seconds
@@ -524,7 +552,7 @@ def handle_retry(driver, url, attempt, max_retries):
     # If it's the second to last attempt, it kills all existing Chrome processes and calls chrome_handler again.
     # If it's the last attempt, it restarts the script.
     logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
-    if API: api_status(f"Retrying: {attempt} of {max_retries}")
+    api_status(f"Retrying: {attempt} of {max_retries}")
     if attempt < max_retries - 1:
         try:
             if "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
@@ -532,7 +560,7 @@ def handle_retry(driver, url, attempt, max_retries):
                 if handle_login(driver):
                     if not handle_fullscreen_button(driver):
                         logging.warning("Failed to activate fullscreen, but continuing anyway.")
-                if API: api_status("Feed Healthy")
+                api_status("Feed Healthy")
             else:
                 logging.info("Attempting to load page from URL.")
                 driver.get(url)
@@ -541,13 +569,13 @@ def handle_retry(driver, url, attempt, max_retries):
                     time.sleep(WAIT_TIME)
                     if not handle_fullscreen_button(driver):
                         logging.warning("Failed to activate fullscreen, but continuing anyway.")
-                if API: api_status("Feed Healthy")
+                api_status("Feed Healthy")
         except InvalidSessionIdException:
             log_error("Chrome session is invalid. Restarting the program.")
             restart_handler(driver)
         except Exception as e:
             log_error("Error while handling retry logic: ", e)
-            if API: api_status("Error refreshing")
+            api_status("Error refreshing")
     if attempt == max_retries - 1:
         try:
             logging.info("Killing existing Chrome processes...")
@@ -559,10 +587,10 @@ def handle_retry(driver, url, attempt, max_retries):
             if handle_page(driver):
                 logging.info("Page successfully reloaded.")
                 time.sleep(WAIT_TIME)
-                if API: api_status("Feed Healthy")
+                api_status("Feed Healthy")
         except Exception as e:
             log_error("Error while killing Chrome processes: ", e)
-            if API: api_status("Error Killing Chrome")
+            api_status("Error Killing Chrome")
     elif attempt == max_retries:
         logging.info("Max Attempts reached, restarting script...")
         restart_handler(driver)
@@ -592,14 +620,14 @@ def handle_view(driver, url):
             """)
             if offline_status:
                 logging.warning("Detected offline status: Console or Protect Offline.")
-                if API: api_status("Offline: Console or Protect Offline")
+                api_status("Offline: Console or Protect Offline")
                 time.sleep(SLEEP_TIME)  # Wait before retrying
                 retry_count += 1
                 handle_retry(driver, url, retry_count, max_retries)
             WebDriverWait(driver, WAIT_TIME).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
             )
-            if API: api_status("Feed Healthy")
+            api_status("Feed Healthy")
             retry_count = 0
             screen_size = driver.get_window_size()
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
@@ -644,14 +672,17 @@ def handle_view(driver, url):
 # -------------------------------------------------------------------
 def main():
     args = arguments_handler()
-    if args.status is not None:
+    if args.status:
+        status_handler()
+        sys.exit(1)
+    if args.logs is not None:
         try:
-            with open(log_file_path, "r") as f:
+            with open(log_file, "r") as f:
                 # Read the last X lines from the log file
-                lines = f.readlines()[-args.status:]
+                lines = f.readlines()[-args.logs:]
                 print("".join(lines))  # Print the lines to the console
         except FileNotFoundError:
-            print(f"Log file not found: {log_file_path}")
+            print(f"Log file not found: {log_file}")
         except Exception as e:
             log_error(f"Error reading log file: {e}")
         sys.exit(0)
@@ -685,6 +716,8 @@ def main():
     if API: api_handler()
     # Check and kill any existing instance of viewport.py
     process_handler('viewport.py', action="kill")
+    # Write the start time to the SST file
+    with open(sst_file, 'w') as f: f.write(str(datetime.now()))
     driver = chrome_handler(url)
     # Start the handle_view function in a separate thread
     threading.Thread(target=handle_view, args=(driver, url)).start()
