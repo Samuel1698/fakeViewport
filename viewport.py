@@ -97,7 +97,7 @@ if LOG_DAYS < 1:
 if LOG_INTERVAL < 1:
         logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
         sys.exit(1)
-api_dir = API_PATH
+api_dir = Path(API_PATH)
 if not api_dir.exists():
     api_dir.mkdir(parents=True, exist_ok=True)
 sst_file = api_dir / 'sst.txt'
