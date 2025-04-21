@@ -156,16 +156,18 @@ if API:
             logging.info("Starting API...")
             # construct the path to monitoring.py
             api_script = script_dir / 'monitoring.py'
-            subprocess.Popen(
-                [sys.executable, api_script],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-                close_fds=True,
-                start_new_session=True  # Detach from the terminal
-            )
-            # Defaults to 'False' until status updates
-            api_status("Starting API...")
+            try:
+                subprocess.Popen(
+                    [sys.executable, api_script],
+                    stdout=open('api_stdout.log', 'w'),
+                    stderr=open('api_stderr.log', 'w'),
+                    stdin=subprocess.DEVNULL,
+                    close_fds=True,
+                    start_new_session=True  # Detach from the terminal
+                )
+                api_status("Starting API...")
+            except Exception as e:
+                log_error("Error starting API: ", e)
 # -------------------------------------------------------------------
 # Signal Handler (Closing gracefully with CTRL+C)
 # -------------------------------------------------------------------
