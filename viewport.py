@@ -155,10 +155,15 @@ if API:
         if not process_handler('monitoring.py', action="continue"):
             logging.info("Starting API...")
             # construct the path to monitoring.py
-            api_script = os.path.join(script_dir, 'monitoring.py')
-            subprocess.Popen(['python3', api_script], stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL)
+            api_script = script_dir / 'monitoring.py'
+            subprocess.Popen(
+                [sys.executable, api_script],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                close_fds=True,
+                start_new_session=True  # Detach from the terminal
+            )
             # Defaults to 'False' until status updates
             api_status("Starting API...")
 # -------------------------------------------------------------------
