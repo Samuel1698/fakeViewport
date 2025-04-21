@@ -178,7 +178,7 @@ def signal_handler(signum, frame):
         logging.info('Gracefully shutting down Chrome.')
         driver.quit()
     if API:
-        api_status("Quit")
+        api_status("Stopped")
     logging.info("Gracefully shutting down script instance.")
     sys.exit(0)
 signal.signal(signal.SIGINT, signal_handler)
@@ -278,8 +278,8 @@ def chrome_handler(url):
             chrome_options.add_argument("--no-first-run")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument('--ignore-certificate-errors')  # Ignore SSL certificate errors
-            chrome_options.add_argument('--ignore-ssl-errors')  # Ignore SSL errors
+            chrome_options.add_argument('--ignore-certificate-errors') 
+            chrome_options.add_argument('--ignore-ssl-errors')
             chrome_options.add_argument("--hide-crash-restore-bubble")
             chrome_options.add_argument("--remote-debugging-port=9222")
             chrome_options.add_argument(f"--user-data-dir={CHROME_PROFILE_PATH}")
@@ -304,8 +304,7 @@ def chrome_handler(url):
             time.sleep(5)
     logging.info("Failed to start Chrome after maximum retries.")
     logging.info(f"Starting script again in {int(SLEEP_TIME/2)} seconds.")
-    if API:
-        api_status("Restarting Chrome")
+    if API: api_status("Restarting Chrome")
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 def restart_handler(driver):
@@ -313,8 +312,7 @@ def restart_handler(driver):
     # Args:
     #    driver: The Selenium WebDriver instance to be closed (if any).
     try:
-        if API:
-            api_status("Restarting...")
+        if API: api_status("Restarting...")
         if driver is not None:
             logging.info("Gracefully shutting down Chrome...")
             driver.quit()
@@ -419,6 +417,7 @@ def handle_loading_issue(driver):
                 EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LOADING_DOTS))
             )
             if trouble_loading:
+                if API: api_status("Loading Issue")
                 if trouble_loading_start_time is None:
                     trouble_loading_start_time = time.time()
                 elif time.time() - trouble_loading_start_time >= 15:  # if loading issue persists for 15 seconds
@@ -513,8 +512,7 @@ def handle_retry(driver, url, attempt, max_retries):
     # If it's the second to last attempt, it kills all existing Chrome processes and calls chrome_handler again.
     # If it's the last attempt, it restarts the script.
     logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
-    if API:
-        api_status(f"Retrying: {attempt} of {max_retries}")
+    if API: api_status(f"Retrying: {attempt} of {max_retries}")
     if attempt < max_retries - 1:
         try:
             if "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
@@ -522,8 +520,7 @@ def handle_retry(driver, url, attempt, max_retries):
                 if handle_login(driver):
                     if not handle_fullscreen_button(driver):
                         logging.warning("Failed to activate fullscreen, but continuing anyway.")
-                if API:
-                    api_status("Feed Healthy")
+                if API: api_status("Feed Healthy")
             else:
                 logging.info("Attempting to load page from URL.")
                 driver.get(url)
@@ -532,15 +529,13 @@ def handle_retry(driver, url, attempt, max_retries):
                     time.sleep(WAIT_TIME)
                     if not handle_fullscreen_button(driver):
                         logging.warning("Failed to activate fullscreen, but continuing anyway.")
-                if API:
-                    api_status("Feed Healthy")
+                if API: api_status("Feed Healthy")
         except InvalidSessionIdException:
             log_error("Chrome session is invalid. Restarting the program.")
             restart_handler(driver)
         except Exception as e:
             log_error("Error while handling retry logic: ", e)
-            if API:
-                api_status("Error refreshing")
+            if API: api_status("Error refreshing")
     if attempt == max_retries - 1:
         try:
             logging.info("Killing existing Chrome processes...")
@@ -552,12 +547,10 @@ def handle_retry(driver, url, attempt, max_retries):
             if handle_page(driver):
                 logging.info("Page successfully reloaded.")
                 time.sleep(WAIT_TIME)
-                if API:
-                    api_status("Feed Healthy")
+                if API: api_status("Feed Healthy")
         except Exception as e:
             log_error("Error while killing Chrome processes: ", e)
-            if API:
-                api_status("Error Killing Chrome")
+            if API: api_status("Error Killing Chrome")
     elif attempt == max_retries:
         logging.info("Max Attempts reached, restarting script...")
         restart_handler(driver)
@@ -587,8 +580,7 @@ def handle_view(driver, url):
             """)
             if offline_status:
                 logging.warning("Detected offline status: Console or Protect Offline.")
-                if API:
-                    api_status("Offline: Console or Protect Offline")
+                if API: api_status("Offline: Console or Protect Offline")
                 time.sleep(SLEEP_TIME)  # Wait before retrying
                 retry_count += 1
                 handle_retry(driver, url, retry_count, max_retries)
