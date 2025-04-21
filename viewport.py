@@ -175,6 +175,7 @@ if API:
                 api_status("Starting API...")
             except Exception as e:
                 log_error("Error starting API: ", e)
+        api_status("Starting...")
 # -------------------------------------------------------------------
 # Signal Handler (Closing gracefully with CTRL+C)
 # -------------------------------------------------------------------
