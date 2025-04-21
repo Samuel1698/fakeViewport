@@ -143,12 +143,11 @@ class ColoredFormatter(logging.Formatter):
             color = self.GREEN
         else:
             color = self.CYAN  # Default color for other levels (e.g., DEBUG)
-
         # Format the message with the color
         record.msg = f"{color}{record.msg}{self.NC}"
         return super().format(record)
 logger = logging.getLogger()
-formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+formatter = logging.Formatter(f'[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 logger.setLevel(logging.INFO)
 def log_error(message, exception=None):
     if VERBOSE_LOGGING and exception:
