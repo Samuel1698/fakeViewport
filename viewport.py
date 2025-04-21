@@ -237,23 +237,22 @@ def status_handler():
         uptime_seconds = script_uptime.total_seconds()
 
         # Convert uptime_seconds to days, hours, minutes, and seconds
-        days = uptime_seconds // 86400
-        hours = (uptime_seconds % 86400) // 3600
-        minutes = (uptime_seconds % 3600) // 60
-        seconds = uptime_seconds % 60
+        days = int(uptime_seconds // 86400)
+        hours = int((uptime_seconds % 86400) // 3600)
+        minutes = int((uptime_seconds % 3600) // 60)
+        seconds = int(uptime_seconds % 60)
         uptime_str = f"{days}d {hours}h {minutes}m {seconds}s"
 
         monitoring = "Running" if process_handler('monitoring.py', action="continue") else "Not Running"
 
         # Display Status
-        print(f"===== Fake Viewport {viewport_version}")
+        print(f"===== Fake Viewport {viewport_version} ======")
         print(f"Script Uptime: {uptime_str}")
         print(f"Monitoring API: {monitoring}")
-        print("Last Status Update:")
         with open(status_file, "r") as f:
             # Read the last line from the status file
-            lines = f.readlines()[-1]
-            print(lines.strip())
+            lines = f.readlines()[-1].strip()
+            print(f"Last Status Update: {lines}")
         print("Last Log Entry:")
         with open(log_file, "r") as f:
             # Read the last line from the log file
