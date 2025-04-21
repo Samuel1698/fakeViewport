@@ -128,6 +128,11 @@ if not url:
 # Logging setup
 # -------------------------------------------------------------------
 class ColoredFormatter(logging.Formatter):
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    CYAN = "\033[36m"
+    NC='\033[0m' # No Color
     def format(self, record):
         # Add colors based on the log level
         if record.levelno == logging.ERROR:
