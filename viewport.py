@@ -229,6 +229,12 @@ def arguments_handler():
         args.start = True  # Add a default "start" action
     return args
 def status_handler():
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    CYAN = "\033[36m"
+    NC='\033[0m' # No Color
+
     # Displays the status of the script, including system uptime and script uptime.
     try:
         with open(sst_file, 'r') as f:
@@ -241,23 +247,23 @@ def status_handler():
         hours = int((uptime_seconds % 86400) // 3600)
         minutes = int((uptime_seconds % 3600) // 60)
         seconds = int(uptime_seconds % 60)
-        uptime_str = f"{days}d {hours}h {minutes}m {seconds}s"
+        uptime_str = f"{GREEN}{days}d {hours}h {minutes}m {seconds}s{NC}"
 
-        monitoring = "Running" if process_handler('monitoring.py', action="continue") else "Not Running"
+        monitoring = f"{GREEN}Running{NC}" if process_handler('monitoring.py', action="continue") else f"{RED}Not Running{NC}"
 
         # Display Status
-        print(f"===== Fake Viewport {viewport_version} ======")
-        print(f"Script Uptime: {uptime_str}")
-        print(f"Monitoring API: {monitoring}")
+        print(f"{YELLOW}===== Fake Viewport {viewport_version} ======{NC}")
+        print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
+        print(f"{CYAN}Monitoring API:{NC} {monitoring}")
         with open(status_file, "r") as f:
             # Read the last line from the status file
             lines = f.readlines()[-1].strip()
-            print(f"Last Status Update: {lines}")
-        print("Last Log Entry:")
+            print(f"{CYAN}Last Status Update:{NC} {lines}")
+        print(f"{CYAN}Last Log Entry:{NC}")
         with open(log_file, "r") as f:
             # Read the last line from the log file
-            lines = f.readlines()[-1]
-            print(lines.strip())
+            lines = f.readlines()[-1].strip()
+            print(lines)
     except Exception as e:
         log_error("Error while checking system uptime: ", e)
 def process_handler(process_name, action="continue"):
