@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
+import os
+import sys
+if not os.getenv('VIRTUAL_ENV'):
+    venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
+    os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
 import subprocess
 import time
 import threading
-import os
-import sys
 import getpass
 import configparser
 import argparse
 import logging
 import signal
-if not os.getenv('VIRTUAL_ENV'):
-    venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
-    os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
 from datetime import datetime, timedelta
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
