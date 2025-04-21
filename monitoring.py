@@ -16,6 +16,8 @@ API_PATH = os.path.expanduser(API_PATH)
 if not os.path.isdir(API_PATH):
     API_PATH = script_dir / 'api'
     os.makedirs(API_PATH, exist_ok=True)
+sst_file = API_PATH / 'sst.txt'
+status_file = API_PATH / 'status.txt'
 
 app = Flask(__name__)
 
@@ -25,11 +27,9 @@ log.setLevel(logging.WARNING)
 
 @app.route('/check_view')
 def api_check_view():
-    # Construct the path to the file in the API_PATH directory
-    view_status_file = os.path.join(API_PATH, 'view_status.txt')
-    if not os.path.exists(view_status_file):
+    if not os.path.exists(status_file):
         return jsonify(view_status="File not found"), 404
-    with open(view_status_file, 'r') as f:
+    with open(status_file, 'r') as f:
         result = f.read()
     return jsonify(view_status=result)
 
@@ -41,11 +41,9 @@ def get_system_uptime():
 
 @app.route('/get_script_uptime')
 def api_get_script_uptime():
-    # Construct the path to the file in the API_PATH directory
-    script_start_time_file = os.path.join(API_PATH, 'script_start_time.txt')
-    if not os.path.exists(script_start_time_file):
+    if not os.path.exists(sst_file):
         return jsonify(script_uptime="File not found"), 404
-    with open(script_start_time_file, 'r') as f:
+    with open(sst_file, 'r') as f:
         script_start_time = datetime.strptime(f.read(), '%Y-%m-%d %H:%M:%S.%f')
     script_uptime = datetime.now() - script_start_time
     uptime_seconds = script_uptime.total_seconds()
