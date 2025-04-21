@@ -264,10 +264,9 @@ def status_handler():
         hours = int((uptime_seconds % 86400) // 3600)
         minutes = int((uptime_seconds % 3600) // 60)
         seconds = int(uptime_seconds % 60)
-        uptime_str = f"{GREEN}{days}d {hours}h {minutes}m {seconds}s{NC}"
-
+        uptime_str = f"{GREEN}{days}d {hours}h {minutes}m {seconds}s{NC}" if process_handler('viewport.py', action="continue") else f"{RED}Not Running{NC}"
+        # Check if monitoring.py is running
         monitoring = f"{GREEN}Running{NC}" if process_handler('monitoring.py', action="continue") else f"{RED}Not Running{NC}"
-
         # Display Status
         print(f"{YELLOW}===== Fake Viewport {viewport_version} ======{NC}")
         print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
