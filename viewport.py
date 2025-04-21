@@ -12,6 +12,11 @@ import signal
 from datetime import datetime, timedelta
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
+# Check if the script is running inside a virtual environment
+if not os.getenv('VIRTUAL_ENV'):
+    logging.warning("Starting virtual environment...")
+    venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
+    os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -676,11 +681,6 @@ def main():
     if args.restart:
         logging.info("Restarting the Fake Viewport script...")
         restart_handler(driver=None)
-    # Check if the script is running inside a virtual environment
-    if not os.getenv('VIRTUAL_ENV'):
-        logging.warning("Starting virtual environment...")
-        venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
-        os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
     logging.info(f"===== Fake Viewport {viewport_version} =====")
     if API: api_handler()
     # Check and kill any existing instance of viewport.py
