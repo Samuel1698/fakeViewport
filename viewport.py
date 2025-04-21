@@ -192,7 +192,7 @@ def api_handler():
             api_status("Starting API...")
         except Exception as e:
             log_error("Error starting API: ", e)
-    api_status("Starting...")
+            api_status("Error Starting API")
 # -------------------------------------------------------------------
 # Signal Handler (Closing gracefully with CTRL+C)
 # -------------------------------------------------------------------
@@ -321,6 +321,7 @@ def process_handler(process_name, action="check"):
             return False
     except Exception as e:
         log_error(f"Error while checking process '{process_name}'", e)
+        api_status(f"Error Checking Process '{process_name}'")
         return True
 def driver_handler():
     # Gets the path to the ChromeDriver executable
@@ -333,6 +334,7 @@ def chrome_handler(url):
     # If the driver fails to start, it will retry a few times before killing all existing chrome processes and restarting the script
     process_handler("chrome", action="kill")
     logging.info("Waiting for chrome to load...")
+    api_status("Waiting for Chrome to load")
     retry_count = 0
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
@@ -362,6 +364,7 @@ def chrome_handler(url):
             return driver
         except Exception as e:
             log_error("Error starting Chrome: ", e)
+            api_status("Error Starting Chrome")
             retry_count += 1
             logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
             # If this is the final attempt, kill all existing Chrome processes
@@ -371,7 +374,7 @@ def chrome_handler(url):
             time.sleep(5)
     logging.info("Failed to start Chrome after maximum retries.")
     logging.info(f"Starting script again in {int(SLEEP_TIME/2)} seconds.")
-    api_status("Restarting Chrome")
+    api_status(f"Restarting Chrome in {int(SLEEP_TIME/2)} seconds.")
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
 def restart_handler(driver):
@@ -379,7 +382,7 @@ def restart_handler(driver):
     # Args:
     #    driver: The Selenium WebDriver instance to be closed (if any).
     try:
-        api_status("Restarting...")
+        api_status("Restarting script...")
         if driver is not None:
             logging.info("Gracefully shutting down Chrome...")
             driver.quit()
@@ -392,6 +395,7 @@ def restart_handler(driver):
         os.execv(sys.executable, [sys.executable] + new_args)
     except Exception as e:
         log_error("Error during restart process: ", e)
+        api_status("Error Restarting, exiting...")
         sys.exit(1)  # Exit with an error code if restart fails
 # -------------------------------------------------------------------
 # Helper Functions for main script
@@ -424,11 +428,14 @@ def check_for_title(driver, title=None):
     except TimeoutException:
         if title is None:
             log_error("Timed out waiting for the page title to not be empty.")
+            api_status("Paged Timed Out")
         else:
             log_error(f"Timed out waiting for the title '{title}' to load.")
+            api_status(f"Timed Out Waiting for Title '{title}'")
         return False
     except Exception as e:
         log_error(f"Error while waiting for title '{title}': ", e)
+        api_status(f"Error Waiting for Title '{title}'")
         return False
 def check_unable_to_stream(driver):
     # Checks if the "Unable to Stream" message is present in the live view
@@ -443,6 +450,7 @@ def check_unable_to_stream(driver):
         return False
     except Exception as e:
         log_error("Error while checking for 'Unable to Stream' message: ", e)
+        api_status("Error Checking Unable to Stream")
         return False
 # -------------------------------------------------------------------
 # Interactive Functions for main logic
@@ -484,18 +492,19 @@ def handle_loading_issue(driver):
                 EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LOADING_DOTS))
             )
             if trouble_loading:
-                api_status("Loading Issue")
                 if trouble_loading_start_time is None:
                     trouble_loading_start_time = time.time()
                 elif time.time() - trouble_loading_start_time >= 15:  # if loading issue persists for 15 seconds
                     log_error("Video feed trouble persisting for 15 seconds, refreshing the page.")
                     logging.info("Video feed trouble persisting for 15 seconds, refreshing the page.")
+                    api_status("Loading Issue Detected")
                     driver.refresh()
                     time.sleep(5)  # Allow the page to load after refresh
                     
                     # Validate the page after refresh
                     if not handle_page(driver):
                         log_error("Unexpected page loaded after refresh. Waiting before retrying...")
+                        api_status("Error Reloading")
                         time.sleep(SLEEP_TIME)
                         return  # Exit the function to allow retry logic in the caller
                     return  # Exit the function if the page is valid
@@ -521,9 +530,11 @@ def handle_fullscreen_button(driver):
         )
         actions.move_to_element(button).click().perform()
         logging.info("Fullscreen activated")
+        api_status("Fullscreen Activated")
         return True
     except Exception as e:
         log_error("Error while clicking the fullscreen button: ", e)
+        api_status("Error Clicking Fullscreen")
         return False
 def handle_login(driver):
     # Handles the login process for the Ubiquiti account
@@ -553,6 +564,7 @@ def handle_login(driver):
         return check_for_title(driver, "Dashboard")
     except Exception as e: 
         log_error("Error during login: ", e)
+        api_status("Error Logging In")
         return False
 def handle_page(driver):
     # Handles the page loading and login process
@@ -571,6 +583,7 @@ def handle_page(driver):
                 return False
         elif time.time() - start_time > WAIT_TIME * 2:  # If timeout limit is reached
             log_error("Unexpected page loaded. The page title is: " + driver.title)
+            api_status(f"Error Loading Page {driver.title}")
             return False
         time.sleep(3)
 def handle_retry(driver, url, attempt, max_retries):
@@ -599,6 +612,7 @@ def handle_retry(driver, url, attempt, max_retries):
                 api_status("Feed Healthy")
         except InvalidSessionIdException:
             log_error("Chrome session is invalid. Restarting the program.")
+            api_status("Restarting Program")
             restart_handler(driver)
         except Exception as e:
             log_error("Error while handling retry logic: ", e)
@@ -609,17 +623,19 @@ def handle_retry(driver, url, attempt, max_retries):
             subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             time.sleep(5)
             logging.info("Starting chrome instance...")
+            api_status("Starting Chrome")
             driver = chrome_handler(url)
             check_for_title(driver)
             if handle_page(driver):
                 logging.info("Page successfully reloaded.")
-                time.sleep(WAIT_TIME)
                 api_status("Feed Healthy")
+                time.sleep(WAIT_TIME)
         except Exception as e:
             log_error("Error while killing Chrome processes: ", e)
             api_status("Error Killing Chrome")
     elif attempt == max_retries:
         logging.info("Max Attempts reached, restarting script...")
+        api_status("Max Attempts Reached, restarting script")
         restart_handler(driver)
     return driver
 def handle_view(driver, url):
@@ -636,6 +652,7 @@ def handle_view(driver, url):
         logging.info(f"Checking health of page every {SLEEP_TIME} seconds...")
     else:
         log_error("Error loading the live view. Restarting the program.")
+        api_status("Error Loading Live View. Restarting...")
         restart_handler(driver)
     while True:
         try:
@@ -654,7 +671,6 @@ def handle_view(driver, url):
             WebDriverWait(driver, WAIT_TIME).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
             )
-            api_status("Feed Healthy")
             retry_count = 0
             screen_size = driver.get_window_size()
             if screen_size['width'] != driver.execute_script("return screen.width;") or \
@@ -672,25 +688,30 @@ def handle_view(driver, url):
             # Calculate the time to sleep until the next health check
             # Based on the difference between the current time and the next health check time
             sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
+            api_status("Feed Healthy")
             time.sleep(sleep_duration)
             iteration_counter += 1
         except InvalidSessionIdException:
             log_error("Chrome session is invalid. Restarting the program.")
+            api_status("Restarting Program")
             restart_handler(driver)
         except (TimeoutException, NoSuchElementException):
             log_error("Video feeds not found or page timed out.")
+            api_status("Video Feeds Not Found")
             time.sleep(WAIT_TIME)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except NewConnectionError:
             log_error("Connection error occurred. Retrying...")
+            api_status("Connection Error")
             time.sleep(SLEEP_TIME/2)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except Exception as e:
             log_error("Unexpected error occurred: ", e)
+            api_status("Unexpected Error")
             time.sleep(WAIT_TIME)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
@@ -741,6 +762,7 @@ def main():
         restart_handler(driver=None)
     logging.info(f"===== Fake Viewport {viewport_version} =====")
     if API: api_handler()
+    api_status("Starting...")
     # Check and kill any existing instance of viewport.py
     process_handler('viewport.py', action="kill")
     # Write the start time to the SST file
