@@ -74,7 +74,7 @@ VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False
 LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
 LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
 API = config.getboolean('API', 'USE_API', fallback=False)
-API_PATH = config.get('API', 'API_FILE_PATH', fallback='~').strip()
+API_PATH = config.get('API', 'API_FILE_PATH').strip()
 # -------------------------------------------------------------------
 # Config variables validation
 # -------------------------------------------------------------------
@@ -93,6 +93,11 @@ if LOG_DAYS < 1:
 if LOG_INTERVAL < 1:
         logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
         sys.exit(1)
+if API:
+    API_PATH = os.path.expanduser(API_PATH)
+    if not os.path.isdir(API_PATH):
+        API_PATH = script_dir / 'api'
+        os.makedirs(API_PATH, exist_ok=True)
 # -------------------------------------------------------------------
 # .env variables validation
 # -------------------------------------------------------------------
