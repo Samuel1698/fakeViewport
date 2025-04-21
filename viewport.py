@@ -161,7 +161,6 @@ if API:
         with open(view_status_file, 'w') as f:
             f.write(msg)
     def api_handler():
-        logging.info("Checking if API is running...")
         if not process_handler('monitoring.py', action="continue"):
             logging.info("Starting API...")
             # construct the path to monitoring.py
@@ -225,7 +224,7 @@ def arguments_handler():
     parser.add_argument(
         "--api",
         action="store_true",
-        help="Stops the API if it's running in the background."
+        help="Toggles the API on or off. Requires USA_API=True in config.ini"
     )
     # Parse the arguments
     args = parser.parse_args()
@@ -262,7 +261,6 @@ def process_handler(process_name, action="continue"):
                 logging.info(f"Killed process '{process_name}' with PID(s): {', '.join(filtered_pids)}")
                 return False  # Return False if a process was killed - No process exists with that name
             elif action == "continue":
-                logging.info(f"'{process_name}' is already running. Continuing...")
                 return True
         else:
             return False
@@ -674,8 +672,11 @@ def main():
         process_handler('chrome', action="kill")
         sys.exit(0)
     if args.api:
-        logging.info("Stopping the API...")
-        process_handler('monitoring.py', action="kill")
+        if process_handler('monitoring.py', action="continue"):
+            logging.info("Stopping the API...")
+            process_handler('monitoring.py', action="kill")
+        else:
+            api_handler()
         sys.exit(0)
     if args.restart:
         logging.info("Restarting the Fake Viewport script...")
