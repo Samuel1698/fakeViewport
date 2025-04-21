@@ -12,12 +12,11 @@ script_dir = Path(__file__).resolve().parent
 API_PATH = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api'))
 
 # Check if API_PATH exists; if not, create an 'api' folder in the current directory
-API_PATH = os.path.expanduser(API_PATH)
-if not os.path.isdir(API_PATH):
-    API_PATH = script_dir / 'api'
-    os.makedirs(API_PATH, exist_ok=True)
-sst_file = API_PATH / 'sst.txt'
-status_file = API_PATH / 'status.txt'
+api_dir = API_PATH
+if not api_dir.exists():
+    api_dir.mkdir(parents=True, exist_ok=True)
+sst_file = api_dir / 'sst.txt'
+status_file = api_dir / 'status.txt'
 
 app = Flask(__name__)
 

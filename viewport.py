@@ -58,6 +58,7 @@ env_dir = script_dir / '.env'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file = logs_dir / 'viewport.log'
+
 # -------------------------------------------------------------------
 # Config file initialization
 # -------------------------------------------------------------------
@@ -96,12 +97,12 @@ if LOG_DAYS < 1:
 if LOG_INTERVAL < 1:
         logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
         sys.exit(1)
-API_PATH = os.path.expanduser(API_PATH)
-if not os.path.isdir(API_PATH):
-    API_PATH = script_dir / 'api'
-    os.makedirs(API_PATH, exist_ok=True)
-sst_file = API_PATH / 'sst.txt'
-status_file = API_PATH / 'status.txt'
+api_dir = API_PATH
+if not api_dir.exists():
+    api_dir.mkdir(parents=True, exist_ok=True)
+sst_file = api_dir / 'sst.txt'
+status_file = api_dir / 'status.txt'
+
 # -------------------------------------------------------------------
 # .env variables validation
 # -------------------------------------------------------------------
