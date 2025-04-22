@@ -286,6 +286,7 @@ def status_handler():
         print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
         print(f"{CYAN}Monitoring API:{NC} {monitoring}")
         print(f"{CYAN}Checking Page Health Every{NC}: {sleep_str}")
+        print(f"{CYAN}Printing to Log Every{NC}:{GREEN} {LOG_INTERVAL} min{NC}")
         try:
             with open(status_file, "r") as f:
                 # Read the last line from the status file
