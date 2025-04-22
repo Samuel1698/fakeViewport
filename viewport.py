@@ -12,12 +12,30 @@ from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+# -------------------------------------------------------------------
+# Variable Declaration and file paths
+# -------------------------------------------------------------------
+driver = None # Declare it globally so that it can be accessed in the signal handler function
+viewport_version = "2.1.0"
+_chrome_driver_path = None  # Cache for the ChromeDriver path
+os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
+# Directory and file paths
+script_dir = Path(__file__).resolve().parent
+logs_dir = script_dir / 'logs'
+env_dir = script_dir / '.env'
+if not logs_dir.exists():
+    logs_dir.mkdir(parents=True, exist_ok=True)
+log_file = logs_dir / 'viewport.log'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN = "\033[36m"
+NC='\033[0m' # No Color
+# -------------------------------------------------------------------
+# Argument Handler and Conditional Imports
+# -------------------------------------------------------------------
 def arguments_handler():
-    YELLOW='\033[1;33m'
-    NC='\033[0m' # No Color
     # Parse command-line arguments for the script.
-    global viewport_version
-    viewport_version = "2.1.0"
     parser = argparse.ArgumentParser(
         description=f"{YELLOW}===== Fake Viewport {viewport_version} ====={NC}"
     )
@@ -70,52 +88,34 @@ if not any(vars(args).values()) or args.background:
     from selenium.common.exceptions import NoSuchElementException
     from selenium.common.exceptions import InvalidSessionIdException
     from urllib3.exceptions import NewConnectionError
-# -------------------------------------------------------------------
-# Variable Declaration and file paths
-# -------------------------------------------------------------------
-try:
-    from css_selectors import (
-        CSS_FULLSCREEN_PARENT,
-        CSS_FULLSCREEN_BUTTON,
-        CSS_LOADING_DOTS,
-        CSS_LIVEVIEW_WRAPPER,
-        CSS_PLAYER_OPTIONS,
-    )
-except ImportError:
-    logging.warning("selectors.py not found. Using default CSS selectors.")
-    CSS_FULLSCREEN_PARENT = "div[class*='LiveviewControls__ButtonGroup']"
-    CSS_FULLSCREEN_BUTTON = ":nth-child(2) > button"
-    CSS_LOADING_DOTS = "div[class*='TimedDotsLoader']"
-    CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
-    CSS_PLAYER_OPTIONS = "aeugT"
-driver = None # Declare it globally so that it can be accessed in the signal handler function
-_chrome_driver_path = None  # Cache for the ChromeDriver path
-os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
-# Directory and file paths
-script_dir = Path(__file__).resolve().parent
-logs_dir = script_dir / 'logs'
-env_dir = script_dir / '.env'
-if not logs_dir.exists():
-    logs_dir.mkdir(parents=True, exist_ok=True)
-log_file = logs_dir / 'viewport.log'
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN = "\033[36m"
-NC='\033[0m' # No Color
+    try:
+        from css_selectors import (
+            CSS_FULLSCREEN_PARENT,
+            CSS_FULLSCREEN_BUTTON,
+            CSS_LOADING_DOTS,
+            CSS_LIVEVIEW_WRAPPER,
+            CSS_PLAYER_OPTIONS,
+        )
+    except ImportError:
+        CSS_FULLSCREEN_PARENT = "div[class*='LiveviewControls__ButtonGroup']"
+        CSS_FULLSCREEN_BUTTON = ":nth-child(2) > button"
+        CSS_LOADING_DOTS = "div[class*='TimedDotsLoader']"
+        CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
+        CSS_PLAYER_OPTIONS = "aeugT"
 # -------------------------------------------------------------------
 # Config file initialization
 # -------------------------------------------------------------------
 config = configparser.ConfigParser()
 config.read('config.ini')
-# Get the config variables
-user = getpass.getuser()
-default_profile_path = f"/home/{user}/.config/google-chrome/Default"
-CHROME_PROFILE_PATH = config.get('Chrome', 'CHROME_PROFILE_PATH', fallback=default_profile_path).strip()
-CHROME_BINARY = config.get('Chrome', 'CHROME_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
-SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
-WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
-MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
+# Conditional variables if code executes with no arguments or with --background
+if not any(vars(args).values()) or args.background:
+    user = getpass.getuser()
+    default_profile_path = f"/home/{user}/.config/google-chrome/Default"
+    CHROME_PROFILE_PATH = config.get('Chrome', 'CHROME_PROFILE_PATH', fallback=default_profile_path).strip()
+    CHROME_BINARY = config.get('Chrome', 'CHROME_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
+    SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
+    WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
+    MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
 VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
@@ -126,15 +126,16 @@ API_PATH = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).
 # -------------------------------------------------------------------
 # Config variables validation
 # -------------------------------------------------------------------
-if SLEEP_TIME < 60:
-    logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
-    sys.exit(1)
-if WAIT_TIME <= 5:
-    logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
-    sys.exit(1)
-if MAX_RETRIES < 3:
-    logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
-    sys.exit(1)
+if not any(vars(args).values()) or args.background:
+    if SLEEP_TIME < 60:
+        logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
+        sys.exit(1)
+    if WAIT_TIME <= 5:
+        logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
+        sys.exit(1)
+    if MAX_RETRIES < 3:
+        logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
+        sys.exit(1)
 if LOG_DAYS < 1:
     logging.error("Invalid value for LOG_DAYS. It should be a positive integer greater than 0.")
     sys.exit(1)
