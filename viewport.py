@@ -1,18 +1,76 @@
 #! /venv/bin/ python3
 import sys
 import os
-import subprocess
 import time
-import threading
-import getpass
-import configparser
 import argparse
-import logging
 import signal
-from datetime import datetime, timedelta
-from pathlib import Path
+import configparser
+import getpass
+import logging
+import subprocess
 from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 from dotenv import load_dotenv
+def arguments_handler():
+    # Parse command-line arguments for the script.
+    parser = argparse.ArgumentParser(
+        description=f"{YELLOW}===== Fake Viewport {viewport_version} ====={NC}"
+    )
+    parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Display status information about the script."
+    )
+    parser.add_argument(
+        "--background",
+        action="store_true",
+        help="Runs the script in the background."
+    )
+    parser.add_argument(
+        "--restart",
+        action="store_true",
+        help="Force restarts the script (in background)."
+    )
+    parser.add_argument(
+        "--stop",
+        action="store_true",
+        help="Stops the currently running Fake Viewport script."
+    )
+    parser.add_argument(
+        "--logs",
+        nargs="?",
+        type=int,
+        const=5,  # Default to 10 lines if no number is provided
+        help="Display the last n lines from the log file (default: 5)."
+    )
+    parser.add_argument(
+        "--api",
+        action="store_true",
+        help="Toggles the API on or off. Requires USA_API=True in config.ini"
+    )
+    # Parse the arguments
+    args = parser.parse_args()
+    # If no arguments are provided, default to starting the script
+    if not any(vars(args).values()):
+        args.start = True  # Add a default "start" action
+    return args
+args = arguments_handler()
+if args.status:
+    from datetime import datetime
+if args is None or not any(vars(args).values()) or args.background:
+    import threading
+    from datetime import datetime, timedelta
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.action_chains import ActionChains
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException
+    from selenium.common.exceptions import NoSuchElementException
+    from selenium.common.exceptions import InvalidSessionIdException
+    from urllib3.exceptions import NewConnectionError
 # -------------------------------------------------------------------
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
@@ -192,49 +250,6 @@ signal.signal(signal.SIGTERM, signal_handler)
 # -------------------------------------------------------------------
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
-def arguments_handler():
-    # Parse command-line arguments for the script.
-    parser = argparse.ArgumentParser(
-        description=f"{YELLOW}===== Fake Viewport {viewport_version} ====={NC}"
-    )
-    parser.add_argument(
-        "--status",
-        action="store_true",
-        help="Display status information about the script."
-    )
-    parser.add_argument(
-        "--background",
-        action="store_true",
-        help="Runs the script in the background."
-    )
-    parser.add_argument(
-        "--restart",
-        action="store_true",
-        help="Force restarts the script (in background)."
-    )
-    parser.add_argument(
-        "--stop",
-        action="store_true",
-        help="Stops the currently running Fake Viewport script."
-    )
-    parser.add_argument(
-        "--logs",
-        nargs="?",
-        type=int,
-        const=5,  # Default to 10 lines if no number is provided
-        help="Display the last n lines from the log file (default: 5)."
-    )
-    parser.add_argument(
-        "--api",
-        action="store_true",
-        help="Toggles the API on or off. Requires USA_API=True in config.ini"
-    )
-    # Parse the arguments
-    args = parser.parse_args()
-    # If no arguments are provided, default to starting the script
-    if not any(vars(args).values()):
-        args.start = True  # Add a default "start" action
-    return args
 def status_handler():
     # Displays the status of the script, including system uptime and script uptime.
     try:
@@ -718,7 +733,6 @@ def handle_view(driver, url):
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():
-    args = arguments_handler()
     if args.status:
         status_handler()
         sys.exit(1)
@@ -759,21 +773,6 @@ def main():
     if args.restart:
         logging.info("Restarting the Fake Viewport script...")
         restart_handler(driver=None)
-    # ----------------------------------------------------------
-    # Import selenium and other libraries here to avoid unecessary imports if not needed by other arguments execution of the script
-    # ----------------------------------------------------------
-    from selenium import webdriver
-    from selenium.webdriver.chrome.service import Service
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.common.action_chains import ActionChains
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    from selenium.common.exceptions import TimeoutException
-    from selenium.common.exceptions import NoSuchElementException
-    from selenium.common.exceptions import InvalidSessionIdException
-    from urllib3.exceptions import NewConnectionError
-    # ----------------------------------------------------------
     logging.info(f"===== Fake Viewport {viewport_version} =====")
     if API: api_handler()
     api_status("Starting...")
