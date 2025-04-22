@@ -216,6 +216,8 @@ if LOG_CONSOLE:
 # API setup
 # -------------------------------------------------------------------
 def api_status(msg):
+    # Although this function is named api_status, it is not exclusively an API function.
+    # It is used to update the status of the script in a file, which is also used by the --status argument.
     with open(status_file, 'w') as f:
         f.write(msg)
 def api_handler():
@@ -329,9 +331,11 @@ def process_handler(process_name, action="check"):
                         os.kill(int(pid), signal.SIGTERM)  # Send termination signal
                     except ProcessLookupError:
                         logging.warning(f"Process with PID {pid} no longer exists.")
+                        api_status(f"Process with PID {pid} no longer exists.")
                     killed = True  # Set the flag to indicate a process was killed
             if killed:
                 logging.info(f"Killed process '{process_name}' with PID(s): {', '.join(filtered_pids)}")
+                api_status(f"Killed process '{process_name}'")
                 return False  # Return False if a process was killed - No process exists with that name
             elif action == "check":
                 return True
