@@ -268,14 +268,15 @@ def status_handler():
 
         uptime_parts = []
         if months > 0:
-            uptime_parts.append(f"{months}m")
+            uptime_parts.append(f"{months}M")
         if days > 0:
             uptime_parts.append(f"{days}d")
         if hours > 0:
             uptime_parts.append(f"{hours}h")
         if minutes > 0:
             uptime_parts.append(f"{minutes}m")
-        uptime_parts.append(f"{seconds}s")
+        if seconds > 0:
+            uptime_parts.append(f"{seconds}s")
         uptime_str = f"{GREEN}{' '.join(uptime_parts)}{NC}" if process_handler('viewport.py', action="check") else f"{RED}Not Running{NC}"
         # Check if monitoring.py is running
         monitoring = f"{GREEN}Running{NC}" if process_handler('monitoring.py', action="check") else f"{RED}Not Running{NC}"
