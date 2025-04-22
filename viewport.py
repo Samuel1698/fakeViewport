@@ -95,6 +95,7 @@ if not any(vars(args).values()) or args.background:
             CSS_LOADING_DOTS,
             CSS_LIVEVIEW_WRAPPER,
             CSS_PLAYER_OPTIONS,
+            CSS_CURSOR
         )
     except ImportError:
         CSS_FULLSCREEN_PARENT = "div[class*='LiveviewControls__ButtonGroup']"
@@ -102,6 +103,7 @@ if not any(vars(args).values()) or args.background:
         CSS_LOADING_DOTS = "div[class*='TimedDotsLoader']"
         CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
         CSS_PLAYER_OPTIONS = "aeugT"
+        CSS_CURSOR = "hMbAUy"
 # -------------------------------------------------------------------
 # Config file initialization
 # -------------------------------------------------------------------
@@ -479,14 +481,15 @@ def handle_elements(driver):
     # Removes ubiquiti's custom cursor from the page
     driver.execute_script("""
     var styleId = 'hideCursorStyle';
+    var cssClass = arguments[0];
     if (!document.getElementById(styleId)) {
         var style = document.createElement('style');
         style.type = 'text/css';
         style.id = styleId;
-        style.innerHTML = '.hMbAUy { cursor: none !important; }';
+        style.innerHTML = '.' + cssClass + ' { cursor: none !important; }';
         document.head.appendChild(style);
     }
-    """)
+    """, CSS_CURSOR)
     # Remove visibility of the player options elements
     driver.execute_script("""
     var styleId = 'hidePlayerOptionsStyle';
