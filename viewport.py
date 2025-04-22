@@ -1,5 +1,6 @@
-#!/usr/bin/env -S /bin/sh -c '"$(dirname "$0")/venv/bin/python3" "$0" "$@"'import sys
+#!/usr/bin/env -S /bin/sh -c '"$(dirname "$0")/venv/bin/python3" "$0" "$@"'
 import os
+import sys
 import time
 import argparse
 import signal
