@@ -260,11 +260,23 @@ def status_handler():
         uptime_seconds = script_uptime.total_seconds()
 
         # Convert uptime_seconds to days, hours, minutes, and seconds
+        months = int(uptime_seconds // 2592000)  # 30 days
         days = int(uptime_seconds // 86400)
         hours = int((uptime_seconds % 86400) // 3600)
         minutes = int((uptime_seconds % 3600) // 60)
         seconds = int(uptime_seconds % 60)
-        uptime_str = f"{GREEN}{days}d {hours}h {minutes}m {seconds}s{NC}" if process_handler('viewport.py', action="check") else f"{RED}Not Running{NC}"
+
+        uptime_parts = []
+        if months > 0:
+            uptime_parts.append(f"{months}m")
+        if days > 0:
+            uptime_parts.append(f"{days}d")
+        if hours > 0:
+            uptime_parts.append(f"{hours}h")
+        if minutes > 0:
+            uptime_parts.append(f"{minutes}m")
+        uptime_parts.append(f"{seconds}s")
+        uptime_str = f"{GREEN}{' '.join(uptime_parts)}{NC}" if process_handler('viewport.py', action="check") else f"{RED}Not Running{NC}"
         # Check if monitoring.py is running
         monitoring = f"{GREEN}Running{NC}" if process_handler('monitoring.py', action="check") else f"{RED}Not Running{NC}"
         # Display Status
