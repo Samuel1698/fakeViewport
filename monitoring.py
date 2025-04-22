@@ -1,4 +1,7 @@
-#!/usr/bin/env -S /bin/sh -c '"$(dirname "$0")/venv/bin/python3" "$0" "$@"'
+#!/bin/sh
+"true" '''\'
+exec "$(dirname "$(readlink -f "$0")")"/venv/bin/python3 "$0" "$@"
+'''
 import os
 import logging
 import configparser
