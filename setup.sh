@@ -83,7 +83,6 @@ fi
 # -------------------------------------------------------------------
 # 5. Verify Chrome/Chromium and ChromeDriver
 # -------------------------------------------------------------------
-echo -e "${YELLOW}Checking browser dependencies...${NC}"
 if ! command -v google-chrome-stable &> /dev/null; then
     if ! command -v chromium-browser &> /dev/null; then
         echo -e "${RED}Chrome/Chromium not found! Install manually:"
