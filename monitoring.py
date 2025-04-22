@@ -1,3 +1,4 @@
+#! /venv/bin/ python3
 import os
 import logging
 import configparser
