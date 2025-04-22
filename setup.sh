@@ -2,8 +2,9 @@
 RED='\e[0;31m'
 GREEN='\e[0;32m'
 YELLOW='\e[1;33m'
-NC='\e[0m' # No Color
-
+NC='\e[0m'
+SCRIPT_PATH="$(pwd)/viewport.py"
+VENV_PYTHON="$(pwd)/venv/bin/python3"
 echo -e "${YELLOW}===== FakeViewport Setup =====${NC}"
 
 # -------------------------------------------------------------------
@@ -57,7 +58,7 @@ if [ -f "$REQUIREMENTS" ]; then
     if [ "$INSTALL_SUCCESS" = true ]; then
         echo -e "${YELLOW}Installing dependencies...${NC}"
         # Run pip install in the background
-        pip install --quiet --trusted-host pypi.org --trusted-host files.pythonhosted.org --retries 3 --timeout 30 -r "$REQUIREMENTS" &
+        pip install --quiet --trusted-host pypi.org --trusted-host files.pythonhosted.org -r "$REQUIREMENTS" &
         PIP_PID=$!
         # Print green dots while pip is running
         while kill -0 "$PIP_PID" 2>/dev/null; do
@@ -70,9 +71,10 @@ if [ -f "$REQUIREMENTS" ]; then
             echo -e "\n${GREEN}✓ All dependencies installed successfully${NC}"
         else
             echo -e "\n${RED}✗ Failed to install some dependencies${NC}"
-            echo -e "${YELLOW}This might be due to network issues."
-            echo -e "Try manually running the command: "
-            echo -e "pip install -r requirements.txt"
+            echo -e "${GREEN}This might be due to network issues.${NC}"
+            echo -e "${GREEN}Activate the virtual environment and install manually:${NC} "
+            echo -e "${YELLOW}  source ${VENV_DIR}/bin/activate${NC}"
+            echo -e "${YELLOW}  pip install -r requirements.txt${NC}"
             INSTALL_SUCCESS=false
         fi
     fi
@@ -103,8 +105,8 @@ if [ -f ".env.example" ]; then
         echo -e "${YELLOW}Renaming .env.example to .env...${NC}"
         if mv -n .env.example .env; then
             echo -e "${GREEN}✓ Configuration file prepared${NC}"
-            echo -e "${YELLOW}Please edit .env to set your UniFi Protect credentials.${NC}"
-            echo -e "${YELLOW}You can do so with the command: nano .env\n${NC}"
+            echo -e "${YELLOW}  Please edit .env to set your UniFi Protect credentials.${NC}"
+            echo -e "${YELLOW}  You can do so with the command: nano .env\n${NC}"
         else
             echo -e "${RED}Failed to rename .env.example file!${NC}"
             exit 1
@@ -112,7 +114,7 @@ if [ -f ".env.example" ]; then
     fi
 elif [ ! -f ".env" ]; then
     echo -e "${RED}Missing configuration file!${NC}"
-    echo -e "${YELLOW}Either .env.example or .env must exist${NC}"
+    echo -e "${RED}Either .env.example or .env must exist${NC}"
     exit 1
 fi
 # -------------------------------------------------------------------
@@ -141,16 +143,13 @@ echo -e "${YELLOW}\nWould you like to create a desktop shortcut for FakeViewport
 read -r create_shortcut
 if [[ "$create_shortcut" =~ ^[Yy]$ ]]; then
     DESKTOP_PATH="$HOME/Desktop"
-    SHORTCUT_PATH="$DESKTOP_PATH/FakeViewport.desktop"
-    SCRIPT_PATH="$(pwd)/viewport.py"
-    VENV_PYTHON="$(pwd)/venv/bin/activate"
-    echo -e "${YELLOW}Creating desktop shortcut...${NC}"
+    SHORTCUT_PATH="$DESKTOP_PATH/Viewport.desktop"
     cat > "$SHORTCUT_PATH" <<EOL
 [Desktop Entry]
 Version=1.0
-Name=FakeViewport
+Name=Viewport
 Comment=Run the FakeViewport script
-Exec=bash -c "source $VENV_PYTHON && $SCRIPT_PATH"
+Exec=bash -c "$VENV_PYTHON && $SCRIPT_PATH"
 Icon=camera-web
 Terminal=false
 Type=Application
@@ -165,8 +164,6 @@ fi
 # 9: Create an alias for running the script
 # -------------------------------------------------------------------
 ALIAS_NAME="viewport"
-SCRIPT_PATH="$(pwd)/viewport.py"
-VENV_PYTHON="$(pwd)/venv/bin/python3"
 
 # Check if the alias already exists in ~/.bashrc or ~/.zshrc
 if grep -q "alias $ALIAS_NAME=" ~/.bashrc 2>/dev/null || grep -q "alias $ALIAS_NAME=" ~/.zshrc 2>/dev/null; then
@@ -178,22 +175,12 @@ else
         echo "# This alias was added by the FakeViewport setup script" >> ~/.bashrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.bashrc
         echo -e "${GREEN}✓ Alias added to ~/.bashrc${NC}"
-        sleep 3
-        source ~/.bashrc
-        sleep 2
     fi
     if [ -f ~/.zshrc ]; then
         echo "# This alias was added by the FakeViewport setup script" >> ~/.zshrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.zshrc
         echo -e "${GREEN}✓ Alias added to ~/.zshrc${NC}"
-        sleep 3
-        source ~/.zshrc
-        sleep 2
     fi
-    RED='\e[0;31m'
-    GREEN='\e[0;32m'
-    YELLOW='\e[1;33m'
-    NC='\e[0m' # No Color
 fi
 # -------------------------------------------------------------------
 # Final Report
@@ -203,6 +190,19 @@ if [ "$INSTALL_SUCCESS" = false ]; then
     echo -e "${YELLOW}Check the error messages above and try again.${NC}"
     exit 1
 else
+    # Reload shell configuration files to apply the alias
+    # Doing this here as to not lose the INSTALL_SUCCESS variable
+    sleep 3
+    if [ -f ~/.bashrc ]; then
+        source ~/.bashrc
+    fi
+    if [ -f ~/.zshrc ]; then
+        source ~/.zshrc
+    fi
+    sleep 3
+    GREEN='\e[0;32m'
+    YELLOW='\e[1;33m'
+    NC='\e[0m' # No Color
     echo -e "\n${GREEN}Setup complete!${NC}"
     echo -e "${GREEN}Check the different ways to launch the script with:${NC}"
     echo -e "${YELLOW}  viewport --help${NC}"
