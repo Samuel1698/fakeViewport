@@ -113,9 +113,9 @@ if not any(vars(args).values()) or args.background:
     default_profile_path = f"/home/{user}/.config/google-chrome/Default"
     CHROME_PROFILE_PATH = config.get('Chrome', 'CHROME_PROFILE_PATH', fallback=default_profile_path).strip()
     CHROME_BINARY = config.get('Chrome', 'CHROME_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
-    SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
     WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
     MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
+SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
 VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
@@ -258,30 +258,34 @@ def status_handler():
         uptime_seconds = script_uptime.total_seconds()
 
         # Convert uptime_seconds to days, hours, minutes, and seconds
-        months = int(uptime_seconds // 2592000)  # 30 days
-        days = int(uptime_seconds // 86400)
-        hours = int((uptime_seconds % 86400) // 3600)
-        minutes = int((uptime_seconds % 3600) // 60)
-        seconds = int(uptime_seconds % 60)
+        uptime_months = int(uptime_seconds // 2592000)  # 30 days
+        uptime_days = int(uptime_seconds // 86400)
+        uptime_hours = int((uptime_seconds % 86400) // 3600)
+        uptime_minutes = int((uptime_seconds % 3600) // 60)
+        uptime_seconds = int(uptime_seconds % 60)
 
+        # Format the uptime string
         uptime_parts = []
-        if months > 0:
-            uptime_parts.append(f"{months}M")
-        if days > 0:
-            uptime_parts.append(f"{days}d")
-        if hours > 0:
-            uptime_parts.append(f"{hours}h")
-        if minutes > 0:
-            uptime_parts.append(f"{minutes}m")
-        if seconds > 0:
-            uptime_parts.append(f"{seconds}s")
+        if uptime_months > 0: uptime_parts.append(f"{uptime_months}M")
+        if uptime_days > 0: uptime_parts.append(f"{uptime_days}d")
+        if uptime_hours > 0: uptime_parts.append(f"{uptime_hours}h")
+        if uptime_minutes > 0: uptime_parts.append(f"{uptime_minutes}m")
+        if uptime_seconds > 0: uptime_parts.append(f"{uptime_seconds}s")
         uptime_str = f"{GREEN}{' '.join(uptime_parts)}{NC}" if process_handler('viewport.py', action="check") else f"{RED}Not Running{NC}"
         # Check if monitoring.py is running
         monitoring = f"{GREEN}Running{NC}" if process_handler('monitoring.py', action="check") else f"{RED}Not Running{NC}"
+        # Convert SLEEP_TIME to minutes and seconds
+        sleep_minutes = SLEEP_TIME // 60
+        sleep_seconds = SLEEP_TIME % 60
+        sleep_parts = []
+        if sleep_minutes > 0: sleep_parts.append(f"{sleep_minutes} min")
+        if sleep_seconds > 0: sleep_parts.append(f"{sleep_seconds} sec")
+        sleep_str = f"{GREEN}{' '.join(sleep_parts)}{NC}"
         # Display Status
         print(f"{YELLOW}===== Fake Viewport {viewport_version} ======{NC}")
         print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
         print(f"{CYAN}Monitoring API:{NC} {monitoring}")
+        print(f"{CYAN}Checking Page Health Every{NC}: {sleep_str}")
         try:
             with open(status_file, "r") as f:
                 # Read the last line from the status file
