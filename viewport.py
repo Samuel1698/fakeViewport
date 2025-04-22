@@ -338,7 +338,8 @@ def process_handler(process_name, action="check"):
                 api_status(f"Killed process '{process_name}'")
                 return False  # Return False if a process was killed - No process exists with that name
             elif action == "check":
-                return True
+                for pid in filtered_pids:
+                    return True  # Return True if another process exists with that name
         else:
             return False
     except Exception as e:
