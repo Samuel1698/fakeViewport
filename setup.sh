@@ -1,8 +1,8 @@
 #!/bin/bash
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+RED='\e[0;31m'
+GREEN='\e[0;32m'
+YELLOW='\e[1;33m'
+NC='\e[0m' # No Color
 
 echo -e "${YELLOW}=== UniFi Protect FakeViewport Setup ===${NC}"
 
@@ -176,17 +176,23 @@ else
     echo -e "${YELLOW}Adding alias '$ALIAS_NAME' to your shell configuration...${NC}"
     # Add the alias to ~/.bashrc or ~/.zshrc
     if [ -f ~/.bashrc ]; then
+        echo "# This alias was added by the FakeViewport setup script" >> ~/.bashrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.bashrc
         echo -e "${GREEN}✓ Alias added to ~/.bashrc${NC}"
         source ~/.bashrc
         sleep 1
     fi
     if [ -f ~/.zshrc ]; then
+        echo "# This alias was added by the FakeViewport setup script" >> ~/.zshrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.zshrc
         echo -e "${GREEN}✓ Alias added to ~/.zshrc${NC}"
         source ~/.zshrc
         sleep 1
     fi
+    RED='\e[0;31m'
+    GREEN='\e[0;32m'
+    YELLOW='\e[1;33m'
+    NC='\e[0m' # No Color
 fi
 # -------------------------------------------------------------------
 # Final Report
