@@ -1,10 +1,10 @@
 #!/bin/bash
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+RED='\e[0;31m'
+GREEN='\e[0;32m'
+YELLOW='\e[1;33m'
+NC='\e[0m' # No Color
 
-echo -e "${YELLOW}=== UniFi Protect FakeViewport Setup ===${NC}"
+echo -e "${YELLOW}===== FakeViewport Setup =====${NC}"
 
 # -------------------------------------------------------------------
 # 1. Verify Python 3 is installed
@@ -42,44 +42,47 @@ fi
 # -------------------------------------------------------------------
 REQUIREMENTS="requirements.txt"
 if [ -f "$REQUIREMENTS" ]; then
-    echo -e "${YELLOW}Installing dependencies...${NC}"
+    # Activate virtual environment
     source "$VENV_DIR/bin/activate"
-    
     # Track installation success
     INSTALL_SUCCESS=true
-    
     # Upgrade pip first (separate error check)
     if ! pip install --upgrade pip --quiet; then
         echo -e "${RED}✗ Failed to upgrade pip${NC}"
         INSTALL_SUCCESS=false
-    fi
-    
-    # Install requirements (with retry logic)
-    if ! pip install --quiet --trusted-host pypi.org --trusted-host files.pythonhosted.org --retries 3 --timeout 30 -r "$REQUIREMENTS"; then
-        echo -e "${RED}✗ Failed to install some dependencies${NC}"
-        echo -e "${YELLOW}This might be due to network issues."
-        echo -e "Try manually running the command: "
-        echo -e "pip install -r requirements.txt"
-        INSTALL_SUCCESS=false
-    fi
-    
-    if [ "$INSTALL_SUCCESS" = true ]; then
-        echo -e "${GREEN}✓ All dependencies installed successfully${NC}"
-        sleep 1
     else
-        echo -e "${RED}!!! Dependency installation failed !!!${NC}"
-        echo -e "${YELLOW}The script may not work properly.${NC}"
-        exit 1  # Exit with error code
+        echo -e "${GREEN}✓ Pip upgraded successfully${NC}"
+    fi
+    # Install requirements (with progress dots)
+    if [ "$INSTALL_SUCCESS" = true ]; then
+        echo -e "${YELLOW}Installing dependencies...${NC}"
+        # Run pip install in the background
+        pip install --quiet --trusted-host pypi.org --trusted-host files.pythonhosted.org --retries 3 --timeout 30 -r "$REQUIREMENTS" &
+        PIP_PID=$!
+        # Print green dots while pip is running
+        while kill -0 "$PIP_PID" 2>/dev/null; do
+            echo -ne "${GREEN}.${NC}"
+            sleep 0.5
+        done
+        # Wait for pip to finish and check the exit code
+        wait "$PIP_PID"
+        if [ $? -eq 0 ]; then
+            echo -e "\n${GREEN}✓ All dependencies installed successfully${NC}"
+        else
+            echo -e "\n${RED}✗ Failed to install some dependencies${NC}"
+            echo -e "${YELLOW}This might be due to network issues."
+            echo -e "Try manually running the command: "
+            echo -e "pip install -r requirements.txt"
+            INSTALL_SUCCESS=false
+        fi
     fi
 else
     echo -e "${RED}requirements.txt not found!${NC}"
     exit 1
 fi
-
 # -------------------------------------------------------------------
 # 5. Verify Chrome/Chromium and ChromeDriver
 # -------------------------------------------------------------------
-echo -e "${YELLOW}Checking browser dependencies...${NC}"
 if ! command -v google-chrome-stable &> /dev/null; then
     if ! command -v chromium-browser &> /dev/null; then
         echo -e "${RED}Chrome/Chromium not found! Install manually:"
@@ -90,7 +93,6 @@ if ! command -v google-chrome-stable &> /dev/null; then
 else
     echo -e "${GREEN}✓ Google Chrome is installed${NC}"
 fi
-
 # -------------------------------------------------------------------
 # 6: Rename .env.example to .env
 # -------------------------------------------------------------------
@@ -154,11 +156,44 @@ Terminal=false
 Type=Application
 Categories=Utility;
 EOL
-
     chmod +x "$SHORTCUT_PATH"
     echo -e "${GREEN}✓ Desktop shortcut created at $SHORTCUT_PATH${NC}"
 else
     echo -e "${GREEN}✓ Skipping desktop shortcut creation.${NC}"
+fi
+# -------------------------------------------------------------------
+# 9: Create an alias for running the script
+# -------------------------------------------------------------------
+ALIAS_NAME="viewport"
+SCRIPT_PATH="$(pwd)/viewport.py"
+VENV_PYTHON="$(pwd)/venv/bin/python3"
+
+# Check if the alias already exists in ~/.bashrc or ~/.zshrc
+if grep -q "alias $ALIAS_NAME=" ~/.bashrc 2>/dev/null || grep -q "alias $ALIAS_NAME=" ~/.zshrc 2>/dev/null; then
+    echo -e "${GREEN}✓ Alias '$ALIAS_NAME' already exists. Skipping...${NC}"
+else
+    echo -e "${YELLOW}Adding alias '$ALIAS_NAME' to your shell configuration...${NC}"
+    # Add the alias to ~/.bashrc or ~/.zshrc
+    if [ -f ~/.bashrc ]; then
+        echo "# This alias was added by the FakeViewport setup script" >> ~/.bashrc
+        echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.bashrc
+        echo -e "${GREEN}✓ Alias added to ~/.bashrc${NC}"
+        sleep 3
+        source ~/.bashrc
+        sleep 2
+    fi
+    if [ -f ~/.zshrc ]; then
+        echo "# This alias was added by the FakeViewport setup script" >> ~/.zshrc
+        echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.zshrc
+        echo -e "${GREEN}✓ Alias added to ~/.zshrc${NC}"
+        sleep 3
+        source ~/.zshrc
+        sleep 2
+    fi
+    RED='\e[0;31m'
+    GREEN='\e[0;32m'
+    YELLOW='\e[1;33m'
+    NC='\e[0m' # No Color
 fi
 # -------------------------------------------------------------------
 # Final Report
@@ -168,7 +203,11 @@ if [ "$INSTALL_SUCCESS" = false ]; then
     echo -e "${YELLOW}Check the error messages above and try again.${NC}"
     exit 1
 else
-    echo -e "\n${GREEN}Setup complete! To launch the script, run:${NC}"
-    echo -e "${YELLOW}  python3 viewport.py${NC}"
+    echo -e "\n${GREEN}Setup complete!${NC}"
+    echo -e "${GREEN}Check the different ways to launch the script with:${NC}"
+    echo -e "${YELLOW}  viewport --help${NC}"
+    echo -e "${GREEN}If the 'viewport' alias doesn't work run these commands:${NC}"
+    echo -e "${YELLOW}  source venv/bin/activate${NC}"
+    echo -e "${YELLOW}  python3 viewport.py --help${NC}"
     exit 0
 fi

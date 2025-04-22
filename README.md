@@ -1,3 +1,8 @@
+# SNAPSHOT
+You are currently seeing the snapshot branch. This is where I make rapid changes and experiment with new code. If this branch is ahead of main, it is most likely broken. 
+Check the [latest release](https://github.com/Samuel1698/fakeViewport/releases) or go to [main](https://github.com/Samuel1698/fakeViewport/tree/main) for a stable version of the code.
+---
+
 # Fake Viewport
 
 Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. With this setup, you can automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
@@ -60,15 +65,29 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 4. **Run the Script**  
    Start the script using the following command:
    ```bash
-    python3 viewport.py
+    viewport
    ```
 
    If running remotely or in a detached session, use:
    ```bash
-    nohup python3 viewport.py > nohup.out 2>&1 &
+    viewport --background
    ```
 
+   Run this command to see helpful arguments
+   ```bash
+    viewport --help
+   ```
    If you chose to install the desktop shortcut during setup, simply click on it.
+
+   If the `viewport` alias does not work, you can manually execute it with:
+   ```bash
+    venv/bin/python3 viewport.py
+   ```
+   or by activating the virtual environment and running it:
+   ```bash
+    source venv/bin/activate
+    python3 viewport.py
+   ```
 ---
 
 ## Usage
@@ -78,6 +97,13 @@ If the script is running and you cannot use `CTRL+C` to stop it, you can manuall
 ```bash
 ps aux | grep viewport.py
 kill <pid>
+```
+or run the script with the --stop argument:
+```bash
+viewport --stop
+```
+```bash
+python3 viewport.py --stop
 ```
 
 ### API Integration (Optional)
