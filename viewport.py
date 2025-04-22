@@ -705,16 +705,18 @@ def handle_view(driver, url):
                 if not handle_fullscreen_button(driver):
                     logging.warning("Failed to activate fullscreen, but continuing anyway.")
             # Check for "Unable to Stream" message
-            if check_unable_to_stream(driver): logging.warning("Live view contains cameras that the browser cannot decode.")
             handle_loading_issue(driver)
             handle_elements(driver)
+            api_status("Feed Healthy")
+            if check_unable_to_stream(driver): 
+                logging.warning("Live view contains cameras that the browser cannot decode.")
+                api_status("Decoding Error in some cameras")
             if iteration_counter >= log_interval_iterations:
                 logging.info("Video feeds healthy.")
                 iteration_counter = 0  # Reset the counter
             # Calculate the time to sleep until the next health check
             # Based on the difference between the current time and the next health check time
             sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
-            api_status("Feed Healthy")
             time.sleep(sleep_duration)
             iteration_counter += 1
         except InvalidSessionIdException:
