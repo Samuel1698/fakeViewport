@@ -442,6 +442,7 @@ def check_for_title(driver, title=None):
             # Wait for the title to contain the specified string
             WebDriverWait(driver, WAIT_TIME).until(EC.title_contains(title))
             logging.info(f"Loaded page: '{title}'")
+            api_status(f"Loaded page: '{title}'")
         return True
     except TimeoutException:
         if title is None:
@@ -682,7 +683,7 @@ def handle_view(driver, url):
             """)
             if offline_status:
                 logging.warning("Detected offline status: Console or Protect Offline.")
-                api_status("Offline: Console or Protect Offline")
+                api_status("Console or Protect Offline")
                 time.sleep(SLEEP_TIME)  # Wait before retrying
                 retry_count += 1
                 handle_retry(driver, url, retry_count, max_retries)
