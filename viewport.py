@@ -10,6 +10,7 @@ import logging
 import subprocess
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 def arguments_handler():
     YELLOW='\033[1;33m'
@@ -59,11 +60,8 @@ def arguments_handler():
         args.start = True  # Add a default "start" action
     return args
 args = arguments_handler()
-if args.status:
-    from datetime import datetime
-if args is None or not any(vars(args).values()) or args.background:
+if not any(vars(args).values()) or args.background:
     import threading
-    from datetime import datetime, timedelta
     from selenium import webdriver
     from selenium.webdriver.chrome.service import Service
     from selenium.webdriver.common.by import By
