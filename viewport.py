@@ -24,8 +24,6 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import InvalidSessionIdException
 from urllib3.exceptions import NewConnectionError
-from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.core.os_manager import ChromeType
 # -------------------------------------------------------------------
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
@@ -334,6 +332,8 @@ def process_handler(process_name, action="check"):
         api_status(f"Error Checking Process '{process_name}'")
         return True
 def driver_handler():
+    from webdriver_manager.chrome import ChromeDriverManager
+    from webdriver_manager.core.os_manager import ChromeType
     # Gets the path to the ChromeDriver executable
     global _chrome_driver_path
     if not _chrome_driver_path:
