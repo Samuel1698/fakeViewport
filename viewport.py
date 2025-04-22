@@ -1,9 +1,6 @@
-#!/usr/bin/env python3
-import os
+#! /venv/bin/ python3
 import sys
-if not os.getenv('VIRTUAL_ENV'):
-    venv_path = os.path.join(os.getcwd(), 'venv', 'bin', 'activate')
-    os.execv('/bin/bash', ['bash', '-c', f"source {venv_path} && python3 {' '.join(sys.argv)}"])
+import os
 import subprocess
 import time
 import threading
