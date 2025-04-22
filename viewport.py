@@ -16,8 +16,8 @@ from dotenv import load_dotenv
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
 driver = None # Declare it globally so that it can be accessed in the signal handler function
-viewport_version = "2.1.0"
 _chrome_driver_path = None  # Cache for the ChromeDriver path
+viewport_version = "2.1.0"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 # Directory and file paths
 script_dir = Path(__file__).resolve().parent
@@ -30,7 +30,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN = "\033[36m"
-NC='\033[0m' # No Color
+NC='\033[0m'
 # -------------------------------------------------------------------
 # Argument Handler and Conditional Imports
 # -------------------------------------------------------------------
@@ -63,7 +63,7 @@ def arguments_handler():
         "--logs",
         nargs="?",
         type=int,
-        const=5,  # Default to 10 lines if no number is provided
+        const=5,
         help="Display the last n lines from the log file (default: 5)."
     )
     parser.add_argument(
@@ -71,7 +71,6 @@ def arguments_handler():
         action="store_true",
         help="Toggles the API on or off. Requires USA_API=True in config.ini"
     )
-    # Parse the arguments
     args = parser.parse_args()
     return args
 args = arguments_handler()
@@ -142,8 +141,8 @@ if LOG_DAYS < 1:
     logging.error("Invalid value for LOG_DAYS. It should be a positive integer greater than 0.")
     sys.exit(1)
 if LOG_INTERVAL < 1:
-        logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
-        sys.exit(1)
+    logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
+    sys.exit(1)
 api_dir = Path(API_PATH)
 if not api_dir.exists():
     api_dir.mkdir(parents=True, exist_ok=True)
@@ -175,7 +174,7 @@ class ColoredFormatter(logging.Formatter):
     GREEN='\033[0;32m'
     YELLOW='\033[1;33m'
     CYAN = "\033[36m"
-    NC='\033[0m' # No Color
+    NC='\033[0m'
     def format(self, record):
         # Add colors based on the log level
         if record.levelno == logging.ERROR:
@@ -200,7 +199,7 @@ def log_error(message, exception=None):
 if LOG_FILE:
     #  Define a handler for the file
     file_handler = TimedRotatingFileHandler(log_file, when="D", interval=1, backupCount=LOG_DAYS)
-    file_handler.setLevel(logging.INFO)  # or whatever level you want for the file
+    file_handler.setLevel(logging.INFO)
     # Set the formatter for the handler
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -223,7 +222,6 @@ def api_status(msg):
 def api_handler():
     if not process_handler('monitoring.py', action="check"):
         logging.info("Starting API...")
-        # construct the path to monitoring.py
         api_script = script_dir / 'monitoring.py'
         try:
             subprocess.Popen(
@@ -254,15 +252,16 @@ signal.signal(signal.SIGTERM, signal_handler)
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
 def status_handler():
-    # Displays the status of the script, including system uptime and script uptime.
+    # Displays the status of the script.
+    # Script Version, Uptime, Status of API, config values for SLEEP and INTERVAL, and last log message
     try:
         with open(sst_file, 'r') as f:
             script_start_time = datetime.strptime(f.read(), '%Y-%m-%d %H:%M:%S.%f')
         script_uptime = datetime.now() - script_start_time
         uptime_seconds = script_uptime.total_seconds()
 
-        # Convert uptime_seconds to days, hours, minutes, and seconds
-        uptime_months = int(uptime_seconds // 2592000)  # 30 days
+        # Convert uptime_seconds to months, days, hours, minutes, and seconds
+        uptime_months = int(uptime_seconds // 2592000)
         uptime_days = int(uptime_seconds // 86400)
         uptime_hours = int((uptime_seconds % 86400) // 3600)
         uptime_minutes = int((uptime_seconds % 3600) // 60)
@@ -339,7 +338,7 @@ def process_handler(process_name, action="check"):
                 return False  # Return False if a process was killed - No process exists with that name
             elif action == "check":
                 for pid in filtered_pids:
-                    return True  # Return True if another process exists with that name
+                    return True  # Return True if a process other than current_pid exists with that name
         else:
             return False
     except Exception as e:
@@ -349,7 +348,6 @@ def process_handler(process_name, action="check"):
 def driver_handler():
     from webdriver_manager.chrome import ChromeDriverManager
     from webdriver_manager.core.os_manager import ChromeType
-    # Gets the path to the ChromeDriver executable
     global _chrome_driver_path
     if not _chrome_driver_path:
         _chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
@@ -379,7 +377,6 @@ def chrome_handler(url):
             chrome_options.add_argument(f"--user-data-dir={CHROME_PROFILE_PATH}")
             chrome_options.add_experimental_option("excludeSwitches", ['enable-automation'])
             chrome_options.binary_location = CHROME_BINARY
-            # Add the preference to disable the "Save password" prompt
             chrome_options.add_experimental_option("prefs", {
                 "credentials_enable_service": False,
                 "profile.password_manager_enabled": False
