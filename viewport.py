@@ -13,17 +13,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
 from dotenv import load_dotenv
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
-from selenium.common.exceptions import NoSuchElementException
-from selenium.common.exceptions import InvalidSessionIdException
-from urllib3.exceptions import NewConnectionError
 # -------------------------------------------------------------------
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
@@ -770,6 +759,21 @@ def main():
     if args.restart:
         logging.info("Restarting the Fake Viewport script...")
         restart_handler(driver=None)
+    # ----------------------------------------------------------
+    # Import selenium and other libraries here to avoid unecessary imports if not needed by other arguments execution of the script
+    # ----------------------------------------------------------
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.action_chains import ActionChains
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException
+    from selenium.common.exceptions import NoSuchElementException
+    from selenium.common.exceptions import InvalidSessionIdException
+    from urllib3.exceptions import NewConnectionError
+    # ----------------------------------------------------------
     logging.info(f"===== Fake Viewport {viewport_version} =====")
     if API: api_handler()
     api_status("Starting...")
