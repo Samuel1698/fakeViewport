@@ -163,6 +163,30 @@ else
     echo -e "${GREEN}✓ Skipping desktop shortcut creation.${NC}"
 fi
 # -------------------------------------------------------------------
+# 9: Create an alias for running the script
+# -------------------------------------------------------------------
+ALIAS_NAME="viewport"
+SCRIPT_PATH="$(pwd)/viewport.py"
+VENV_PYTHON="$(pwd)/venv/bin/python3"
+
+# Check if the alias already exists in ~/.bashrc or ~/.zshrc
+if grep -q "alias $ALIAS_NAME=" ~/.bashrc 2>/dev/null || grep -q "alias $ALIAS_NAME=" ~/.zshrc 2>/dev/null; then
+    echo -e "${GREEN}✓ Alias '$ALIAS_NAME' already exists. Skipping...${NC}"
+else
+    echo -e "${YELLOW}Adding alias '$ALIAS_NAME' to your shell configuration...${NC}"
+    # Add the alias to ~/.bashrc or ~/.zshrc
+    if [ -f ~/.bashrc ]; then
+        echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.bashrc
+        echo -e "${GREEN}✓ Alias added to ~/.bashrc${NC}"
+        source ~/.bashrc
+    fi
+    if [ -f ~/.zshrc ]; then
+        echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.zshrc
+        echo -e "${GREEN}✓ Alias added to ~/.zshrc${NC}"
+        source ~/.zshrc
+    fi
+fi
+# -------------------------------------------------------------------
 # Final Report
 # -------------------------------------------------------------------
 if [ "$INSTALL_SUCCESS" = false ]; then

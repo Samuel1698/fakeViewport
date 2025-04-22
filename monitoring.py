@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/venv python3
 import os
 import logging
 import configparser
