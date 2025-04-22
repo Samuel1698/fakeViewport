@@ -201,6 +201,6 @@ else
     echo -e "${YELLOW}  viewport help${NC}"
     echo -e "${GREEN}If the 'viewport' alias doesn't work run these commands:${NC}"
     echo -e "${YELLOW}  source venv/bin/activate${NC}"
-    echo -e "${YELLOW}  python3 viewport.py --help${NC}"
+    echo -e "${YELLOW}  python3 viewport.py help${NC}"
     exit 0
 fi
