@@ -179,11 +179,13 @@ else
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.bashrc
         echo -e "${GREEN}✓ Alias added to ~/.bashrc${NC}"
         source ~/.bashrc
+        sleep 1
     fi
     if [ -f ~/.zshrc ]; then
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.zshrc
         echo -e "${GREEN}✓ Alias added to ~/.zshrc${NC}"
         source ~/.zshrc
+        sleep 1
     fi
 fi
 # -------------------------------------------------------------------

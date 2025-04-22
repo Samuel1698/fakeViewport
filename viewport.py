@@ -40,34 +40,34 @@ def arguments_handler():
         description=f"{YELLOW}===== Fake Viewport {viewport_version} ====={NC}"
     )
     parser.add_argument(
-        "--status",
+        "status",
         action="store_true",
         help="Display status information about the script."
     )
     parser.add_argument(
-        "--background",
+        "background",
         action="store_true",
         help="Runs the script in the background."
     )
     parser.add_argument(
-        "--restart",
+        "restart",
         action="store_true",
         help="Force restarts the script (in background)."
     )
     parser.add_argument(
-        "--stop",
+        "stop",
         action="store_true",
         help="Stops the currently running Fake Viewport script."
     )
     parser.add_argument(
-        "--logs",
+        "logs",
         nargs="?",
         type=int,
         const=5,  # Default to 10 lines if no number is provided
         help="Display the last n lines from the log file (default: 5)."
     )
     parser.add_argument(
-        "--api",
+        "api",
         action="store_true",
         help="Toggles the API on or off. Requires USA_API=True in config.ini"
     )
