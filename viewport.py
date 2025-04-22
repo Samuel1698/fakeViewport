@@ -12,6 +12,8 @@ from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from dotenv import load_dotenv
 def arguments_handler():
+    YELLOW='\033[1;33m'
+    NC='\033[0m' # No Color
     # Parse command-line arguments for the script.
     parser = argparse.ArgumentParser(
         description=f"{YELLOW}===== Fake Viewport {viewport_version} ====={NC}"
