@@ -55,9 +55,6 @@ def arguments_handler():
     )
     # Parse the arguments
     args = parser.parse_args()
-    # If no arguments are provided, default to starting the script
-    if not any(vars(args).values()):
-        args.start = True  # Add a default "start" action
     return args
 args = arguments_handler()
 if not any(vars(args).values()) or args.background:
