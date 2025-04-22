@@ -4,7 +4,7 @@ GREEN='\e[0;32m'
 YELLOW='\e[1;33m'
 NC='\e[0m' # No Color
 
-echo -e "${YELLOW}=== UniFi Protect FakeViewport Setup ===${NC}"
+echo -e "${YELLOW}===== FakeViewport Setup =====${NC}"
 
 # -------------------------------------------------------------------
 # 1. Verify Python 3 is installed
