@@ -1,5 +1,4 @@
-#! /venv/bin/ python3
-import sys
+#!/usr/bin/env -S /bin/sh -c '"$(dirname "$0")/venv/bin/python3" "$0" "$@"'import sys
 import os
 import time
 import argparse
