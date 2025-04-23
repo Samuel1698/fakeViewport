@@ -139,9 +139,9 @@ fi
 # -------------------------------------------------------------------
 # 8: Create Desktop Shortcut
 # -------------------------------------------------------------------
-echo -e "${YELLOW}\nWould you like to create a desktop shortcut for FakeViewport? (y/n)${NC}"
+echo -ne "${YELLOW}\nWould you like to create a desktop shortcut for FakeViewport? (y/n)${NC}"
 read -r create_shortcut
-if [[ "$create_shortcut" =~ ^[Yy]$ ]]; then
+if [[ "$create_shortcut" =~ ^[Yy]([Ee][Ss])?$ ]]; then
     DESKTOP_PATH="$HOME/Desktop"
     SHORTCUT_PATH="$DESKTOP_PATH/Viewport.desktop"
     cat > "$SHORTCUT_PATH" <<EOL
@@ -164,7 +164,7 @@ fi
 # 9: Create an alias for running the script
 # -------------------------------------------------------------------
 ALIAS_NAME="viewport"
-
+CREATED_ALIAS=false
 # Check if the alias already exists in ~/.bashrc or ~/.zshrc
 if grep -q "alias $ALIAS_NAME=" ~/.bashrc 2>/dev/null || grep -q "alias $ALIAS_NAME=" ~/.zshrc 2>/dev/null; then
     echo -e "${GREEN}✓ Alias '$ALIAS_NAME' already exists. Skipping...${NC}"
@@ -175,11 +175,13 @@ else
         echo "# This alias was added by the FakeViewport setup script" >> ~/.bashrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.bashrc
         echo -e "${GREEN}✓ Alias added to ~/.bashrc${NC}"
+        CREATED_ALIAS=true
     fi
     if [ -f ~/.zshrc ]; then
         echo "# This alias was added by the FakeViewport setup script" >> ~/.zshrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.zshrc
         echo -e "${GREEN}✓ Alias added to ~/.zshrc${NC}"
+        CREATED_ALIAS=true
     fi
 fi
 # -------------------------------------------------------------------
@@ -192,17 +194,19 @@ if [ "$INSTALL_SUCCESS" = false ]; then
 else
     # Reload shell configuration files to apply the alias
     # Doing this here as to not lose the INSTALL_SUCCESS variable
-    sleep 3
-    if [ -f ~/.bashrc ]; then
-        source ~/.bashrc
-    fi
-    if [ -f ~/.zshrc ]; then
-        source ~/.zshrc
-    fi
-    sleep 3
-    GREEN='\e[0;32m'
-    YELLOW='\e[1;33m'
-    NC='\e[0m' # No Color
+    if [ "$CREATED_ALIAS" = true ]; then
+        sleep 3
+        if [ -f ~/.bashrc ]; then
+            source ~/.bashrc
+        fi
+        if [ -f ~/.zshrc ]; then
+            source ~/.zshrc
+        fi
+        sleep 3
+        GREEN='\e[0;32m'
+        YELLOW='\e[1;33m'
+        NC='\e[0m'
+    fi 
     echo -e "\n${GREEN}Setup complete!${NC}"
     echo -e "${GREEN}Check the different ways to launch the script with:${NC}"
     echo -e "${YELLOW}  viewport --help${NC}"
