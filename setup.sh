@@ -139,7 +139,7 @@ fi
 # -------------------------------------------------------------------
 # 8: Create Desktop Shortcut
 # -------------------------------------------------------------------
-echo -ne "${YELLOW}\nWould you like to create a desktop shortcut for FakeViewport? (y/n)${NC}"
+echo -ne "${YELLOW}\nWould you like to create a desktop shortcut for FakeViewport (y/n)? ${NC}"
 read -r create_shortcut
 if [[ "$create_shortcut" =~ ^[Yy]([Ee][Ss])?$ ]]; then
     DESKTOP_PATH="$HOME/Desktop"
