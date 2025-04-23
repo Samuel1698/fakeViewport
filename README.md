@@ -6,11 +6,12 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 
 ## Features
 
-- Automatically launches the Protect LiveView of your choosing.
 - Handles login expiration and reconnects automatically.
-- Detects and resolves temporary connection issues or webpage errors.
 - Detects if the console or application are offline and waits before reloading.
 - Detects if chrome is running too slow and restarts it.
+- Automatically clicks the full screen button and hides the cursor and controls from the cameras.
+- Easy to set up by running the `setup.sh` bash script.
+- Most uptime I've seen is 6 months uninterrupted (v1.0.0). 
 - Logs output of the terminal to logs/viewport.log for troubleshooting or checking status remotely.
 - Optional API integration for remote monitoring (e.g., with [Rainmeter](https://www.rainmeter.net/)).
 
@@ -55,37 +56,38 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 
    You will also see a `config.ini` file, open it and check what options there are available for customization of how the script runs.
    ```
-   *I strongly recommend to use a local ubiquiti account for this.
+   *I strongly recommend a local-only account for this use case.
    ```
 4. **Run the Script**  
+   Run this command first to make sure everything is working
+   ```bash
+   viewport --help
+   ```
+
    Start the script using the following command:
    ```bash
-    viewport
+   viewport
    ```
 
-   If running remotely or in a detached session, use:
+---
+
+## Usage
+   If running remotely or in a detached session (so you can close the terminal without stopping the script), use:
    ```bash
-    viewport --background
+   viewport --background
    ```
 
-   Run this command to see helpful arguments
-   ```bash
-    viewport --help
-   ```
    If you chose to install the desktop shortcut during setup, simply click on it.
 
    If the `viewport` alias does not work, you can manually execute it with:
    ```bash
-    venv/bin/python3 viewport.py
+   venv/bin/python3 viewport.py
    ```
    or by activating the virtual environment and running it:
    ```bash
-    source venv/bin/activate
-    python3 viewport.py
+   source venv/bin/activate
+   python3 viewport.py
    ```
----
-
-## Usage
 
 ### Stopping the Script
 If the script is running and you cannot use `CTRL+C` to stop it, you can manually kill the process: 
@@ -102,7 +104,19 @@ python3 viewport.py --stop
 ```
 
 ### API Integration (Optional)
-The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, you can access the script's status remotely (with appropriate network permissions) by navigating to the Thin Client's IP address in your browser. For example: `http://[machine's IP]:5000/admin.`
+The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, restart the script so you can access the script's status remotely (with appropriate network permissions) by navigating to the Thin Client's IP address in your browser. For example: `http://[machine's IP]:5000/admin.`
+
+Specific routes:
+```
+/admin
+   - Combines all of the routes into one
+/get_script_uptime
+   - Difference between the timestamp of when the script started and time.now
+/check_view
+   - Displays the status of the script as it self-reports throughout it's functions
+/get_system_uptime
+   - Displays the system uptime
+```
 
 ---
 
