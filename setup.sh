@@ -5,7 +5,6 @@ YELLOW='\e[1;33m'
 NC='\e[0m'
 SCRIPT_PATH="$(pwd)/viewport.py"
 VENV_PYTHON="$(pwd)/venv/bin/python3"
-VENV_ACTIVATE="$(pwd)/venv/bin/activate"
 echo -e "${YELLOW}===== FakeViewport Setup =====${NC}"
 
 # -------------------------------------------------------------------
@@ -149,8 +148,8 @@ if [[ "$create_shortcut" =~ ^[Yy]([Ee][Ss])?$ ]]; then
 [Desktop Entry]
 Version=1.0
 Name=Viewport
-Comment=Run the FakeViewport script
-Exec=bash -c "source $VENV_ACTIVATE && $SCRIPT_PATH"
+Comment=Run the Viewport script
+Exec=$VENV_PYTHON $SCRIPT_PATH
 Icon=camera-web
 Terminal=false
 Type=Application
