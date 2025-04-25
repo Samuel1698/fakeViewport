@@ -459,7 +459,7 @@ def check_driver(driver):
     try:
         driver.title  # Accessing the title will raise an exception if the driver is not alive
         return True
-    except (WebDriverException, AttributeError):
+    except (WebDriverException, Exception):
         return False
 def check_next_interval(interval_seconds):
     # Calculates the next whole interval based on the current time
