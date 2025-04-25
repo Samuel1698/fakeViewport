@@ -809,14 +809,12 @@ def main():
                 lines = f.readlines()[-args.logs:]
                 for line in lines:
                     # Conditionally color the log line based on its content
-                    if "[ERROR]" in line:
-                        colored_line = f"{RED}{line.strip()}{NC}"
+                    if "[INFO]" in line:
+                        colored_line = f"{GREEN}{line.strip()}{NC}"
                     elif "[WARNING]" in line:
                         colored_line = f"{YELLOW}{line.strip()}{NC}"
-                    elif "[INFO]" in line:
-                        colored_line = f"{GREEN}{line.strip()}{NC}"
                     else:
-                        colored_line = line.strip()  # Default color (no color)
+                        colored_line = f"{RED}{line.strip()}{NC}"
                     print(colored_line)  # Print the colored line to the console
         except FileNotFoundError:
             print(f"{RED}Log file not found: {log_file}{NC}")
