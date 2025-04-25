@@ -84,9 +84,7 @@ if not any(vars(args).values()) or args.background:
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
-    from selenium.common.exceptions import TimeoutException
-    from selenium.common.exceptions import NoSuchElementException
-    from selenium.common.exceptions import InvalidSessionIdException
+    from selenium.common.exceptions import TimeoutException, NoSuchElementException, InvalidSessionIdException, WebDriverException
     from urllib3.exceptions import NewConnectionError
     try:
         from css_selectors import (
@@ -355,11 +353,10 @@ def driver_handler():
         _chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
     return _chrome_driver_path
 def chrome_handler(url):
+    # Kills any chrome instance, then launches a new one with the specified URL
     # Starts a chrome 'driver' and handles error reattempts
     # If the driver fails to start, it will retry a few times before killing all existing chrome processes and restarting the script
     process_handler("chrome", action="kill")
-    logging.info("Waiting for chrome to load...")
-    api_status("Waiting for Chrome to load")
     retry_count = 0
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
@@ -398,10 +395,26 @@ def chrome_handler(url):
                 subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             time.sleep(5)
     logging.info("Failed to start Chrome after maximum retries.")
-    logging.info(f"Starting script again in {int(SLEEP_TIME/2)} seconds.")
-    api_status(f"Restarting Chrome in {int(SLEEP_TIME/2)} seconds.")
+    logging.info(f"Starting Script again in {int(SLEEP_TIME/2)} seconds.")
+    api_status(f"Restarting Script in {int(SLEEP_TIME/2)} seconds.")
     time.sleep(SLEEP_TIME/2)
     os.execv(sys.executable, ['python3'] + sys.argv)
+def chrome_restart_handler(url):
+    # Restarts chrome, checks for the title and logs the result
+    # This used to be in handle_retry but gets repeated in handle_view
+    try:
+        logging.info("Restarting chrome...")
+        api_status("Restarting Chrome")
+        driver = chrome_handler(url)
+        check_for_title(driver)
+        if handle_page(driver):
+            logging.info("Page successfully reloaded.")
+            api_status("Feed Healthy")
+            time.sleep(WAIT_TIME)
+        return driver
+    except Exception as e:
+        log_error("Error while killing Chrome processes: ", e)
+        api_status("Error Killing Chrome")
 def restart_handler(driver):
     # Gracefully shuts down the script and restarts it with the same arguments.
     # Args:
@@ -459,6 +472,10 @@ def check_for_title(driver, title=None):
             log_error(f"Timed out waiting for the title '{title}' to load.")
             api_status(f"Timed Out Waiting for Title '{title}'")
         return False
+    except WebDriverException:
+        logging.info("Tab Crashed. Restarting Chrome...")
+        api_status("Tab Crashed")
+        driver = chrome_restart_handler(url)
     except Exception as e:
         log_error(f"Error while waiting for title '{title}': ", e)
         api_status(f"Error Waiting for Title '{title}'")
@@ -474,6 +491,10 @@ def check_unable_to_stream(driver):
         if elements:
             return True
         return False
+    except WebDriverException:
+        logging.info("Tab Crashed. Restarting Chrome...")
+        api_status("Tab Crashed")
+        driver = chrome_restart_handler(url)
     except Exception as e:
         log_error("Error while checking for 'Unable to Stream' message: ", e)
         api_status("Error Checking Unable to Stream")
@@ -559,6 +580,10 @@ def handle_fullscreen_button(driver):
         logging.info("Fullscreen activated")
         api_status("Fullscreen Activated")
         return True
+    except WebDriverException:
+        logging.info("Tab Crashed. Restarting Chrome...")
+        api_status("Tab Crashed")
+        driver = chrome_restart_handler(url)
     except Exception as e:
         log_error("Error while clicking the fullscreen button: ", e)
         api_status("Error Clicking Fullscreen")
@@ -589,6 +614,10 @@ def handle_login(driver):
         submit_button.click()
         # Verify successful login
         return check_for_title(driver, "Dashboard")
+    except WebDriverException:
+        logging.info("Tab Crashed. Restarting Chrome...")
+        api_status("Tab Crashed")
+        driver = chrome_restart_handler(url)
     except Exception as e: 
         log_error("Error during login: ", e)
         api_status("Error Logging In")
@@ -641,25 +670,15 @@ def handle_retry(driver, url, attempt, max_retries):
             log_error("Chrome session is invalid. Restarting the program.")
             api_status("Restarting Program")
             restart_handler(driver)
+        except WebDriverException:
+            logging.info("Tab Crashed. Restarting Chrome...")
+            api_status("Tab Crashed")
+            driver = chrome_restart_handler(url)
         except Exception as e:
             log_error("Error while handling retry logic: ", e)
             api_status("Error refreshing")
     if attempt == max_retries - 1:
-        try:
-            logging.info("Killing existing Chrome processes...")
-            subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            time.sleep(5)
-            logging.info("Starting chrome instance...")
-            api_status("Starting Chrome")
-            driver = chrome_handler(url)
-            check_for_title(driver)
-            if handle_page(driver):
-                logging.info("Page successfully reloaded.")
-                api_status("Feed Healthy")
-                time.sleep(WAIT_TIME)
-        except Exception as e:
-            log_error("Error while killing Chrome processes: ", e)
-            api_status("Error Killing Chrome")
+        driver = chrome_restart_handler(url)
     elif attempt == max_retries:
         logging.info("Max Attempts reached, restarting script...")
         api_status("Max Attempts Reached, restarting script")
@@ -738,6 +757,10 @@ def handle_view(driver, url):
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
+        except WebDriverException:
+            logging.info("Tab Crashed. Restarting Chrome...")
+            api_status("Tab Crashed")
+            driver = chrome_restart_handler(url)
         except Exception as e:
             log_error("Unexpected error occurred: ", e)
             api_status("Unexpected Error")
