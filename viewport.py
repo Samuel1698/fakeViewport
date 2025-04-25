@@ -293,13 +293,12 @@ def status_handler():
                 # Read the status file
                 status_line = f.readlines()[-1].strip()
                 # Conditionally color the status line based on its content
-                # Conditionally color the log line based on its content
-                if "Error" or "Crashed" or "Timed Out" in status_line:
+                if any(keyword in status_line for keyword in ["Error", "Crashed", "Timed Out"]):
                     colored_status_line = f"{RED}{status_line}{NC}"
-                elif "Restarting" or "Starting" or "Stopped" or "Offline" in status_line:
+                elif any(keyword in status_line for keyword in ["Restarting", "Starting", "Stopped", "Offline"]):
                     colored_status_line = f"{YELLOW}{status_line}{NC}"
                 else:
-                    colored_status_line = f"{GREEN}{status_line}{NC}" #Default to green if no other color is matched
+                    colored_status_line = f"{GREEN}{status_line}{NC}"  # Default to green if no other color is matched
                 print(f"{CYAN}Last Status Update:{NC} {colored_status_line}")
         except FileNotFoundError:
             print(f"{RED}Status file not found.{NC}")
