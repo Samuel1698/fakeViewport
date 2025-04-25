@@ -290,9 +290,17 @@ def status_handler():
         print(f"{CYAN}Printing to Log Every{NC}:{GREEN} {LOG_INTERVAL} min{NC}")
         try:
             with open(status_file, "r") as f:
-                # Read the last line from the status file
-                lines = f.readlines()[-1].strip()
-                print(f"{CYAN}Last Status Update:{NC} {GREEN}{lines}{NC}")
+                # Read the status file
+                status_line = f.readlines()[-1].strip()
+                # Conditionally color the status line based on its content
+                # Conditionally color the log line based on its content
+                if "Error" or "Crashed" or "Timed Out" in status_line:
+                    colored_status_line = f"{RED}{status_line}{NC}"
+                elif "Restarting" or "Starting" or "Stopped" or "Offline" in status_line:
+                    colored_status_line = f"{YELLOW}{status_line}{NC}"
+                else:
+                    colored_status_line = f"{GREEN}{status_line}{NC}" #Default to green if no other color is matched
+                print(f"{CYAN}Last Status Update:{NC} {colored_status_line}")
         except FileNotFoundError:
             print(f"{RED}Status file not found.{NC}")
         try:
@@ -307,7 +315,7 @@ def status_handler():
                 elif "[INFO]" in log_line:
                     colored_log_line = f"{GREEN}{log_line}{NC}"
                 else:
-                    colored_log_line = log_line  # Default color (no color)
+                    colored_log_line = f"{RED}{log_line}{NC}"
                 print(f"{CYAN}Last Log Entry:{NC} {colored_log_line}")
         except FileNotFoundError:
             print(f"{RED}Log file not found.{NC}")
@@ -748,7 +756,7 @@ def handle_view(driver, url):
             handle_loading_issue(driver)
             handle_elements(driver)
             api_status("Feed Healthy")
-            if check_unable_to_stream(driver): 
+            if check_unable_to_stream(driver):
                 logging.warning("Live view contains cameras that the browser cannot decode.")
                 api_status("Decoding Error in some cameras")
             if iteration_counter >= log_interval_iterations:
