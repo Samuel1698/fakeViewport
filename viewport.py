@@ -64,6 +64,7 @@ def arguments_handler():
         nargs="?",
         type=int,
         const=5,
+        metavar="n",
         help="Display the last n lines from the log file (default: 5)."
     )
     parser.add_argument(
