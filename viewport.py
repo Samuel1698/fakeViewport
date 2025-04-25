@@ -343,7 +343,7 @@ def process_handler(process_name, action="check"):
         log_error(f"Error while checking process '{process_name}'", e)
         api_status(f"Error Checking Process '{process_name}'")
         return True
-def driver_handler():
+def service_handler():
     from webdriver_manager.chrome import ChromeDriverManager
     from webdriver_manager.core.os_manager import ChromeType
     global _chrome_driver_path
@@ -378,7 +378,7 @@ def chrome_handler(url):
                 "credentials_enable_service": False,
                 "profile.password_manager_enabled": False
             })
-            driver = webdriver.Chrome(service=Service(driver_handler()), options=chrome_options)
+            driver = webdriver.Chrome(service=Service(service_handler()), options=chrome_options)
             driver.get(url)
             return driver
         except Exception as e:
@@ -436,6 +436,14 @@ def restart_handler(driver):
 # Helper Functions for main script
 # These functions return true or false but don't interact directly with the webpage
 # -------------------------------------------------------------------
+def check_driver(driver):
+    # Checks if WebDriver is still alive
+    # Returns True if driver is responsive, False otherwise
+    try:
+        driver.title  # Accessing the title will raise an exception if the driver is not alive
+        return True
+    except (WebDriverException, AttributeError):
+        return False
 def check_next_interval(interval_seconds):
     # Calculates the next whole interval based on the current time
     # Seconds until next interval would for a time of 10:51 and interval of 5 minutes, calculate
@@ -648,6 +656,9 @@ def handle_retry(driver, url, attempt, max_retries):
     api_status(f"Retrying: {attempt} of {max_retries}")
     if attempt < max_retries - 1:
         try:
+            if not check_driver(driver):
+                logging.warning("WebDriver crashed.")
+                driver = chrome_restart_handler(url)
             if "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
                 logging.info("Log-in page found. Inputting credentials...")
                 if handle_login(driver):
@@ -699,6 +710,9 @@ def handle_view(driver, url):
         restart_handler(driver)
     while True:
         try:
+            if not check_driver(driver):
+                logging.warning("WebDriver crashed.")
+                driver = chrome_restart_handler(url)
             # Check for "Console Offline" or "Protect Offline"
             offline_status = driver.execute_script("""
                 return Array.from(document.querySelectorAll('span')).find(el => 
