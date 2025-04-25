@@ -175,12 +175,16 @@ else
         echo "# This alias was added by the FakeViewport setup script" >> ~/.bashrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.bashrc
         echo -e "${GREEN}✓ Alias added to ~/.bashrc${NC}"
+        echo -e "${GREEN}If the viewport command doesn't work, reload the terminal with: ${NC}"
+        echo -e "${YELLOW}  source ~/.bashrc${NC}"
         CREATED_ALIAS=true
     fi
     if [ -f ~/.zshrc ]; then
         echo "# This alias was added by the FakeViewport setup script" >> ~/.zshrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.zshrc
         echo -e "${GREEN}✓ Alias added to ~/.zshrc${NC}"
+        echo -e "${GREEN}If the viewport command doesn't work, reload the terminal with: ${NC}"
+        echo -e "${YELLOW}  source ~/.zshrc${NC}"
         CREATED_ALIAS=true
     fi
 fi
