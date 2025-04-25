@@ -3,5 +3,6 @@ config.ini
 nohup.out
 .vscode/
 logs/
+api/
 venv/
 __pycache__/
