@@ -41,7 +41,12 @@ fi
 # -------------------------------------------------------------------
 # 4. Install requirements
 # -------------------------------------------------------------------
-REQUIREMENTS="requirements.txt"
+if [ "$1" == "dev" ]; then
+    echo -e "${YELLOW}Development mode enabled. Using dev_requirements.txt.${NC}"
+    REQUIREMENTS="dev_requirements.txt"
+else
+    REQUIREMENTS="requirements.txt"
+fi
 if [ -f "$REQUIREMENTS" ]; then
     # Activate virtual environment
     source "$VENV_DIR/bin/activate"
