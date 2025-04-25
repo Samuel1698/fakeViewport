@@ -40,34 +40,34 @@ def arguments_handler():
         description=f"{YELLOW}===== Fake Viewport {viewport_version} ====={NC}"
     )
     parser.add_argument(
-        "--status",
+        "-s", "--status",
         action="store_true",
         help="Display status information about the script."
     )
     parser.add_argument(
-        "--background",
+        "-b","--background",
         action="store_true",
         help="Runs the script in the background."
     )
     parser.add_argument(
-        "--restart",
+        "-r", "--restart",
         action="store_true",
         help="Force restarts the script (in background)."
     )
     parser.add_argument(
-        "--stop",
+        "-q", "--quit",
         action="store_true",
-        help="Stops the currently running Fake Viewport script."
+        help="Stops the running Viewport script."
     )
     parser.add_argument(
-        "--logs",
+        "-l", "--logs",
         nargs="?",
         type=int,
         const=5,
         help="Display the last n lines from the log file (default: 5)."
     )
     parser.add_argument(
-        "--api",
+        "-a", "--api",
         action="store_true",
         help="Toggles the API on or off. Requires USA_API=True in config.ini"
     )
@@ -831,7 +831,7 @@ def main():
             start_new_session=True  # Detach from the terminal
         )
         sys.exit(0)
-    if args.stop:
+    if args.quit:
         logging.info("Stopping the Fake Viewport script...")
         process_handler('viewport.py', action="kill")
         process_handler('chrome', action="kill")
