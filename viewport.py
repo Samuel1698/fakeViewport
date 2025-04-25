@@ -298,8 +298,17 @@ def status_handler():
         try:
             with open(log_file, "r") as f:
                 # Read the last line from the log file
-                lines = f.readlines()[-1].strip()
-                print(f"{CYAN}Last Log Entry:{NC}{GREEN}{lines}{NC}")
+                log_line = f.readlines()[-1].strip()
+                # Conditionally color the log line based on its content
+                if "[ERROR]" in log_line:
+                    colored_log_line = f"{RED}{log_line}{NC}"
+                elif "[WARNING]" in log_line:
+                    colored_log_line = f"{YELLOW}{log_line}{NC}"
+                elif "[INFO]" in log_line:
+                    colored_log_line = f"{GREEN}{log_line}{NC}"
+                else:
+                    colored_log_line = log_line  # Default color (no color)
+                print(f"{CYAN}Last Log Entry:{NC} {colored_log_line}")
         except FileNotFoundError:
             print(f"{RED}Log file not found.{NC}")
     except Exception as e:
