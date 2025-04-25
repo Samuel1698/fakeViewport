@@ -66,7 +66,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 4. **Run the Script**  
    Run this command first to make sure everything is working
    ```bash
-   viewport --help
+   viewport -h
    ```
 
    Start the script using the following command:
@@ -74,15 +74,19 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    viewport
    ```
 
+   If you chose to install the desktop shortcut during setup, simply click on it.
 ---
 
 ## Usage
-   If running remotely or in a detached session (so you can close the terminal without stopping the script), use:
+   If running remotely or in a detached session (so you can close the terminal without stopping the script), use the `-b` or `--background` argument:
    ```bash
-   viewport --background
+   viewport -b
    ```
-
-   If you chose to install the desktop shortcut during setup, simply click on it.
+   
+   If you wish to see the status of the script, use the `-s` or `--status` argument:
+   ```bash
+   viewport -s
+   ```
 
    If the `viewport` alias does not work, you can manually execute it with:
    ```bash
@@ -100,12 +104,12 @@ If the script is running and you cannot use `CTRL+C` to stop it, you can manuall
 ps aux | grep viewport.py
 kill <pid>
 ```
-or run the script with the --stop argument:
+or run the script with the `--quit` or `-q` argument:
 ```bash
-viewport --stop
+viewport -q
 ```
 ```bash
-python3 viewport.py --stop
+python3 viewport.py -q
 ```
 
 ### API Integration (Optional)

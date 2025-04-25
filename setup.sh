@@ -5,6 +5,7 @@ YELLOW='\e[1;33m'
 NC='\e[0m'
 SCRIPT_PATH="$(pwd)/viewport.py"
 VENV_PYTHON="$(pwd)/venv/bin/python3"
+VENV_ACTIVATE="$(pwd)/venv/bin/activate"
 echo -e "${YELLOW}===== FakeViewport Setup =====${NC}"
 
 # -------------------------------------------------------------------
@@ -149,7 +150,7 @@ if [[ "$create_shortcut" =~ ^[Yy]([Ee][Ss])?$ ]]; then
 Version=1.0
 Name=Viewport
 Comment=Run the FakeViewport script
-Exec=bash -c "$VENV_PYTHON && $SCRIPT_PATH"
+Exec=bash -c "source $VENV_ACTIVATE && $SCRIPT_PATH"
 Icon=camera-web
 Terminal=false
 Type=Application
@@ -209,9 +210,9 @@ else
     fi 
     echo -e "\n${GREEN}Setup complete!${NC}"
     echo -e "${GREEN}Check the different ways to launch the script with:${NC}"
-    echo -e "${YELLOW}  viewport --help${NC}"
+    echo -e "${YELLOW}  viewport -h${NC}"
     echo -e "${GREEN}If the 'viewport' alias doesn't work run these commands:${NC}"
     echo -e "${YELLOW}  source venv/bin/activate${NC}"
-    echo -e "${YELLOW}  python3 viewport.py --help${NC}"
+    echo -e "${YELLOW}  python3 viewport.py -h${NC}"
     exit 0
 fi
