@@ -1,6 +1,5 @@
 python-dotenv
 selenium
 webdriver-manager
-pytest
 uptime
 Flask
