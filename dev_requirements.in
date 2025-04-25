@@ -1,7 +1,5 @@
 python-dotenv
 selenium
 webdriver-manager
-uptime
-Flask
 pytest
 pip-tools

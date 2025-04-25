@@ -461,12 +461,12 @@ def check_driver(driver):
         return True
     except (WebDriverException, Exception):
         return False
-def check_next_interval(interval_seconds):
+def check_next_interval(interval_seconds, now=None):
     # Calculates the next whole interval based on the current time
     # Seconds until next interval would for a time of 10:51 and interval of 5 minutes, calculate
     # 300 - (51*60 + 0) mod 300 = 240 seconds until next interval
     # Which would be 10:55
-    now = datetime.now()
+    now = now or datetime.now()
     seconds_until_next_interval = interval_seconds - (now.minute * 60 + now.second) % interval_seconds
     if seconds_until_next_interval <= 30:
         seconds_until_next_interval += interval_seconds
