@@ -167,10 +167,10 @@ def args_handler(args):
     else:
         return "continue"
 def args_child_handler(args, *, drop_flags=(), add_flags=None):
-    #Returns a list of (flag, maybe:value) for restarting or backgrounding.
-    #drop_flags  = a set of dest-names to omit (e.g. {"restart"} when backgrounding)
-    #add_flags   = a dict of dest -> override-value to force-add
-
+    # Returns a list of (flag, maybe:value) for restarting or backgrounding.
+    # drop_flags  = a set of dest-names to omit (e.g. {"restart"} when backgrounding)
+    # add_flags   = a dict of dest -> override-value to force-add
+    
     # normalize drop_flags to a set
     drop = set(drop_flags or ())
     # normalize add_flags to a dict
@@ -180,28 +180,29 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
         add = add_flags
     else:
         # treat any sequence of names as { name: None }
-        add = { name: None for name in add_flags }
+        add = {name: None for name in add_flags}
+
     mapping = {
-        "status":    ["--status"],
-        "background":["--background"],
-        "restart":   ["--restart"],
-        "quit":      ["--quit"],
-        "api":       ["--api"],
-        "logs":      ["--logs", str(args.logs)] if args.logs is not None else [],
+        "status":     ["--status"],
+        "background": ["--background"],
+        "restart":    ["--restart"],
+        "quit":       ["--quit"],
+        "api":        ["--api"],
+        "logs":       ["--logs", str(args.logs)] if args.logs is not None else [],
     }
+
     child = []
-    # 1) re-emit any flags the user originally set (minus drop_flags)
+
+    # 1) re-emit any flags the user originally set,
+    #    except those in drop_flags *or* those we’re going to force-add
     for dest, flags in mapping.items():
-        if dest in drop:
+        if dest in drop or dest in add:
             continue
-        # for a boolean flag: check getattr(args, dest)
-        # for logs: we already only put a list in mapping if args.logs is not None
         if getattr(args, dest):
             child.extend(flags)
     # 2) force-add any extras from add_flags (e.g. restart→background)
     for dest, override in add.items():
-        if dest in drop:
-            continue
+        # even if dest was in drop_flags, we still want to apply overrides here
         if override is None:
             # no explicit value, so use your canonical mapping or fallback
             child.extend(mapping.get(dest, [f"--{dest}"]))

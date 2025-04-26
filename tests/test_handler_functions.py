@@ -384,6 +384,8 @@ def test_chrome_restart_handler(
         (["script.py", "--resta"],           True,  None, True,  True, True, True, False, False),
         # short-restart
         (["script.py", "-r"],                True,  None, True,  True, True, True, False, False),
+        # restart_handler should drop the --restart and only emit one --background
+        (["script.py", "--restart", "--background"], False, None, False, True, True, True, False, False),
     ]
 )
 @patch("viewport.sys.exit")
@@ -417,7 +419,7 @@ def test_restart_handler(
     # Act
     viewport.restart_handler(dummy_driver)
 
-    # driver.quit() only if driver_present
+    # Assert driver.quit() only if driver_present
     if expect_quit:
         dummy_driver.quit.assert_called_once()
     else:
@@ -430,9 +432,8 @@ def test_restart_handler(
 
     # os.execv()
     if expect_execv:
+        # Rebuild expected argv exactly as the code under test does:
         import argparse
-
-        # re-construct expected argv exactly the same way restart_handler does
         parser = argparse.ArgumentParser(add_help=False, allow_abbrev=True)
         parser.add_argument("-s","--status",   action="store_true", dest="status")
         parser.add_argument("-b","--background",action="store_true", dest="background")
@@ -441,23 +442,15 @@ def test_restart_handler(
         parser.add_argument("-l","--logs",     nargs="?", type=int, const=5, dest="logs")
         parser.add_argument("-a","--api",      action="store_true", dest="api")
 
-        # parse only the “real” flags (skip script name)
         args, unknown = parser.parse_known_args(initial_argv[1:])
 
-        # start with the script name
         expected = [initial_argv[0]]
-
-        # put back any truly unknown extras (like “foo”)
         expected += unknown
-
-        # re-emit any other switches the user passed
         if args.logs     is not None: expected += ["--logs", str(args.logs)]
         if args.status:      expected.append("--status")
         if args.quit:        expected.append("--quit")
         if args.api:         expected.append("--api")
         # (note: args.restart is dropped on purpose)
-
-        # and *always* force the canonical --background
         expected.append("--background")
 
         mock_execv.assert_called_once_with(sys.executable, expected)
