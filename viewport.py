@@ -26,11 +26,11 @@ env_dir = script_dir / '.env'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file = logs_dir / 'viewport.log'
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
+RED="\033[0;31m"
+GREEN="\033[0;32m"
+YELLOW="\033[1;33m"
 CYAN = "\033[36m"
-NC='\033[0m'
+NC="\033[0m"
 # -------------------------------------------------------------------
 # Argument Handler and Conditional Imports
 # -------------------------------------------------------------------
@@ -102,6 +102,57 @@ if not any(vars(args).values()) or args.background:
         CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
         CSS_PLAYER_OPTIONS = "aeugT"
         CSS_CURSOR = "hMbAUy"
+def args_handler(args):
+    if args.status:
+        status_handler()
+        sys.exit(1)
+    if args.logs is not None:
+        try:
+            with open(log_file, "r") as f:
+                # Read the last X lines from the log file
+                lines = f.readlines()[-args.logs:]
+                for line in lines:
+                    # Conditionally color the log line based on its content
+                    if "[INFO]" in line:
+                        colored_line = f"{GREEN}{line.strip()}{NC}"
+                    elif "[WARNING]" in line:
+                        colored_line = f"{YELLOW}{line.strip()}{NC}"
+                    else:
+                        colored_line = f"{RED}{line.strip()}{NC}"
+                    print(colored_line)  # Print the colored line to the console
+        except FileNotFoundError:
+            print(f"{RED}Log file not found: {log_file}{NC}")
+        except Exception as e:
+            log_error(f"Error reading log file: {e}")
+        sys.exit(0)
+    if args.background:
+        logging.info("Starting the script in the background...")
+        subprocess.Popen(
+            [sys.executable, __file__] + [arg for arg in sys.argv[1:] if arg != "--background"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True  # Detach from the terminal
+        )
+        sys.exit(0)
+    if args.quit:
+        logging.info("Stopping the Fake Viewport script...")
+        process_handler('viewport.py', action="kill")
+        process_handler('chrome', action="kill")
+        sys.exit(0)
+    if args.api:
+        if process_handler('monitoring.py', action="check"):
+            logging.info("Stopping the API...")
+            process_handler('monitoring.py', action="kill")
+        elif API: api_handler()
+        else: logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
+        sys.exit(0)
+    if args.restart:
+        logging.info("Restarting the Fake Viewport script...")
+        restart_handler(driver=None)
+    else:
+        return "continue"
 # -------------------------------------------------------------------
 # Config file initialization
 # -------------------------------------------------------------------
@@ -797,63 +848,16 @@ def handle_view(driver, url):
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():
-    if args.status:
-        status_handler()
-        sys.exit(1)
-    if args.logs is not None:
-        try:
-            with open(log_file, "r") as f:
-                # Read the last X lines from the log file
-                lines = f.readlines()[-args.logs:]
-                for line in lines:
-                    # Conditionally color the log line based on its content
-                    if "[INFO]" in line:
-                        colored_line = f"{GREEN}{line.strip()}{NC}"
-                    elif "[WARNING]" in line:
-                        colored_line = f"{YELLOW}{line.strip()}{NC}"
-                    else:
-                        colored_line = f"{RED}{line.strip()}{NC}"
-                    print(colored_line)  # Print the colored line to the console
-        except FileNotFoundError:
-            print(f"{RED}Log file not found: {log_file}{NC}")
-        except Exception as e:
-            log_error(f"Error reading log file: {e}")
-        sys.exit(0)
-    if args.background:
-        logging.info("Starting the script in the background...")
-        subprocess.Popen(
-            [sys.executable, __file__] + [arg for arg in sys.argv[1:] if arg != "--background"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            close_fds=True,
-            start_new_session=True  # Detach from the terminal
-        )
-        sys.exit(0)
-    if args.quit:
-        logging.info("Stopping the Fake Viewport script...")
+    if args_handler(args) == "continue":
+        logging.info(f"===== Fake Viewport {viewport_version} =====")
+        if API: api_handler()
+        api_status("Starting...")
+        # Check and kill any existing instance of viewport.py
         process_handler('viewport.py', action="kill")
-        process_handler('chrome', action="kill")
-        sys.exit(0)
-    if args.api:
-        if process_handler('monitoring.py', action="check"):
-            logging.info("Stopping the API...")
-            process_handler('monitoring.py', action="kill")
-        elif API: api_handler()
-        else: logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
-        sys.exit(0)
-    if args.restart:
-        logging.info("Restarting the Fake Viewport script...")
-        restart_handler(driver=None)
-    logging.info(f"===== Fake Viewport {viewport_version} =====")
-    if API: api_handler()
-    api_status("Starting...")
-    # Check and kill any existing instance of viewport.py
-    process_handler('viewport.py', action="kill")
-    # Write the start time to the SST file
-    with open(sst_file, 'w') as f: f.write(str(datetime.now()))
-    driver = chrome_handler(url)
-    # Start the handle_view function in a separate thread
-    threading.Thread(target=handle_view, args=(driver, url)).start()
+        # Write the start time to the SST file
+        with open(sst_file, 'w') as f: f.write(str(datetime.now()))
+        driver = chrome_handler(url)
+        # Start the handle_view function in a separate thread
+        threading.Thread(target=handle_view, args=(driver, url)).start()
 if __name__ == "__main__":
     main()
