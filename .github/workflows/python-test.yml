@@ -2,12 +2,11 @@ name: Python Tests
 
 on:
   push:
-    branches:
-      - snapshot
+    branches: [ "main", "snapshot" ]
   pull_request:
-    branches:
-      - snapshot
-
+    branches: [ "main", "snapshot"]
+  schedule:
+    - cron: '37 1 * * 1'
 jobs:
   test:
     runs-on: ubuntu-latest
