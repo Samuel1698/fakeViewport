@@ -238,15 +238,15 @@ def api_handler():
 # -------------------------------------------------------------------
 # Signal Handler (Closing gracefully with CTRL+C)
 # -------------------------------------------------------------------
-def signal_handler(signum, frame):
+def signal_handler(signum, frame, driver=None):
     if driver is not None:
         logging.info('Gracefully shutting down Chrome.')
         driver.quit()
     api_status("Stopped")
     logging.info("Gracefully shutting down script instance.")
     sys.exit(0)
-signal.signal(signal.SIGINT, signal_handler)
-signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, driver))
+signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
 # -------------------------------------------------------------------
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
