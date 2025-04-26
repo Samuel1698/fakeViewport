@@ -8,16 +8,22 @@ attrs==25.3.0
     # via
     #   outcome
     #   trio
+blinker==1.9.0
+    # via flask
 build==1.2.2.post1
     # via pip-tools
-certifi==2025.1.31
+certifi==2025.4.26
     # via
     #   requests
     #   selenium
 charset-normalizer==3.4.1
     # via requests
 click==8.1.8
-    # via pip-tools
+    # via
+    #   flask
+    #   pip-tools
+flask==3.1.0
+    # via -r dev_requirements.in
 h11==0.16.0
     # via wsproto
 idna==3.10
@@ -26,6 +32,14 @@ idna==3.10
     #   trio
 iniconfig==2.1.0
     # via pytest
+itsdangerous==2.2.0
+    # via flask
+jinja2==3.1.6
+    # via flask
+markupsafe==3.0.2
+    # via
+    #   jinja2
+    #   werkzeug
 outcome==1.3.0.post0
     # via
     #   trio
@@ -46,6 +60,10 @@ pyproject-hooks==1.2.0
 pysocks==1.7.1
     # via urllib3
 pytest==8.3.5
+    # via
+    #   -r dev_requirements.in
+    #   pytest-mock
+pytest-mock==3.14.0
     # via -r dev_requirements.in
 python-dotenv==1.1.0
     # via
@@ -67,6 +85,8 @@ trio-websocket==0.12.2
     # via selenium
 typing-extensions==4.13.2
     # via selenium
+uptime==3.0.1
+    # via -r dev_requirements.in
 urllib3==2.4.0
     # via
     #   requests
@@ -75,6 +95,8 @@ webdriver-manager==4.0.2
     # via -r dev_requirements.in
 websocket-client==1.8.0
     # via selenium
+werkzeug==3.1.3
+    # via flask
 wheel==0.45.1
     # via pip-tools
 wsproto==1.2.0

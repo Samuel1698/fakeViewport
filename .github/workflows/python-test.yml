@@ -1,0 +1,67 @@
+name: Python Tests
+
+on:
+  push:
+    branches:
+      - snapshot
+  pull_request:
+    branches:
+      - snapshot
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # 1) Create a valid config.ini so viewport.py import passes
+      - name: Write out config.ini
+        run: |
+          cat << 'EOF' > config.ini
+          [General]
+          SLEEP_TIME = 300
+          WAIT_TIME = 30
+          MAX_RETRIES = 5
+
+          [Logging]
+          LOG_FILE = true
+          LOG_CONSOLE = true
+          VERBOSE_LOGGING = false
+          LOG_DAYS = 7
+          LOG_INTERVAL = 60
+
+          [API]
+          USE_API = false
+          API_FILE_PATH = api
+          EOF
+
+      # 2) Create a minimal .env so viewport.py import passes
+      - name: Write out .env
+        run: |
+          cat << 'EOF' > .env
+          USERNAME=testuser
+          PASSWORD=testpass
+          URL=http://example.com
+          EOF
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f dev_requirements.txt ]; then pip install -r dev_requirements.txt; fi
+
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/dev_requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Run pytest
+        run: pytest
