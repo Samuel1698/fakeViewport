@@ -130,7 +130,7 @@ def args_handler(args):
     if args.background:
         logging.info("Starting the script in the background...")
         subprocess.Popen(
-            [sys.executable, __file__] + [arg for arg in sys.argv[1:] if arg != "--background"],
+            [sys.executable, __file__] + [arg for arg in sys.argv[1:] if arg not in ("--background", "-b")],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
@@ -295,7 +295,7 @@ def signal_handler(signum, frame, driver=None):
     if driver is not None:
         logging.info('Gracefully shutting down Chrome.')
         driver.quit()
-    api_status("Stopped")
+    api_status("Stopped ")
     logging.info("Gracefully shutting down script instance.")
     sys.exit(0)
 signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, driver))
