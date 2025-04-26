@@ -2,10 +2,11 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
+import pytest
 from unittest.mock import MagicMock, patch
 from io import StringIO
 from datetime import datetime, timedelta
-import pytest
+
 import viewport
 import signal
 

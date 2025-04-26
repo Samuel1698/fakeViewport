@@ -1,150 +1,157 @@
-
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
+import pytest
 from unittest.mock import MagicMock, PropertyMock, patch
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from datetime import datetime
-from viewport import (
-    check_driver,
-    check_next_interval,
-    check_for_title,
-    check_unable_to_stream
+
+import viewport
+
+# ---------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------
+@pytest.fixture
+def mock_driver():
+    return MagicMock()
+
+@pytest.fixture(autouse=True)
+def mock_common(mocker):
+    patches = {
+        "wait": mocker.patch("viewport.WebDriverWait"),
+        "api_status": mocker.patch("viewport.api_status"),
+        "log_error": mocker.patch("viewport.log_error"),
+        "logging": mocker.patch("viewport.logging"),
+    }
+    return patches
+
+# ---------------------------------------------------------------------
+# Test: check_driver
+# ---------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "title_value, side_effect, expected_result",
+    [
+        ("Mock Title", None, True),               # Normal title => success
+        (None, WebDriverException, False),         # WebDriver crash => failure
+        (None, Exception, False),                  # Other exception => failure
+    ],
+    ids=[
+        "valid_title",
+        "webdriver_exception",
+        "generic_exception",
+    ]
 )
-# -----------------------------------------------------------------
-# Check Driver function
-# -----------------------------------------------------------------
-mock_driver = MagicMock()
-def test_check_driver_valid():
-  mock_driver.title = "Mock Title"
-  assert check_driver(mock_driver) is True
-def test_check_driver_WebdriverException():
-  type(mock_driver).title = PropertyMock(side_effect=WebDriverException)
-  assert check_driver(mock_driver) is False
-def test_check_driver_other_exception():
-  type(mock_driver).title = PropertyMock(side_effect=Exception)
-  assert check_driver(mock_driver) is False
-# -----------------------------------------------------------------
-# Check Next Interval function
-# -----------------------------------------------------------------
-def test_exact_5_min_interval():
-  now = datetime(2025, 1, 1, 10, 51, 0)
-  result = check_next_interval(300, now=now)
-  assert datetime.fromtimestamp(result) == datetime(2025, 1, 1, 10, 55, 0)
-def test_less_than_30_seconds_skips_ahead():
-  now = datetime(2025, 1, 1, 10, 59, 40)
-  result = check_next_interval(300, now=now)
-  assert datetime.fromtimestamp(result) == datetime(2025, 1, 1, 11, 5, 0)
-def test_1_minute_interval():
-  now = datetime(2025, 1, 1, 10, 51, 10)
-  result = check_next_interval(60, now=now)
-  assert datetime.fromtimestamp(result) == datetime(2025, 1, 1, 10, 52, 0)
-def test_1_minute_interval_at_59_20():
-  now = datetime(2025, 1, 1, 10, 59, 20)
-  result = check_next_interval(60, now=now)
-  assert datetime.fromtimestamp(result) == datetime(2025, 1, 1, 11, 0, 0)
-def test_1_minute_interval_at_59_59():
-  now = datetime(2025, 1, 1, 10, 59, 59)
-  result = check_next_interval(60, now=now)
-  assert datetime.fromtimestamp(result) == datetime(2025, 1, 1, 11, 1, 0)
+def test_check_driver(mock_driver, title_value, side_effect, expected_result):
+    if side_effect:
+        type(mock_driver).title = PropertyMock(side_effect=side_effect)
+    else:
+        mock_driver.title = title_value
+
+    assert viewport.check_driver(mock_driver) is expected_result
+# ---------------------------------------------------------------------
+# Test: check_next_interval
+# ---------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "interval_seconds, now, expected",
+    [
+        (300, datetime(2025, 1, 1, 10, 51, 0), datetime(2025, 1, 1, 10, 55, 0)),
+        (300, datetime(2025, 1, 1, 10, 59, 40), datetime(2025, 1, 1, 11, 5, 0)),
+        (60,  datetime(2025, 1, 1, 10, 51, 10), datetime(2025, 1, 1, 10, 52, 0)),
+        (60,  datetime(2025, 1, 1, 10, 59, 20), datetime(2025, 1, 1, 11, 0, 0)),
+        (60,  datetime(2025, 1, 1, 10, 59, 59), datetime(2025, 1, 1, 11, 1, 0)),
+    ]
+)
+def test_check_next_interval(interval_seconds, now, expected):
+    result = viewport.check_next_interval(interval_seconds, now=now)
+    assert datetime.fromtimestamp(result) == expected
 
 # ---------------------------------------------------------------------
-# Check for title function
+# Test: check_for_title
 # ---------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "side_effect, title, expected_result, expected_log_error, expected_api_status",
+    [
+        (None, "Test Page", True, None, "Loaded page: 'Test Page'"),
+        (TimeoutException, "Missing Page", False, "Timed out waiting for the title 'Missing Page' to load.", "Timed Out Waiting for Title 'Missing Page'"),
+        (WebDriverException, "Test Page", False, "Tab Crashed.", "Tab Crashed"),
+    ],
+    ids=[
+        "successful_load",
+        "timeout_waiting_for_title",
+        "webdriver_crash",
+    ]
+)
+def test_check_for_title(mock_driver, mock_common, side_effect, title, expected_result, expected_log_error, expected_api_status):
+    if side_effect:
+        mock_common["wait"].return_value.until.side_effect = side_effect
+    else:
+        mock_common["wait"].return_value.until.return_value = True
 
-@patch("viewport.WebDriverWait")
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-@patch("viewport.logging")
-def test_check_for_title_success(mock_logging, mock_log_error, mock_api_status, mock_wait):
-  mock_driver = MagicMock()
-  mock_wait.return_value.until.return_value = True
+    result = viewport.check_for_title(mock_driver, title=title)
 
-  result = check_for_title(mock_driver, title="Test Page")
+    assert result is expected_result
 
-  assert result is True
-  mock_logging.info.assert_called_with("Loaded page: 'Test Page'")
-  mock_api_status.assert_called_with("Loaded page: 'Test Page'")
-  mock_log_error.assert_not_called()
+    if expected_log_error:
+        mock_common["log_error"].assert_called_with(expected_log_error)
+    else:
+        mock_common["log_error"].assert_not_called()
 
-@patch("viewport.WebDriverWait")
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-def test_check_for_title_timeout(mock_log_error, mock_api_status, mock_wait):
-  mock_driver = MagicMock()
-  mock_wait.return_value.until.side_effect = TimeoutException
+    if expected_api_status:
+        mock_common["api_status"].assert_called_with(expected_api_status)
+    else:
+        mock_common["api_status"].assert_not_called()
 
-  result = check_for_title(mock_driver, title="Missing Page")
+    if expected_result and title:
+        mock_common["logging"].info.assert_called_with(f"Loaded page: '{title}'")
 
-  assert result is False
-  mock_log_error.assert_called_with("Timed out waiting for the title 'Missing Page' to load.")
-  mock_api_status.assert_called_with("Timed Out Waiting for Title 'Missing Page'")
+def test_check_for_title_no_title_given(mock_driver, mock_common):
+    mock_common["wait"].return_value.until.return_value = True
 
-@patch("viewport.WebDriverWait")
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-def test_check_for_title_empty(mock_log_error, mock_api_status, mock_wait):
-  mock_driver = MagicMock()
-  mock_driver.title = lambda d: d.title != ""
-  mock_wait.return_value.until.return_value = True
+    result = viewport.check_for_title(mock_driver)
 
-  result = check_for_title(mock_driver)
-
-  assert result is True
-  mock_log_error.assert_not_called()
-  mock_api_status.assert_not_called()
-
-@patch("viewport.WebDriverWait")
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-def test_check_for_title_Webdriver_Exception(mock_log_error, mock_api_status, mock_wait):
-  mock_driver = MagicMock()
-  mock_wait.return_value.until.side_effect = WebDriverException
-
-  result = check_for_title(mock_driver, title="Test Page")
-
-  assert result is False
-  mock_log_error.assert_called_with("Tab Crashed.")
-  mock_api_status.assert_called_with("Tab Crashed")
+    assert result is True
+    mock_common["log_error"].assert_not_called()
+    mock_common["api_status"].assert_not_called()
 
 # ---------------------------------------------------------------------
-# Check unable to stream function
+# Test: check_unable_to_stream
 # ---------------------------------------------------------------------
-def test_check_unable_to_stream_found():
-  mock_driver = MagicMock()
-  mock_driver.execute_script.return_value = ["mock-element"]
-
-  result = check_unable_to_stream(mock_driver)
-
-  assert result is True
-def test_check_unable_to_stream_not_found():
-  mock_driver = MagicMock()
-  mock_driver.execute_script.return_value = []
-
-  result = check_unable_to_stream(mock_driver)
-
-  assert result is False
-
+@pytest.mark.parametrize(
+    "script_result, side_effect, expected_result, expect_log_error, expect_api_status",
+    [
+        (["mock-element"], None, True, False, False),       # Element found
+        ([], None, False, False, False),                    # No element found
+        (None, WebDriverException, False, True, True),      # WebDriver crash
+        (None, Exception("Some JS error"), False, True, True),  # Other JS error
+    ],
+    ids=[
+        "element_found",
+        "no_element_found",
+        "webdriver_crash",
+        "generic_js_error",
+    ]
+)
 @patch("viewport.api_status")
 @patch("viewport.log_error")
-def test_check_unable_to_stream_webdriver_exception(mock_log_error, mock_api_status):
+def test_check_unable_to_stream(mock_log_error, mock_api_status, script_result, side_effect, expected_result, expect_log_error, expect_api_status):
     mock_driver = MagicMock()
-    mock_driver.execute_script.side_effect = WebDriverException
 
-    result = check_unable_to_stream(mock_driver)
+    if side_effect:
+        mock_driver.execute_script.side_effect = side_effect
+    else:
+        mock_driver.execute_script.return_value = script_result
 
-    assert result is False
-    mock_log_error.assert_called_with("Tab Crashed.")
-    mock_api_status.assert_called_with("Tab Crashed")
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-def test_check_unable_to_stream_generic_exception(mock_log_error, mock_api_status):
-  mock_driver = MagicMock()
-  mock_driver.execute_script.side_effect = Exception("Some JS error")
+    result = viewport.check_unable_to_stream(mock_driver)
 
-  result = check_unable_to_stream(mock_driver)
+    assert result is expected_result
 
-  assert result is False
-  mock_log_error.assert_called()
-  mock_api_status.assert_called()
+    if expect_log_error:
+        mock_log_error.assert_called()
+    else:
+        mock_log_error.assert_not_called()
+
+    if expect_api_status:
+        mock_api_status.assert_called()
+    else:
+        mock_api_status.assert_not_called()
