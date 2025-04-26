@@ -495,9 +495,9 @@ def check_for_title(driver, title=None):
             api_status(f"Timed Out Waiting for Title '{title}'")
         return False
     except WebDriverException:
-        logging.info("Tab Crashed. Restarting Chrome...")
+        log_error("Tab Crashed.")
         api_status("Tab Crashed")
-        driver = chrome_restart_handler(url)
+        return False
     except Exception as e:
         log_error(f"Error while waiting for title '{title}': ", e)
         api_status(f"Error Waiting for Title '{title}'")
@@ -514,7 +514,7 @@ def check_unable_to_stream(driver):
             return True
         return False
     except WebDriverException:
-        logging.info("Tab Crashed. Restarting Chrome...")
+        log_error("Tab Crashed. Restarting Chrome...")
         api_status("Tab Crashed")
         driver = chrome_restart_handler(url)
     except Exception as e:
@@ -603,7 +603,7 @@ def handle_fullscreen_button(driver):
         api_status("Fullscreen Activated")
         return True
     except WebDriverException:
-        logging.info("Tab Crashed. Restarting Chrome...")
+        log_error("Tab Crashed. Restarting Chrome...")
         api_status("Tab Crashed")
         driver = chrome_restart_handler(url)
     except Exception as e:
@@ -637,7 +637,7 @@ def handle_login(driver):
         # Verify successful login
         return check_for_title(driver, "Dashboard")
     except WebDriverException:
-        logging.info("Tab Crashed. Restarting Chrome...")
+        log_error("Tab Crashed. Restarting Chrome...")
         api_status("Tab Crashed")
         driver = chrome_restart_handler(url)
     except Exception as e: 
@@ -696,7 +696,7 @@ def handle_retry(driver, url, attempt, max_retries):
             api_status("Restarting Program")
             restart_handler(driver)
         except WebDriverException:
-            logging.info("Tab Crashed. Restarting Chrome...")
+            log_error("Tab Crashed. Restarting Chrome...")
             api_status("Tab Crashed")
             driver = chrome_restart_handler(url)
         except Exception as e:
@@ -786,7 +786,7 @@ def handle_view(driver, url):
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except WebDriverException:
-            logging.info("Tab Crashed. Restarting Chrome...")
+            log_error("Tab Crashed. Restarting Chrome...")
             api_status("Tab Crashed")
             driver = chrome_restart_handler(url)
         except Exception as e:
