@@ -459,9 +459,9 @@ def chrome_handler(url):
             # If this is the final attempt, kill all existing Chrome processes
             if retry_count == max_retries:
                 logging.info("Killing existing Chrome processes...")
-                subprocess.run(['pkill', '-f', 'chrome'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                process_handler("chrome", action="kill")
             time.sleep(5)
-    logging.info("Failed to start Chrome after maximum retries.")
+    log_error("Failed to start Chrome after maximum retries.")
     logging.info(f"Starting Script again in {int(SLEEP_TIME/2)} seconds.")
     api_status(f"Restarting Script in {int(SLEEP_TIME/2)} seconds.")
     time.sleep(SLEEP_TIME/2)

@@ -10,18 +10,6 @@ from datetime import datetime, timedelta
 import viewport
 import signal
 
-# Mock config/global variables
-viewport.sst_file = "sst.txt"
-viewport.status_file = "status.txt"
-viewport.log_file = "log.txt"
-# viewport.SLEEP_TIME = 125
-# viewport.LOG_INTERVAL = 5
-viewport.viewport_version = "1.2.3"
-# viewport.GREEN = "\033[92m"
-# viewport.RED = "\033[91m"
-# viewport.YELLOW = "\033[93m"
-# viewport.CYAN = "\033[96m"
-# viewport.NC = "\033[0m"
 # -------------------------------------------------------------------------
 # Test for Singal Handler
 # -------------------------------------------------------------------------
@@ -66,6 +54,11 @@ def test_status_handler_parametrized(
     now = datetime(2024, 4, 25, 12, 0, 0)
     mock_datetime.now.return_value = now
 
+    # Variables
+    viewport.sst_file = "sst.txt"
+    viewport.status_file = "status.txt"
+    viewport.log_file = "viewport.log"
+    viewport.viewport_version = "1.2.3"
     # Prepare formatted string data (not datetime objects)
     start_time = now - timedelta(days=1, hours=2, minutes=30, seconds=45)
     start_time_str = start_time.strftime('%Y-%m-%d %H:%M:%S.%f')
@@ -182,3 +175,98 @@ def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
 
     assert result == "/already/installed/driver"
     mock_chrome_driver_manager.assert_not_called()
+
+# -------------------------------------------------------------------------
+# Test for Chrome Handler
+# -------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "chrome_side_effects, "
+    "expected_driver_get_calls, "
+    "expected_kill_calls, "
+    "expect_execv",
+    [
+        # 1) Success on first try
+        ([MagicMock()], 1, 1, False),
+        # 2) Fail twice, then succeed on 3rd (with MAX_RETRIES=3)
+        ([Exception("boom"), Exception("boom"), MagicMock()], 1, 1, False),
+        # 3) Always fail => exhaust retries, kill twice (start + final), then execv
+        ([Exception("fail")] * 3, 0, 2, True),
+    ]
+)
+@patch("viewport.process_handler")
+@patch("viewport.Options")
+@patch("viewport.webdriver.Chrome")
+@patch("viewport.time.sleep", return_value=None)
+@patch("viewport.os.execv")
+@patch("viewport.api_status")
+@patch("viewport.log_error")
+def test_chrome_handler_parametrized(
+    mock_log_error,
+    mock_api_status,
+    mock_execv,
+    mock_sleep,
+    mock_chrome,
+    mock_options,
+    mock_process_handler,
+    chrome_side_effects,
+    expected_driver_get_calls,
+    expected_kill_calls,
+    expect_execv,
+):
+    # Arrange
+    url = "http://example.com"
+    viewport.MAX_RETRIES = 3
+    viewport.SLEEP_TIME = 10  # so restart delay is predictable
+    # ensure sys.argv is predictable
+    viewport.sys.argv = ["script.py", "-b"]
+
+    # Side effect for webdriver.Chrome: either return driver or raise
+    mock_driver = MagicMock()
+    # build side_effect list: if item is Exception, raise it; else return mock_driver
+    side = []
+    for item in chrome_side_effects:
+        if isinstance(item, Exception):
+            side.append(item)
+        else:
+            side.append(mock_driver)
+    mock_chrome.side_effect = side
+
+    # Options() should return a dummy options object
+    dummy_opts = MagicMock()
+    mock_options.return_value = dummy_opts
+
+    # Service() is called with service_handler(); service_handler can just be default
+    # Act
+    result = viewport.chrome_handler(url)
+
+    # Assert: process_handler("chrome", "kill") at start and possibly at final retry
+    assert mock_process_handler.call_count == expected_kill_calls
+    mock_process_handler.assert_any_call("chrome", action="kill")
+
+    # Assert: webdriver.Chrome called up to MAX_RETRIES or until success
+    assert mock_chrome.call_count == len(chrome_side_effects)
+
+    # If we got a driver back, check .get(url) call count
+    if expected_driver_get_calls:
+        mock_driver.get.assert_called_once_with(url)
+        assert result is mock_driver
+    else:
+        # on permanent failure, chrome_handler never returns driver
+        assert result is None
+
+    # execv only on permanent failure
+    if expect_execv:
+        mock_execv.assert_called_once_with(
+            sys.executable,
+            ['python3'] + viewport.sys.argv
+        )
+        # And we should have logged and API-status’d the restart
+        mock_log_error.assert_any_call("Failed to start Chrome after maximum retries.")
+        mock_api_status.assert_any_call("Restarting Script in 5 seconds.")
+    else:
+        mock_execv.assert_not_called()
+        # We still log any intermediate errors for intermittent failures
+        if len(chrome_side_effects) > 1:
+            # at least one log_error for each Exception
+            assert mock_log_error.call_count >= sum(isinstance(e, Exception) for e in chrome_side_effects)
+
