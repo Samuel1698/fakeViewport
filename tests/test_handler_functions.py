@@ -156,3 +156,29 @@ def test_process_handler_exception(
     assert result is False
     mock_log_error.assert_called_once()
     mock_api_status.assert_called_once()
+
+# -------------------------------------------------------------------------
+# Test for Service Handler
+# -------------------------------------------------------------------------
+@patch("viewport.ChromeDriverManager")
+def test_service_handler_installs_chromedriver(mock_chrome_driver_manager):
+    # Reset global path first
+    viewport._chrome_driver_path = None
+
+    mock_installer = MagicMock()
+    mock_installer.install.return_value = "/fake/path/to/chromedriver"
+    mock_chrome_driver_manager.return_value = mock_installer
+
+    result = viewport.service_handler()
+
+    assert result == "/fake/path/to/chromedriver"
+    mock_installer.install.assert_called_once()
+
+@patch("viewport.ChromeDriverManager")
+def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
+    viewport._chrome_driver_path = "/already/installed/driver"
+
+    result = viewport.service_handler()
+
+    assert result == "/already/installed/driver"
+    mock_chrome_driver_manager.assert_not_called()

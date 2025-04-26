@@ -77,6 +77,8 @@ def arguments_handler():
 args = arguments_handler()
 if not any(vars(args).values()) or args.background:
     import threading
+    from webdriver_manager.chrome import ChromeDriverManager
+    from webdriver_manager.core.os_manager import ChromeType
     from selenium import webdriver
     from selenium.webdriver.chrome.service import Service
     from selenium.webdriver.common.by import By
@@ -414,8 +416,6 @@ def process_handler(process_name, action="check"):
         api_status(f"Error Checking Process '{process_name}'")
         return False
 def service_handler():
-    from webdriver_manager.chrome import ChromeDriverManager
-    from webdriver_manager.core.os_manager import ChromeType
     global _chrome_driver_path
     if not _chrome_driver_path:
         _chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
