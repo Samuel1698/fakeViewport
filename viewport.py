@@ -354,6 +354,7 @@ def status_handler():
                 print(f"{CYAN}Last Status Update:{NC} {colored_status_line}")
         except FileNotFoundError:
             print(f"{RED}Status file not found.{NC}")
+            log_error("Status File not found")
         try:
             with open(log_file, "r") as f:
                 # Read the last line from the log file
@@ -370,6 +371,7 @@ def status_handler():
                 print(f"{CYAN}Last Log Entry:{NC} {colored_log_line}")
         except FileNotFoundError:
             print(f"{RED}Log file not found.{NC}")
+            log_error("Log File not found")
     except Exception as e:
         log_error("Error while checking system uptime: ", e)
 def process_handler(process_name, action="check"):
@@ -410,7 +412,7 @@ def process_handler(process_name, action="check"):
     except Exception as e:
         log_error(f"Error while checking process '{process_name}'", e)
         api_status(f"Error Checking Process '{process_name}'")
-        return True
+        return False
 def service_handler():
     from webdriver_manager.chrome import ChromeDriverManager
     from webdriver_manager.core.os_manager import ChromeType
