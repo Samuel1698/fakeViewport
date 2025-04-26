@@ -2,9 +2,9 @@ name: Python Tests
 
 on:
   push:
-    branches: [ "main", "snapshot" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "main", "snapshot"]
+    branches: [ "main" ]
   schedule:
     - cron: '37 1 * * 1'
 jobs:
