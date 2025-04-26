@@ -10,6 +10,11 @@ from datetime import datetime, timedelta
 import viewport
 import signal
 
+# helper to build a fake psutil.Process‐like object
+def _make_proc(pid, cmdline):
+    proc = MagicMock()
+    proc.info = {"pid": pid, "cmdline": cmdline}
+    return proc
 # -------------------------------------------------------------------------
 # Test for Singal Handler
 # -------------------------------------------------------------------------
@@ -99,56 +104,55 @@ def test_status_handler_parametrized(
 # -------------------------------------------------------------------------
 # Test for Process Handler
 # -------------------------------------------------------------------------
-@pytest.mark.parametrize(
-    "stdout_output, action, expected_result, should_kill",
-    [
-        ("12345\n67890", "check", True, False),   # Process exists, check mode
-        ("12345\n67890", "kill", False, True),    # Process exists, kill mode
-        ("", "check", False, False),              # No process found
-    ],
-)
-@patch("viewport.time.sleep", return_value=None)
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-@patch("viewport.logging")
-@patch("viewport.os.kill")
-@patch("viewport.subprocess.run")
-def test_process_handler(
-    mock_run, mock_kill, mock_logging, mock_log_error, mock_api_status, mock_sleep,
-    stdout_output, action, expected_result, should_kill
-):
-    mock_run.return_value.stdout = stdout_output
+@patch("viewport.psutil.process_iter")
+@patch("viewport.os.getpid", return_value=100)
+def test_process_handler_check_mode_finds_a_match(mock_getpid, mock_iter):
+    # simulate two processes: one is ourselves (pid 100), one is a child of interest
+    mock_iter.return_value = [
+        _make_proc(100, ["python", "viewport.py"]),
+        _make_proc(123, ["python", "/usr/bin/viewport.py", "--foo"]),
+    ]
 
-    with patch("viewport.os.getpid", return_value=99999):
-        result = viewport.process_handler("viewport.py", action=action)
-
-    assert result == expected_result
-
-    if should_kill:
-        mock_kill.assert_any_call(12345, signal.SIGTERM)
-        mock_kill.assert_any_call(67890, signal.SIGTERM)
-    else:
-        mock_kill.assert_not_called()
-
-    mock_log_error.assert_not_called()
-
-@patch("viewport.time.sleep", return_value=None)
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-@patch("viewport.logging")
-@patch("viewport.os.kill")
-@patch("viewport.subprocess.run")
-def test_process_handler_exception(
-    mock_run, mock_kill, mock_logging, mock_log_error, mock_api_status, mock_sleep
-):
-    # Simulate subprocess.run throwing an exception
-    mock_run.side_effect = Exception("Something went wrong")
-
+    # in "check" mode, as soon as we see pid 123 we return True
     result = viewport.process_handler("viewport.py", action="check")
+    assert result is True
 
+@patch("viewport.psutil.process_iter")
+@patch("viewport.os.kill")
+@patch("viewport.api_status")
+@patch("viewport.os.getpid", return_value=42)
+def test_process_handler_kill_mode_terminates_all(mock_getpid, mock_api, mock_kill, mock_iter):
+    # simulate three processes: self + two to kill
+    procs = [
+        _make_proc(42, ["python", "viewport.py"]),   # self
+        _make_proc(111, ["bash", "viewport.py", "-b"]),
+        _make_proc(222, ["python", "viewport.py"]),
+    ]
+    mock_iter.return_value = procs
+
+    # run in kill mode
+    result = viewport.process_handler("viewport.py", action="kill")
+
+    # should return False (no longer “running”)
     assert result is False
-    mock_log_error.assert_called_once()
-    mock_api_status.assert_called_once()
+
+    # both 111 and 222 should have been SIGTERM'd
+    mock_kill.assert_any_call(111, signal.SIGTERM)
+    mock_kill.assert_any_call(222, signal.SIGTERM)
+    assert mock_kill.call_count == 2
+
+    # api_status should have been told we killed the process
+    mock_api.assert_called_once_with("Killed process 'viewport.py'")
+
+@patch("viewport.psutil.process_iter", side_effect=RuntimeError("no /proc"))
+@patch("viewport.log_error")
+@patch("viewport.api_status")
+def test_process_handler_on_exception_returns_false(mock_api, mock_log, mock_iter):
+    # any exception during iteration should log and api_status, then return False
+    result = viewport.process_handler("viewport.py", action="check")
+    assert result is False
+    mock_log.assert_called_once()
+    mock_api.assert_called_once()
 
 # -------------------------------------------------------------------------
 # Test for Service Handler
@@ -359,29 +363,27 @@ def test_chrome_restart_handler(
 # -------------------------------------------------------------------------
 # Tests for restart_handler
 # -------------------------------------------------------------------------
-import sys
-import pytest
-from unittest.mock import MagicMock, patch
-
-import viewport  # or your module name
-
 @pytest.mark.parametrize(
     "initial_argv, driver_present, execv_exc, "
     "expect_quit, expect_sleep, expect_api, expect_execv, expect_log_error, expect_exit",
     [
-        # 1) driver present, execv OK ⇒ quit, sleep, api_status, execv called
-        (["script.py", "--restart", "foo"],
-         True, None,
-         True, True, True, True, False, False),
-        # 2) driver None, execv OK ⇒ no quit, sleep, api_status, execv
-        (["script.py"],
-         False, None,
-         False, True, True, True, False, False),
-        # 3) execv raises ⇒ quit, sleep, initial api_status, execv attempt,
+        # Called with no argument, no driver, execv OK ⇒ no quit, sleep, api_status, execv
+        (["script.py"],                     False, None, False, True, True, True,  False, False),
+        # execv raises ⇒ quit, sleep, initial api_status, execv attempt,
         #    then log_error, error api_status, sys.exit(1)
-        (["script.py", "--restart"],
-         True, Exception("bad"),
-         True, True, True, True, True, True),
+        (["script.py", "--restart"],        True,  Exception("bad"), True,  True, True, True,  True,  True),
+        # short-background
+        (["script.py", "-b"],                False, None, False, True, True, True, False, False),
+        # long-background
+        (["script.py", "--background"],      False, None, False, True, True, True, False, False),
+        # abbreviated background
+        (["script.py", "--backg"],           False, None, False, True, True, True, False, False),
+        # long-restart
+        (["script.py", "--restart"],           True,  None, True,  True, True, True, False, False),
+        # abbreviated restart
+        (["script.py", "--resta"],           True,  None, True,  True, True, True, False, False),
+        # short-restart
+        (["script.py", "-r"],                True,  None, True,  True, True, True, False, False),
     ]
 )
 @patch("viewport.sys.exit")
@@ -428,13 +430,37 @@ def test_restart_handler(
 
     # os.execv()
     if expect_execv:
-        new_args = [arg for arg in initial_argv if arg != "--restart"]
-        if "--background" not in new_args:
-            new_args.append("--background")
-        mock_execv.assert_called_once_with(
-            sys.executable,
-            [sys.executable] + new_args
-        )
+        import argparse
+
+        # re-construct expected argv exactly the same way restart_handler does
+        parser = argparse.ArgumentParser(add_help=False, allow_abbrev=True)
+        parser.add_argument("-s","--status",   action="store_true", dest="status")
+        parser.add_argument("-b","--background",action="store_true", dest="background")
+        parser.add_argument("-r","--restart",  action="store_true", dest="restart")
+        parser.add_argument("-q","--quit",     action="store_true", dest="quit")
+        parser.add_argument("-l","--logs",     nargs="?", type=int, const=5, dest="logs")
+        parser.add_argument("-a","--api",      action="store_true", dest="api")
+
+        # parse only the “real” flags (skip script name)
+        args, unknown = parser.parse_known_args(initial_argv[1:])
+
+        # start with the script name
+        expected = [initial_argv[0]]
+
+        # put back any truly unknown extras (like “foo”)
+        expected += unknown
+
+        # re-emit any other switches the user passed
+        if args.logs     is not None: expected += ["--logs", str(args.logs)]
+        if args.status:      expected.append("--status")
+        if args.quit:        expected.append("--quit")
+        if args.api:         expected.append("--api")
+        # (note: args.restart is dropped on purpose)
+
+        # and *always* force the canonical --background
+        expected.append("--background")
+
+        mock_execv.assert_called_once_with(sys.executable, expected)
     else:
         mock_execv.assert_not_called()
 

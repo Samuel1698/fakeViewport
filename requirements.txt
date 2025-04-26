@@ -10,7 +10,7 @@ attrs==25.3.0
     #   trio
 blinker==1.9.0
     # via flask
-certifi==2025.1.31
+certifi==2025.4.26
     # via
     #   requests
     #   selenium
@@ -40,6 +40,8 @@ outcome==1.3.0.post0
     #   trio-websocket
 packaging==25.0
     # via webdriver-manager
+psutil==7.0.0
+    # via -r requirements.in
 pysocks==1.7.1
     # via urllib3
 python-dotenv==1.1.0

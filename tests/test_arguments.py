@@ -3,7 +3,14 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from unittest.mock import patch, mock_open
+import pytest
 import viewport
+
+def test_only_one_argument_allowed(monkeypatch):
+    # passing two flags should error out at parse time
+    monkeypatch.setattr(sys, "argv", ["viewport.py", "--status", "--background"])
+    with pytest.raises(SystemExit):
+        viewport.args_helper()
 
 @patch("viewport.sys.exit")
 @patch("viewport.status_handler")
@@ -84,3 +91,34 @@ def test_no_arguments_passed():
   })()
   result = viewport.args_handler(mock_args)
   assert result == "continue"
+
+@pytest.mark.parametrize("flag", ["--backg", "--backgro", "--backgrou"])
+def test_background_aliases_work(monkeypatch, flag):
+    # any unambiguous prefix of --background still sets args.background=True
+    monkeypatch.setattr(sys, "argv", ["viewport.py", flag])
+    args = viewport.args_helper()
+    assert args.background is True
+    # all others default off
+    assert not (args.status or args.restart or args.quit or args.api)
+    assert args.logs is None
+
+def test_args_child_handler_preserves_and_modifies_flags():
+    # Given an args object, drop --api
+    # and force-add --status, we should get exactly:
+    #  ["--status"]
+
+    # build a dummy args namespace
+    args = type("Args", (), {
+        "status":     False,
+        "background": False,
+        "restart":    False,
+        "quit":       False,
+        "api":        True,
+        "logs":       5
+    })()
+    child = viewport.args_child_handler(
+        args,
+        drop_flags={"api", "logs"},
+        add_flags={"status": None}
+    )
+    assert child == ["--status"]

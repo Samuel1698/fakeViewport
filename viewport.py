@@ -1,5 +1,6 @@
 #!/usr/bin/venv python3
 import os
+import psutil
 import sys
 import time
 import argparse
@@ -32,38 +33,39 @@ YELLOW="\033[1;33m"
 CYAN = "\033[36m"
 NC="\033[0m"
 # -------------------------------------------------------------------
-# Argument Handler and Conditional Imports
+# Argument Handlers
 # -------------------------------------------------------------------
-def arguments_handler():
+def args_helper():
     # Parse command-line arguments for the script.
     parser = argparse.ArgumentParser(
         description=f"{YELLOW}===== Fake Viewport {viewport_version} ====={NC}"
     )
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "-s", "--status",
         action="store_true",
         dest="status",
         help="Display status information about the script."
     )
-    parser.add_argument(
+    group.add_argument(
         "-b","--background",
         action="store_true",
         dest="background",
         help="Runs the script in the background."
     )
-    parser.add_argument(
+    group.add_argument(
         "-r", "--restart",
         action="store_true",
         dest="restart",
         help="Force restarts the script (in background)."
     )
-    parser.add_argument(
+    group.add_argument(
         "-q", "--quit",
         action="store_true",
         dest="quit",
         help="Stops the running Viewport script."
     )
-    parser.add_argument(
+    group.add_argument(
         "-l", "--logs",
         nargs="?",
         type=int,
@@ -72,15 +74,14 @@ def arguments_handler():
         dest="logs",
         help="Display the last n lines from the log file (default: 5)."
     )
-    parser.add_argument(
+    group.add_argument(
         "-a", "--api",
         action="store_true",
         dest="api",
         help="Toggles the API on or off. Requires USA_API=True in config.ini"
     )
-    args = parser.parse_args()
-    return args
-args = arguments_handler()
+    return parser.parse_args()
+args = args_helper()
 if not any(vars(args).values()) or args.background:
     import threading
     from webdriver_manager.chrome import ChromeDriverManager
@@ -135,13 +136,17 @@ def args_handler(args):
         sys.exit(0)
     if args.background:
         logging.info("Starting the script in the background...")
+        child_argv = args_child_handler(
+            args,
+            drop_flags={"background"},  # don’t re-daemonize when the child starts
+        )
         subprocess.Popen(
-            [sys.executable, __file__] + [arg for arg in sys.argv[1:] if arg not in ("--background", "-b")],
+            [sys.executable, __file__] + child_argv,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
             close_fds=True,
-            start_new_session=True  # Detach from the terminal
+            start_new_session=True,
         )
         sys.exit(0)
     if args.quit:
@@ -161,6 +166,52 @@ def args_handler(args):
         restart_handler(driver=None)
     else:
         return "continue"
+def args_child_handler(args, *, drop_flags=(), add_flags=None):
+    #Returns a list of (flag, maybe:value) for restarting or backgrounding.
+    #drop_flags  = a set of dest-names to omit (e.g. {"restart"} when backgrounding)
+    #add_flags   = a dict of dest -> override-value to force-add
+
+    # normalize drop_flags to a set
+    drop = set(drop_flags or ())
+    # normalize add_flags to a dict
+    if add_flags is None:
+        add = {}
+    elif isinstance(add_flags, dict):
+        add = add_flags
+    else:
+        # treat any sequence of names as { name: None }
+        add = { name: None for name in add_flags }
+    mapping = {
+        "status":    ["--status"],
+        "background":["--background"],
+        "restart":   ["--restart"],
+        "quit":      ["--quit"],
+        "api":       ["--api"],
+        "logs":      ["--logs", str(args.logs)] if args.logs is not None else [],
+    }
+    child = []
+    # 1) re-emit any flags the user originally set (minus drop_flags)
+    for dest, flags in mapping.items():
+        if dest in drop:
+            continue
+        # for a boolean flag: check getattr(args, dest)
+        # for logs: we already only put a list in mapping if args.logs is not None
+        if getattr(args, dest):
+            child.extend(flags)
+    # 2) force-add any extras from add_flags (e.g. restart→background)
+    for dest, override in add.items():
+        if dest in drop:
+            continue
+        if override is None:
+            # no explicit value, so use your canonical mapping or fallback
+            child.extend(mapping.get(dest, [f"--{dest}"]))
+        else:
+            # override could be a str or list of strs
+            if isinstance(override, (list, tuple)):
+                child.extend(override)
+            else:
+                child.extend([f"--{dest}", str(override)])
+    return child
 # -------------------------------------------------------------------
 # Config file initialization
 # -------------------------------------------------------------------
@@ -318,6 +369,9 @@ def status_handler():
         script_uptime = datetime.now() - script_start_time
         uptime_seconds = script_uptime.total_seconds()
 
+        # Check if viewport and api are running
+        uptime = process_handler('viewport.py', action="check")
+        monitoring = process_handler('monitoring.py', action="check")
         # Convert uptime_seconds to months, days, hours, minutes, and seconds
         uptime_months = int(uptime_seconds // 2592000)
         uptime_days = int(uptime_seconds // 86400)
@@ -332,9 +386,9 @@ def status_handler():
         if uptime_hours > 0: uptime_parts.append(f"{uptime_hours}h")
         if uptime_minutes > 0: uptime_parts.append(f"{uptime_minutes}m")
         if uptime_seconds > 0: uptime_parts.append(f"{uptime_seconds}s")
-        uptime_str = f"{GREEN}{' '.join(uptime_parts)}{NC}" if process_handler('viewport.py', action="check") else f"{RED}Not Running{NC}"
+        uptime_str = f"{GREEN}{' '.join(uptime_parts)}{NC}" if uptime else f"{RED}Not Running{NC}"
         # Check if monitoring.py is running
-        monitoring = f"{GREEN}Running{NC}" if process_handler('monitoring.py', action="check") else f"{RED}Not Running{NC}"
+        monitoring_str = f"{GREEN}Running{NC}" if monitoring else f"{RED}Not Running{NC}"
         # Convert SLEEP_TIME to minutes and seconds
         sleep_minutes = SLEEP_TIME // 60
         sleep_seconds = SLEEP_TIME % 60
@@ -345,7 +399,7 @@ def status_handler():
         # Display Status
         print(f"{YELLOW}===== Fake Viewport {viewport_version} ======{NC}")
         print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
-        print(f"{CYAN}Monitoring API:{NC} {monitoring}")
+        print(f"{CYAN}Monitoring API:{NC} {monitoring_str}")
         print(f"{CYAN}Checking Page Health Every{NC}: {sleep_str}")
         print(f"{CYAN}Printing to Log Every{NC}:{GREEN} {LOG_INTERVAL} min{NC}")
         try:
@@ -382,44 +436,43 @@ def status_handler():
             log_error("Log File not found")
     except Exception as e:
         log_error("Error while checking system uptime: ", e)
-def process_handler(process_name, action="check"):
+def process_handler(name, action="check"):
     # Handles process management for the script. Checks if a process is running and takes action based on the specified behavior
     # Ensures the current instance is not affected if told to kill the process
-    # Args: process_name (str): The name of the process to check (e.g., 'monitoring.py', 'viewport.py').
+    # Args: name (str): The name of the process to check (e.g., 'monitoring.py', 'viewport.py').
     # action (str): The action to take if the process is found. Options are:
     # - "check": Checks that the process is running and return True. 
     # - "kill": Kill the process if it is running (excluding the current instance).
     # Returns: bool: True if a process exists with that name, False otherwise.
-    current_pid = os.getpid()  # Get the PID of the current process
-    killed = False  # Flag to check if any process was killed
     try:
-        time.sleep(5) # Sleep for 5 seconds to allow the process to stop on their own
-        # Use pgrep to check if the process is running
-        result = subprocess.run(['pgrep', '-f', process_name], stdout=subprocess.PIPE, text=True)
-        if result.stdout:
-            pids = result.stdout.strip().split('\n')  # Get all matching PIDs
-            # Filter out the current process's PID
-            filtered_pids = [pid for pid in pids if int(pid) != current_pid]
-            if action == "kill":
-                for pid in filtered_pids:
-                    try:    
-                        os.kill(int(pid), signal.SIGTERM)  # Send termination signal
-                    except ProcessLookupError:
-                        logging.warning(f"Process with PID {pid} no longer exists.")
-                        api_status(f"Process with PID {pid} no longer exists.")
-                    killed = True  # Set the flag to indicate a process was killed
-            if killed:
-                logging.info(f"Killed process '{process_name}' with PID(s): {', '.join(filtered_pids)}")
-                api_status(f"Killed process '{process_name}'")
-                return False  # Return False if a process was killed - No process exists with that name
-            elif action == "check":
-                for pid in filtered_pids:
-                    return True  # Return True if a process other than current_pid exists with that name
-        else:
+        current = os.getpid()
+        matches = []
+        for p in psutil.process_iter(["pid", "cmdline"]):
+            try:
+                if name in " ".join(p.info["cmdline"]):
+                    pid = p.info["pid"]
+                    if pid != current:
+                        matches.append(pid)
+                # early-exit if you just wanted to check
+                if action == "check" and matches:
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
+        if action == "kill" and matches:
+            for pid in matches:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    api_status(f"Process {pid} already gone")
+            api_status(f"Killed process '{name}'")
             return False
+
+        return bool(matches)
     except Exception as e:
-        log_error(f"Error while checking process '{process_name}'", e)
-        api_status(f"Error Checking Process '{process_name}'")
+        # catches errors from psutil.process_iter or anything above
+        log_error(f"Error while checking process '{name}'", e)
+        api_status(f"Error Checking Process '{name}'")
         return False
 def service_handler():
     global _chrome_driver_path
@@ -489,25 +542,23 @@ def chrome_restart_handler(url):
         log_error("Error while killing Chrome processes: ", e)
         api_status("Error Killing Chrome")
 def restart_handler(driver):
-    # Gracefully shuts down the script and restarts it with the same arguments.
-    # Args:
-    #    driver: The Selenium WebDriver instance to be closed (if any).
     try:
         api_status("Restarting script...")
         if driver is not None:
-            logging.info("Gracefully shutting down Chrome...")
             driver.quit()
         time.sleep(2)
-        # Modify sys.argv to replace --restart with --background
-        new_args = [arg for arg in sys.argv if arg != "--restart"]
-        if "--background" not in new_args:
-            new_args.append("--background")
-        # Restart the script with the modified arguments
-        os.execv(sys.executable, [sys.executable] + new_args)
+
+        child_argv = args_child_handler(
+            args,
+            drop_flags={"restart"},        # strip out any -r/--restart
+            add_flags={"background": None} # force --background back in
+        )
+        # re-exec with the original script name and the new flags
+        os.execv(sys.executable, [sys.argv[0]] + child_argv)
     except Exception as e:
-        log_error("Error during restart process: ", e)
+        log_error("Error during restart process:", e)
         api_status("Error Restarting, exiting...")
-        sys.exit(1)  # Exit with an error code if restart fails
+        sys.exit(1)
 # -------------------------------------------------------------------
 # Helper Functions for main script
 # These functions return true or false but don't interact directly with the webpage
