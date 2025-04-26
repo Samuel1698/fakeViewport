@@ -43,111 +43,65 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
 # -------------------------------------------------------------------------
 # Test for Status Handler
 # -------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "missing_file, expected_log_error, process_names, expect_in_output",
+    [
+        (None, None, ["viewport.py"], ["Fake Viewport 1.2.3", "Script Uptime", "Monitoring API", "Last Status Update", "Last Log Entry"]),
+        ("sst", "Error while checking system uptime", ["viewport.py"], None),
+        ("status", "Status File not found", ["viewport.py", "monitoring.py"], None),
+        ("log", "Log File not found", ["viewport.py", "monitoring.py"], None),
+    ]
+)
+@patch("viewport.time.sleep", return_value=None)
 @patch("builtins.open")
 @patch("viewport.process_handler")
 @patch("viewport.log_error")
 @patch("viewport.datetime")
-def test_status_handler(mock_datetime, mock_log_error, mock_process_handler, mock_open, capsys):
-    # Setup datetime mock
+def test_status_handler_parametrized(
+    mock_datetime, mock_log_error, mock_process_handler, mock_open, mock_sleep,
+    missing_file, expected_log_error, process_names, expect_in_output, capsys
+):
+    # Setup datetime mock for .now()
     now = datetime(2024, 4, 25, 12, 0, 0)
-    start_time = now - timedelta(days=1, hours=2, minutes=30, seconds=45)
     mock_datetime.now.return_value = now
-    mock_datetime.strptime.return_value = start_time
 
-    # Mock open for sst_file, status_file, and log_file
-    sst_data = StringIO(start_time.strftime('%Y-%m-%d %H:%M:%S.%f'))
+    # Prepare formatted string data (not datetime objects)
+    start_time = now - timedelta(days=1, hours=2, minutes=30, seconds=45)
+    start_time_str = start_time.strftime('%Y-%m-%d %H:%M:%S.%f')
+    sst_data = StringIO(start_time_str)
     status_data = StringIO("Feed Healthy")
     log_data = StringIO("[INFO] Viewport check successful.")
 
     def open_side_effect(file, *args, **kwargs):
         if "sst" in file:
+            if missing_file == "sst":
+                raise FileNotFoundError
             return sst_data
         elif "status" in file:
+            if missing_file == "status":
+                raise FileNotFoundError
             return status_data
         elif "log" in file:
+            if missing_file == "log":
+                raise FileNotFoundError
             return log_data
         else:
             raise FileNotFoundError
-        
-    mock_process_handler.side_effect = lambda name, action="check": name == "viewport.py"
+
     mock_open.side_effect = open_side_effect
+    mock_process_handler.side_effect = lambda name, action="check": name in process_names
+
     # Call the function
     viewport.status_handler()
-    # Capture the output
-    captured = capsys.readouterr()
 
-    # Assertions
-    assert "Fake Viewport 1.2.3" in captured.out
-    assert "Script Uptime" in captured.out
-    assert "Monitoring API" in captured.out
-    assert "Last Status Update" in captured.out
-    assert "Last Log Entry" in captured.out
-
-    mock_log_error.assert_not_called()
-
-@patch("viewport.log_error")
-@patch("builtins.open")
-def test_status_handler_missing_uptime(mock_open, mock_log_error):
-    # Mock open for sst_file, status_file, and log_file
-    status_data = StringIO("Feed Healthy")
-    log_data = StringIO("[INFO] Viewport check successful.")
-    def open_side_effect(file, *args, **kwargs):
-        if "sst" in file:
-            raise FileNotFoundError
-        elif "status" in file:
-            return status_data
-        elif "log" in file:
-            return log_data
-
-    mock_open.side_effect = open_side_effect
-    viewport.status_handler()
-
-    mock_log_error.assert_called_once()
-    assert "Error while checking system uptime" in mock_log_error.call_args[0][0]
-
-@patch("viewport.process_handler")
-@patch("viewport.log_error")
-@patch("builtins.open")
-def test_status_handler_missing_status(mock_open, mock_log_error, mock_process_handler):
-    # Simulate uptime file is fine, then sst file missing
-    # Mock open for sst_file, status_file, and log_file
-    sst_data = StringIO("2024-04-24 09:00:00.000000")
-    log_data = StringIO("[INFO] Viewport check successful.")
-
-    def open_side_effect(file, *args, **kwargs):
-        if "sst" in file:
-            return sst_data
-        elif "status" in file:
-            raise FileNotFoundError
-        elif "log" in file:
-            return log_data
-    mock_process_handler.side_effect = lambda name, action="check": name in ["viewport.py", "monitoring.py"]
-    mock_open.side_effect = open_side_effect
-    viewport.status_handler()
-
-    mock_log_error.assert_called_once_with("Status File not found")
-
-@patch("viewport.process_handler")
-@patch("viewport.log_error")
-@patch("builtins.open")
-def test_status_handler_missing_log(mock_open, mock_log_error, mock_process_handler):
-    # Mock open for sst_file, status_file, and log_file
-    sst_data = StringIO("2024-04-24 09:00:00.000000")
-    status_data = StringIO("Feed Healthy")
-
-    def open_side_effect(file, *args, **kwargs):
-        if "sst" in file:
-            return sst_data
-        elif "status" in file:
-            return status_data
-        elif "log" in file:
-            raise FileNotFoundError
-    mock_process_handler.side_effect = lambda name, action="check": name in ["viewport.py", "monitoring.py"]
-    mock_open.side_effect = open_side_effect
-    viewport.status_handler()
-
-    mock_log_error.assert_called_once_with("Log File not found")
-
+    if expected_log_error:
+        mock_log_error.assert_called_once()
+        assert expected_log_error in mock_log_error.call_args[0][0]
+    else:
+        captured = capsys.readouterr()
+        for text in expect_in_output:
+            assert text in captured.out
+        mock_log_error.assert_not_called()
 # -------------------------------------------------------------------------
 # Test for Process Handler
 # -------------------------------------------------------------------------
