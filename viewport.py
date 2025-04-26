@@ -42,21 +42,25 @@ def arguments_handler():
     parser.add_argument(
         "-s", "--status",
         action="store_true",
+        dest="status",
         help="Display status information about the script."
     )
     parser.add_argument(
         "-b","--background",
         action="store_true",
+        dest="background",
         help="Runs the script in the background."
     )
     parser.add_argument(
         "-r", "--restart",
         action="store_true",
+        dest="restart",
         help="Force restarts the script (in background)."
     )
     parser.add_argument(
         "-q", "--quit",
         action="store_true",
+        dest="quit",
         help="Stops the running Viewport script."
     )
     parser.add_argument(
@@ -65,11 +69,13 @@ def arguments_handler():
         type=int,
         const=5,
         metavar="n",
+        dest="logs",
         help="Display the last n lines from the log file (default: 5)."
     )
     parser.add_argument(
         "-a", "--api",
         action="store_true",
+        dest="api",
         help="Toggles the API on or off. Requires USA_API=True in config.ini"
     )
     args = parser.parse_args()
