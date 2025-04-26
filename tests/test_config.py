@@ -6,9 +6,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 import os
 import importlib
 import pytest
-import shutil
 from pathlib import Path
-from viewport import EXAMPLE_URL
 def reload_in(tmp_path):
     # 1) Save state
     orig_cwd = os.getcwd()

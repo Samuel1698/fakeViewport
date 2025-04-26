@@ -2,9 +2,6 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-import threading
-import subprocess
-import pytest
 from unittest.mock import patch, mock_open, MagicMock, ANY
 
 import viewport
