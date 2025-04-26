@@ -3,7 +3,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 from io import StringIO
 from datetime import datetime, timedelta
 
@@ -270,3 +270,178 @@ def test_chrome_handler_parametrized(
             # at least one log_error for each Exception
             assert mock_log_error.call_count >= sum(isinstance(e, Exception) for e in chrome_side_effects)
 
+# -------------------------------------------------------------------------
+# Tests for chrome_restart_handler
+# -------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "chrome_exc, check_exc, handle_page_ret, "
+    "expect_sleep, expect_feed_healthy, expect_return_driver, "
+    "expect_log_error, expect_api_calls",
+    [
+        # 1) All good, handle_page=True  ⇒ sleep, Feed Healthy, returns driver
+        (None, None, True, True, True, True, False,
+         [call("Restarting Chrome"), call("Feed Healthy")]),
+        # 2) All good, handle_page=False ⇒ no sleep, no Feed Healthy, returns driver
+        (None, None, False, False, False, True, False,
+         [call("Restarting Chrome")]),
+        # 3) chrome_handler raises ⇒ no sleep, no return, log_error & Error Killing Chrome
+        (Exception("boom"), None, None, False, False, False, True,
+         [call("Restarting Chrome"), call("Error Killing Chrome")]),
+        # 4) check_for_title raises ⇒ same as #3
+        (None, Exception("oops"), None, False, False, False, True,
+         [call("Restarting Chrome"), call("Error Killing Chrome")]),
+    ]
+)
+@patch("viewport.time.sleep", return_value=None)
+@patch("viewport.logging.info")
+@patch("viewport.api_status")
+@patch("viewport.log_error")
+@patch("viewport.handle_page")
+@patch("viewport.check_for_title")
+@patch("viewport.chrome_handler")
+def test_chrome_restart_handler(
+    mock_chrome_handler,
+    mock_check_for_title,
+    mock_handle_page,
+    mock_log_error,
+    mock_api_status,
+    mock_log_info,
+    mock_sleep,
+    chrome_exc,
+    check_exc,
+    handle_page_ret,
+    expect_sleep,
+    expect_feed_healthy,
+    expect_return_driver,
+    expect_log_error,
+    expect_api_calls,
+):
+    url = "http://example.com"
+    mock_driver = MagicMock()
+
+    # Setup chrome_handler side effect or return
+    if chrome_exc:
+        mock_chrome_handler.side_effect = chrome_exc
+    else:
+        mock_chrome_handler.return_value = mock_driver
+
+    # Setup check_for_title side effect
+    if check_exc:
+        mock_check_for_title.side_effect = check_exc
+
+    # Setup handle_page return
+    mock_handle_page.return_value = handle_page_ret
+
+    # Act
+    result = viewport.chrome_restart_handler(url)
+
+    # Assert api_status calls
+    assert mock_api_status.call_args_list == expect_api_calls
+
+    # Assert log_error only when exceptions
+    assert bool(mock_log_error.called) == expect_log_error
+
+    # If full success path with driver:
+    if expect_return_driver:
+        assert result is mock_driver
+        # handle_page True ⇒ sleep called once
+        assert mock_sleep.called == expect_sleep
+        if expect_feed_healthy:
+            # feed-healthy log/info
+            mock_log_info.assert_any_call("Page successfully reloaded.")
+    else:
+        # on exception path, returns None
+        assert result is None
+
+    # Always logs "Restarting chrome..."
+    mock_log_info.assert_any_call("Restarting chrome...")
+
+# -------------------------------------------------------------------------
+# Tests for restart_handler
+# -------------------------------------------------------------------------
+import sys
+import pytest
+from unittest.mock import MagicMock, patch
+
+import viewport  # or your module name
+
+@pytest.mark.parametrize(
+    "initial_argv, driver_present, execv_exc, "
+    "expect_quit, expect_sleep, expect_api, expect_execv, expect_log_error, expect_exit",
+    [
+        # 1) driver present, execv OK ⇒ quit, sleep, api_status, execv called
+        (["script.py", "--restart", "foo"],
+         True, None,
+         True, True, True, True, False, False),
+        # 2) driver None, execv OK ⇒ no quit, sleep, api_status, execv
+        (["script.py"],
+         False, None,
+         False, True, True, True, False, False),
+        # 3) execv raises ⇒ quit, sleep, initial api_status, execv attempt,
+        #    then log_error, error api_status, sys.exit(1)
+        (["script.py", "--restart"],
+         True, Exception("bad"),
+         True, True, True, True, True, True),
+    ]
+)
+@patch("viewport.sys.exit")
+@patch("viewport.os.execv")
+@patch("viewport.time.sleep", return_value=None)
+@patch("viewport.api_status")
+@patch("viewport.log_error")
+def test_restart_handler(
+    mock_log_error,
+    mock_api_status,
+    mock_sleep,
+    mock_execv,
+    mock_exit,
+    initial_argv,
+    driver_present,
+    execv_exc,
+    expect_quit,
+    expect_sleep,
+    expect_api,
+    expect_execv,
+    expect_log_error,
+    expect_exit,
+):
+    # Arrange
+    viewport.sys.argv = list(initial_argv)
+    dummy_driver = MagicMock() if driver_present else None
+
+    if execv_exc:
+        mock_execv.side_effect = execv_exc
+
+    # Act
+    viewport.restart_handler(dummy_driver)
+
+    # driver.quit() only if driver_present
+    if expect_quit:
+        dummy_driver.quit.assert_called_once()
+    else:
+        if dummy_driver:
+            dummy_driver.quit.assert_not_called()
+
+    # sleep and initial api_status should always run before execv
+    assert mock_sleep.called == expect_sleep
+    assert mock_api_status.called == expect_api
+
+    # os.execv()
+    if expect_execv:
+        new_args = [arg for arg in initial_argv if arg != "--restart"]
+        if "--background" not in new_args:
+            new_args.append("--background")
+        mock_execv.assert_called_once_with(
+            sys.executable,
+            [sys.executable] + new_args
+        )
+    else:
+        mock_execv.assert_not_called()
+
+    # on execv exception, we log_error, do error api_status, and exit(1)
+    assert bool(mock_log_error.called) == expect_log_error
+    if expect_exit:
+        mock_api_status.assert_any_call("Error Restarting, exiting...")
+        mock_exit.assert_called_once_with(1)
+    else:
+        mock_exit.assert_not_called()
