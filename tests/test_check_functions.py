@@ -1,12 +1,11 @@
-from unittest.mock import MagicMock, PropertyMock, patch
-from selenium.common.exceptions import TimeoutException, WebDriverException
-from datetime import datetime
 
 import sys
 from pathlib import Path
-# Add the parent directory to sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
+from unittest.mock import MagicMock, PropertyMock, patch
+from selenium.common.exceptions import TimeoutException, WebDriverException
+from datetime import datetime
 from viewport import (
     check_driver,
     check_next_interval,

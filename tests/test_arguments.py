@@ -1,7 +1,8 @@
-from unittest.mock import patch, mock_open
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from unittest.mock import patch, mock_open
 import viewport
 
 @patch("viewport.sys.exit")

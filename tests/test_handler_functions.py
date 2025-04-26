@@ -1,7 +1,8 @@
-from unittest.mock import MagicMock, patch
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from unittest.mock import MagicMock, patch
 import viewport
 
 
