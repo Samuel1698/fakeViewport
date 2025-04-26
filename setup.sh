@@ -41,7 +41,12 @@ fi
 # -------------------------------------------------------------------
 # 4. Install requirements
 # -------------------------------------------------------------------
-REQUIREMENTS="requirements.txt"
+if [ "$1" == "dev" ]; then
+    echo -e "${YELLOW}Development mode enabled. Using dev_requirements.txt.${NC}"
+    REQUIREMENTS="dev_requirements.txt"
+else
+    REQUIREMENTS="requirements.txt"
+fi
 if [ -f "$REQUIREMENTS" ]; then
     # Activate virtual environment
     source "$VENV_DIR/bin/activate"
@@ -148,8 +153,8 @@ if [[ "$create_shortcut" =~ ^[Yy]([Ee][Ss])?$ ]]; then
 [Desktop Entry]
 Version=1.0
 Name=Viewport
-Comment=Run the FakeViewport script
-Exec=bash -c "$VENV_PYTHON && $SCRIPT_PATH"
+Comment=Run the Viewport script
+Exec=$VENV_PYTHON $SCRIPT_PATH
 Icon=camera-web
 Terminal=false
 Type=Application
@@ -175,12 +180,16 @@ else
         echo "# This alias was added by the FakeViewport setup script" >> ~/.bashrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.bashrc
         echo -e "${GREEN}✓ Alias added to ~/.bashrc${NC}"
+        echo -e "${GREEN}If the viewport command doesn't work, reload the terminal with: ${NC}"
+        echo -e "${YELLOW}  source ~/.bashrc${NC}"
         CREATED_ALIAS=true
     fi
     if [ -f ~/.zshrc ]; then
         echo "# This alias was added by the FakeViewport setup script" >> ~/.zshrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.zshrc
         echo -e "${GREEN}✓ Alias added to ~/.zshrc${NC}"
+        echo -e "${GREEN}If the viewport command doesn't work, reload the terminal with: ${NC}"
+        echo -e "${YELLOW}  source ~/.zshrc${NC}"
         CREATED_ALIAS=true
     fi
 fi
@@ -209,9 +218,9 @@ else
     fi 
     echo -e "\n${GREEN}Setup complete!${NC}"
     echo -e "${GREEN}Check the different ways to launch the script with:${NC}"
-    echo -e "${YELLOW}  viewport --help${NC}"
+    echo -e "${YELLOW}  viewport -h${NC}"
     echo -e "${GREEN}If the 'viewport' alias doesn't work run these commands:${NC}"
     echo -e "${YELLOW}  source venv/bin/activate${NC}"
-    echo -e "${YELLOW}  python3 viewport.py --help${NC}"
+    echo -e "${YELLOW}  python3 viewport.py -h${NC}"
     exit 0
 fi
