@@ -5,6 +5,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from unittest.mock import MagicMock, patch
 from io import StringIO
 from datetime import datetime, timedelta
+import pytest
 import viewport
 import signal
 
@@ -150,21 +151,37 @@ def test_status_handler_missing_log(mock_open, mock_log_error, mock_process_hand
 # -------------------------------------------------------------------------
 # Test for Process Handler
 # -------------------------------------------------------------------------
-@patch("viewport.time.sleep", return_value=None)  # Skip actual sleeping
+@pytest.mark.parametrize(
+    "stdout_output, action, expected_result, should_kill",
+    [
+        ("12345\n67890", "check", True, False),   # Process exists, check mode
+        ("12345\n67890", "kill", False, True),    # Process exists, kill mode
+        ("", "check", False, False),              # No process found
+    ],
+)
+@patch("viewport.time.sleep", return_value=None)
 @patch("viewport.api_status")
 @patch("viewport.log_error")
 @patch("viewport.logging")
 @patch("viewport.os.kill")
 @patch("viewport.subprocess.run")
-def test_process_handler_check_running(mock_run, mock_kill, mock_logging, mock_log_error, mock_api_status, mock_sleep):
-    # Simulate a process running (different from current PID)
-    mock_run.return_value.stdout = "12345\n67890"
-    
+def test_process_handler(
+    mock_run, mock_kill, mock_logging, mock_log_error, mock_api_status, mock_sleep,
+    stdout_output, action, expected_result, should_kill
+):
+    mock_run.return_value.stdout = stdout_output
+
     with patch("viewport.os.getpid", return_value=99999):
-        result = viewport.process_handler("viewport.py", action="check")
-    
-    assert result is True
-    mock_kill.assert_not_called()
+        result = viewport.process_handler("viewport.py", action=action)
+
+    assert result == expected_result
+
+    if should_kill:
+        mock_kill.assert_any_call(12345, signal.SIGTERM)
+        mock_kill.assert_any_call(67890, signal.SIGTERM)
+    else:
+        mock_kill.assert_not_called()
+
     mock_log_error.assert_not_called()
 
 @patch("viewport.time.sleep", return_value=None)
@@ -173,47 +190,14 @@ def test_process_handler_check_running(mock_run, mock_kill, mock_logging, mock_l
 @patch("viewport.logging")
 @patch("viewport.os.kill")
 @patch("viewport.subprocess.run")
-def test_process_handler_kill_running(mock_run, mock_kill, mock_logging, mock_log_error, mock_api_status, mock_sleep):
-    # Simulate a process running (different from current PID)
-    mock_run.return_value.stdout = "12345\n67890"
-    
-    with patch("viewport.os.getpid", return_value=99999):
-        result = viewport.process_handler("viewport.py", action="kill")
-    
-    assert result is False
-    # Should have tried to kill processes
-    mock_kill.assert_any_call(12345, signal.SIGTERM)
-    mock_kill.assert_any_call(67890, signal.SIGTERM)
-    mock_log_error.assert_not_called()
-
-@patch("viewport.time.sleep", return_value=None)
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-@patch("viewport.logging")
-@patch("viewport.os.kill")
-@patch("viewport.subprocess.run")
-def test_process_handler_no_process_found(mock_run, mock_kill, mock_logging, mock_log_error, mock_api_status, mock_sleep):
-    # Simulate no process running
-    mock_run.return_value.stdout = ""
-    
-    result = viewport.process_handler("viewport.py", action="check")
-    
-    assert result is False
-    mock_kill.assert_not_called()
-    mock_log_error.assert_not_called()
-
-@patch("viewport.time.sleep", return_value=None)
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-@patch("viewport.logging")
-@patch("viewport.os.kill")
-@patch("viewport.subprocess.run")
-def test_process_handler_exception(mock_run, mock_kill, mock_logging, mock_log_error, mock_api_status, mock_sleep):
+def test_process_handler_exception(
+    mock_run, mock_kill, mock_logging, mock_log_error, mock_api_status, mock_sleep
+):
     # Simulate subprocess.run throwing an exception
     mock_run.side_effect = Exception("Something went wrong")
-    
+
     result = viewport.process_handler("viewport.py", action="check")
-    
+
     assert result is False
     mock_log_error.assert_called_once()
     mock_api_status.assert_called_once()
