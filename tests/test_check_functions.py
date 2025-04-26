@@ -1,11 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, PropertyMock, patch
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, InvalidSessionIdException, WebDriverException
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from datetime import datetime
 
 import sys
 from pathlib import Path
-
 # Add the parent directory to sys.path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
@@ -111,4 +109,43 @@ def test_check_for_title_Webdriver_Exception(mock_log_error, mock_api_status, mo
   mock_log_error.assert_called_with("Tab Crashed.")
   mock_api_status.assert_called_with("Tab Crashed")
 
+# ---------------------------------------------------------------------
+# Check unable to stream function
+# ---------------------------------------------------------------------
+def test_check_unable_to_stream_found():
+  mock_driver = MagicMock()
+  mock_driver.execute_script.return_value = ["mock-element"]
 
+  result = check_unable_to_stream(mock_driver)
+
+  assert result is True
+def test_check_unable_to_stream_not_found():
+  mock_driver = MagicMock()
+  mock_driver.execute_script.return_value = []
+
+  result = check_unable_to_stream(mock_driver)
+
+  assert result is False
+
+@patch("viewport.api_status")
+@patch("viewport.log_error")
+def test_check_unable_to_stream_webdriver_exception(mock_log_error, mock_api_status):
+    mock_driver = MagicMock()
+    mock_driver.execute_script.side_effect = WebDriverException
+
+    result = check_unable_to_stream(mock_driver)
+
+    assert result is False
+    mock_log_error.assert_called_with("Tab Crashed.")
+    mock_api_status.assert_called_with("Tab Crashed")
+@patch("viewport.api_status")
+@patch("viewport.log_error")
+def test_check_unable_to_stream_generic_exception(mock_log_error, mock_api_status):
+  mock_driver = MagicMock()
+  mock_driver.execute_script.side_effect = Exception("Some JS error")
+
+  result = check_unable_to_stream(mock_driver)
+
+  assert result is False
+  mock_log_error.assert_called()
+  mock_api_status.assert_called()

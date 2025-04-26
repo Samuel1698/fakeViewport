@@ -510,13 +510,11 @@ def check_unable_to_stream(driver):
         elements = driver.execute_script("""
             return Array.from(document.querySelectorAll('*')).filter(el => el.innerHTML.includes('Unable to Stream'));
         """)
-        if elements:
-            return True
-        return False
+        return bool(elements)
     except WebDriverException:
-        log_error("Tab Crashed. Restarting Chrome...")
+        log_error("Tab Crashed.")
         api_status("Tab Crashed")
-        driver = chrome_restart_handler(url)
+        return False
     except Exception as e:
         log_error("Error while checking for 'Unable to Stream' message: ", e)
         api_status("Error Checking Unable to Stream")
@@ -713,7 +711,7 @@ def handle_view(driver, url):
     # Main process that checks the health of the live view
     # It checks first for a truthy return of handle_page function, then checks "Console Offline" or "Protect Offline" messages.
     # It's main check is of the CSS_LIVEVIEW_WRAPPER element, which is the main wrapper for the live view.
-    # While on the main loop, it calls the handle_retry, handle_fullscreen_button, check_unable_to_streamf handle_loading_issue, and handle_elements functions.
+    # While on the main loop, it calls the handle_retry, handle_fullscreen_button, check_unable_to_stream handle_loading_issue, and handle_elements functions.
     retry_count = 0
     max_retries = MAX_RETRIES
     # Calculate how many iterations correspond to one LOG_INTERVAL
