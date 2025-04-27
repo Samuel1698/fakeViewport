@@ -91,9 +91,9 @@ fi
 # 5. Verify Chrome/Chromium and ChromeDriver
 # -------------------------------------------------------------------
 if ! command -v google-chrome-stable &> /dev/null; then
-    if ! command -v chromium-browser &> /dev/null; then
+    if ! command -v chromium &> /dev/null; then
         echo -e "${RED}Chrome/Chromium not found! Install manually:"
-        echo -e "  sudo apt install -y chromium-browser${NC}"
+        echo -e "  sudo apt install -y chromium${NC}"
     else
         echo -e "${GREEN}✓ Chromium is installed${NC}"
     fi
