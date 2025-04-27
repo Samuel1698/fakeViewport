@@ -943,12 +943,12 @@ def handle_retry(driver, url, attempt, max_retries):
                     if not handle_fullscreen_button(driver):
                         logging.warning("Failed to activate fullscreen, but continuing anyway.")
                 api_status("Feed Healthy")
-        except InvalidSessionIdException:
-            log_error(f"{BROWSER} session is invalid. Restarting the program.")
+        except InvalidSessionIdException as e:
+            log_error(f"{BROWSER} session is invalid. Restarting the program.", e)
             api_status("Restarting Program")
             restart_handler(driver)
-        except WebDriverException:
-            log_error(f"Tab Crashed. Restarting {BROWSER}...")
+        except WebDriverException as e:
+            log_error(f"Tab Crashed. Restarting {BROWSER}...", e)
             api_status("Tab Crashed")
             driver = chrome_restart_handler(url)
         except Exception as e:
@@ -1017,26 +1017,26 @@ def handle_view(driver, url):
                 sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
                 time.sleep(sleep_duration)
                 iteration_counter += 1
-        except InvalidSessionIdException:
-            log_error(f"{BROWSER} session is invalid. Restarting the program.")
+        except InvalidSessionIdException as e:
+            log_error(f"{BROWSER} session is invalid. Restarting the program.", e)
             api_status("Restarting Program")
             restart_handler(driver)
         except (TimeoutException, NoSuchElementException):
-            log_error("Video feeds not found or page timed out.")
+            log_error("Video feeds not found or page timed out.", e)
             api_status("Video Feeds Not Found")
             time.sleep(WAIT_TIME)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
-        except NewConnectionError:
-            log_error("Connection error occurred. Retrying...")
+        except NewConnectionError as e:
+            log_error("Connection error occurred. Retrying...", e)
             api_status("Connection Error")
             time.sleep(SLEEP_TIME/2)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
-        except WebDriverException:
-            log_error(f"Tab Crashed. Restarting {BROWSER}...")
+        except WebDriverException as e:
+            log_error(f"Tab Crashed. Restarting {BROWSER}...", e)
             api_status("Tab Crashed")
             driver = chrome_restart_handler(url)
         except Exception as e:
