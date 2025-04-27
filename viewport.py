@@ -372,12 +372,16 @@ def get_cpu_color(name, pct):
     if pct <= 70:
         return YELLOW
     return RED
-def get_mem_color_pct(pct):
+def get_mem_color(pct):
     if pct <= 35:
         return GREEN
     if pct <= 60:
         return YELLOW
     return RED
+def get_browser_version(binary_path):
+    # e.g. returns "135.0.7049.95"
+    out = subprocess.check_output([binary_path, "--version"], stderr=subprocess.DEVNULL)
+    return out.decode().split()[1].strip()
 def usage_handler(match_str):
     """
     Sum CPU & RSS for processes whose name or cmdline contains match_str.
@@ -458,13 +462,13 @@ def status_handler():
 
         total_ram = psutil.virtual_memory().total
         # Individual memory colors based on their percentage
-        mem_vp_cl = get_mem_color_pct(mem_vp / total_ram * 100)
-        mem_mon_cl = get_mem_color_pct(mem_mon / total_ram * 100)
-        mem_ch_cl = get_mem_color_pct(mem_ch / total_ram * 100)
+        mem_vp_cl = get_mem_color(mem_vp / total_ram * 100)
+        mem_mon_cl = get_mem_color(mem_mon / total_ram * 100)
+        mem_ch_cl = get_mem_color(mem_ch / total_ram * 100)
         # overall RAM used
         total_used    = mem_vp + mem_mon + mem_ch
         used_pct      = total_used / total_ram * 100
-        ram_color     = get_mem_color_pct(used_pct)
+        ram_color     = get_mem_color(used_pct)
         # helper to format bytes→GB
         fmt_mem = lambda b: f"{b/(1024**3):.1f}GB"
         # next health-check countdown
@@ -611,7 +615,15 @@ def process_handler(name, action="check"):
 def service_handler():
     global _chrome_driver_path
     if not _chrome_driver_path:
-        _chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
+        # pick Chrome vs. Chromium
+        is_chromium = "chromium" in CHROME_BINARY.lower()
+        chrome_type = ChromeType.CHROMIUM if is_chromium else ChromeType.GOOGLE
+
+        # just grab whatever version the manager thinks is appropriate
+        _chrome_driver_path = ChromeDriverManager(
+            chrome_type=chrome_type
+        ).install()
+
     return _chrome_driver_path
 def chrome_handler(url):
     # Kills any chrome instance, then launches a new one with the specified URL
