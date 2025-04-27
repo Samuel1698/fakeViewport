@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 # -------------------------------------------------------------------
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
-viewport_version = "2.1.2"
+viewport_version = "2.1.3"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 # Directory and file paths
 script_dir = Path(__file__).resolve().parent
@@ -482,9 +482,10 @@ def status_handler():
             next = f"{GREEN}{sc}s{NC}"
         next_str = next if monitoring else f"{RED}Not Running{NC}"
         # Printing
-        print(f"{YELLOW}===== Fake Viewport {viewport_version} ======{NC}")
-        print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
-        print(f"{CYAN}Monitoring API:{NC} {monitoring_str}")
+        print(f"{YELLOW}======= Fake Viewport {viewport_version} ========{NC}")
+        print(f"{CYAN}Script Uptime:{NC}      {uptime_str}")
+        print(f"{CYAN}Monitoring API:{NC}     {monitoring_str}")
+        print(f"{CYAN}Next Health Check:{NC}  {next_str}")
         print(
             f"{CYAN}RAM Used/Available:{NC} "
             f"{ram_color}{fmt_mem(total_used)}/"
@@ -513,9 +514,8 @@ def status_handler():
                 f" {CYAN}CPU:{NC} {cpu_color}{cpu:04.1f}%{NC}"
                 f"   {CYAN}Mem:{NC} {mem_color}{fmt_mem(mem)}{NC}"
             )
-        print(f"{CYAN}Checking Page Health Every{NC}: {sleep_str}")
-        print(f"{CYAN}Next Health Check in:{NC} {next_str}")
-        print(f"{CYAN}Printing to Log Every{NC}:{GREEN} {LOG_INTERVAL} min{NC}")
+        print(f"{CYAN}Check Health Every:{NC} {sleep_str}")
+        print(f"{CYAN}Print to Log Every:{NC}{GREEN} {LOG_INTERVAL} min{NC}")
         try:
             with open(status_file, "r") as f:
                 # Read the status file

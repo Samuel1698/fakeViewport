@@ -49,7 +49,7 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
             "Script Uptime",
             "Monitoring API",
             "Usage:",
-            "Next Health Check in:",
+            "Next Health Check:",
             "Last Status Update",
             "Last Log Entry",
         ]),
