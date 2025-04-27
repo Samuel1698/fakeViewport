@@ -6,7 +6,6 @@ NC='\e[0m'
 SCRIPT_PATH="$(pwd)/viewport.py"
 VENV_PYTHON="$(pwd)/venv/bin/python3"
 echo -e "${YELLOW}===== FakeViewport Setup =====${NC}"
-
 # -------------------------------------------------------------------
 # 1. Verify Python 3 is installed
 # -------------------------------------------------------------------
@@ -91,9 +90,9 @@ fi
 # 5. Verify Chrome/Chromium and ChromeDriver
 # -------------------------------------------------------------------
 if ! command -v google-chrome-stable &> /dev/null; then
-    if ! command -v chromium-browser &> /dev/null; then
+    if ! command -v chromium &> /dev/null; then
         echo -e "${RED}Chrome/Chromium not found! Install manually:"
-        echo -e "  sudo apt install -y chromium-browser${NC}"
+        echo -e "  sudo apt install -y chromium${NC}"
     else
         echo -e "${GREEN}✓ Chromium is installed${NC}"
     fi
@@ -108,7 +107,7 @@ if [ -f ".env.example" ]; then
         echo -e "${GREEN}✓ .env already exists. Skipping...${NC}"
     else
         echo -e "${YELLOW}Renaming .env.example to .env...${NC}"
-        if mv -n .env.example .env; then
+        if mv  --update=none .env.example .env; then
             echo -e "${GREEN}✓ Configuration file prepared${NC}"
             echo -e "${YELLOW}  Please edit .env to set your UniFi Protect credentials.${NC}"
             echo -e "${YELLOW}  You can do so with the command: nano .env\n${NC}"
@@ -130,7 +129,7 @@ if [ -f "config.ini.example" ]; then
         echo -e "${GREEN}✓ config.ini already exists. Skipping...${NC}"
     else
         echo -e "${YELLOW}Renaming config.ini.example to config.ini...${NC}"
-        if cp -n config.ini.example config.ini; then
+        if cp --update=none config.ini.example config.ini; then
             echo -e "${GREEN}✓ Configuration file prepared${NC}"
         else
             echo -e "${RED}Failed to rename configuration file!${NC}"
@@ -144,12 +143,24 @@ fi
 # -------------------------------------------------------------------
 # 8: Create Desktop Shortcut
 # -------------------------------------------------------------------
-echo -ne "${YELLOW}\nWould you like to create a desktop shortcut for FakeViewport (y/n)? ${NC}"
-read -r create_shortcut
-if [[ "$create_shortcut" =~ ^[Yy]([Ee][Ss])?$ ]]; then
-    DESKTOP_PATH="$HOME/Desktop"
-    SHORTCUT_PATH="$DESKTOP_PATH/Viewport.desktop"
-    cat > "$SHORTCUT_PATH" <<EOL
+if [[ -d "$HOME/Desktop" ]]; then
+  SHORTCUT_DIR="$HOME/Desktop"
+  SHORTCUT_PATH="$SHORTCUT_DIR/Viewport.desktop"
+else
+echo -e "${YELLOW}No desktop directory found; skipping shortcut creation.${NC}"
+fi
+OVERRIDE_SHORTCUT=false
+for arg in "$@"; do
+  case "$arg" in
+    -s|--shortcut)
+      OVERRIDE_SHORTCUT=true
+      shift
+      ;;
+  esac
+done
+# helper to create the file
+_create_shortcut() {
+  cat > "$SHORTCUT_PATH" <<EOL
 [Desktop Entry]
 Version=1.0
 Name=Viewport
@@ -160,10 +171,31 @@ Terminal=false
 Type=Application
 Categories=Utility;
 EOL
-    chmod +x "$SHORTCUT_PATH"
-    echo -e "${GREEN}✓ Desktop shortcut created at $SHORTCUT_PATH${NC}"
-else
-    echo -e "${GREEN}✓ Skipping desktop shortcut creation.${NC}"
+  chmod +x "$SHORTCUT_PATH"
+  echo -e "${GREEN}✓ Desktop shortcut created at $SHORTCUT_PATH${NC}"
+}
+if [[ -e "$SHORTCUT_PATH" ]]; then
+  if $OVERRIDE_SHORTCUT; then
+    echo -e "${YELLOW}Shortcut already exists at $SHORTCUT_PATH, overwriting...${NC}"
+    _create_shortcut
+  else
+    echo -e "${GREEN}✓ Desktop Shortcut already exists, skipping...${NC}"
+    echo -e "${GREEN}✓ To override it, run:${NC}"
+    echo -e "${YELLOW}  ./setup.sh -s${NC}"
+  fi
+elif [[ -e "$SHORTCUT_DIR" ]]; then
+  if $OVERRIDE_SHORTCUT; then
+    echo -e "${YELLOW}Creating shortcut without prompt (override flag given)${NC}"
+    _create_shortcut
+  else
+    echo -ne "${YELLOW}\nWould you like to create a desktop shortcut for FakeViewport (y/n)? ${NC}"
+    read -r reply
+    if [[ "$reply" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+      _create_shortcut
+    else
+      echo -e "${GREEN}✓ Skipping desktop shortcut creation.${NC}"
+    fi
+  fi
 fi
 # -------------------------------------------------------------------
 # 9: Create an alias for running the script

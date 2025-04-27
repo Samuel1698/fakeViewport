@@ -1,15 +1,24 @@
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+import logging
+import logging.handlers
+# stub out the rotating‐file handler before viewport.py ever sees it
+logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
 
 import pytest
 from unittest.mock import MagicMock, patch, call
 from io import StringIO
-from datetime import datetime, timedelta
-
+from datetime import datetime
+from webdriver_manager.core.os_manager import ChromeType
 import viewport
 import signal
 
+# helper to build a fake psutil.Process‐like object
+def _make_proc(pid, cmdline):
+    proc = MagicMock()
+    proc.info = {"pid": pid, "cmdline": cmdline}
+    return proc
 # -------------------------------------------------------------------------
 # Test for Singal Handler
 # -------------------------------------------------------------------------
@@ -24,158 +33,286 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
 
     # Assertions
     mock_driver.quit.assert_called_once()
-    mock_logging.info.assert_any_call("Gracefully shutting down Chrome.")
+    mock_logging.info.assert_any_call(f"Gracefully shutting down {viewport.BROWSER}.")
     mock_logging.info.assert_any_call("Gracefully shutting down script instance.")
     mock_api_status.assert_called_once_with("Stopped ")
     mock_exit.assert_called_once_with(0)
-
 # -------------------------------------------------------------------------
 # Test for Status Handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "missing_file, expected_log_error, process_names, expect_in_output",
     [
-        (None, None, ["viewport.py"], ["Fake Viewport 1.2.3", "Script Uptime", "Monitoring API", "Last Status Update", "Last Log Entry"]),
-        ("sst", "Error while checking system uptime", ["viewport.py"], None),
+        # happy path: all files present, check for key output lines
+        (None, None, ["viewport.py"], [
+            "Fake Viewport 1.2.3",
+            "Script Uptime",
+            "Monitoring API",
+            "Usage:",
+            "Next Health Check:",
+            "Last Status Update",
+            "Last Log Entry",
+        ]),
+        # missing uptime file triggers only log_error
+        ("sst", "Uptime File not found", ["viewport.py"], None),
+        # missing status file
         ("status", "Status File not found", ["viewport.py", "monitoring.py"], None),
+        # missing log file
         ("log", "Log File not found", ["viewport.py", "monitoring.py"], None),
     ]
 )
-@patch("viewport.time.sleep", return_value=None)
-@patch("builtins.open")
-@patch("viewport.process_handler")
-@patch("viewport.log_error")
-@patch("viewport.datetime")
-def test_status_handler_parametrized(
-    mock_datetime, mock_log_error, mock_process_handler, mock_open, mock_sleep,
-    missing_file, expected_log_error, process_names, expect_in_output, capsys
+@patch("viewport.time.time", return_value=0)                         # freeze time.time()
+@patch("viewport.check_next_interval", return_value=60)              # fixed next-interval
+@patch("viewport.psutil.virtual_memory")                             # stub RAM
+@patch("viewport.psutil.process_iter", return_value=[])              # no real processes
+@patch("viewport.process_handler")                                   # control running-process flags
+@patch("builtins.open")                                              # intercept file IO
+@patch("viewport.log_error")                                         # spy on errors
+def test_status_handler(
+    mock_log_error,
+    mock_open,
+    mock_process_handler,
+    mock_process_iter,
+    mock_virtual_memory,
+    mock_check_next_interval,
+    mock_time_time,
+    missing_file,
+    expected_log_error,
+    process_names,
+    expect_in_output,
+    capsys
 ):
-    # Setup datetime mock for .now()
-    now = datetime(2024, 4, 25, 12, 0, 0)
-    mock_datetime.now.return_value = now
+    # set a predictable total RAM in GB
+    mock_virtual_memory.return_value = MagicMock(total=1024**3)
 
-    # Variables
+    # override module globals to simple strings/numbers
     viewport.sst_file = "sst.txt"
     viewport.status_file = "status.txt"
     viewport.log_file = "viewport.log"
     viewport.viewport_version = "1.2.3"
-    # Prepare formatted string data (not datetime objects)
-    start_time = now - timedelta(days=1, hours=2, minutes=30, seconds=45)
-    start_time_str = start_time.strftime('%Y-%m-%d %H:%M:%S.%f')
-    sst_data = StringIO(start_time_str)
-    status_data = StringIO("Feed Healthy")
-    log_data = StringIO("[INFO] Viewport check successful.")
+    viewport.SLEEP_TIME = 60
+    viewport.LOG_INTERVAL = 10
 
-    def open_side_effect(file, *args, **kwargs):
-        if "sst" in file:
-            if missing_file == "sst":
-                raise FileNotFoundError
+    # prepare in-memory file contents
+    start = datetime(2024, 4, 25, 12, 0, 0)
+    sst_data    = StringIO(start.strftime('%Y-%m-%d %H:%M:%S.%f'))
+    status_data = StringIO("Feed Healthy")
+    log_data    = StringIO("[INFO] Viewport check successful.")
+
+    # simulate FileNotFound at different stages
+    def open_side_effect(path, *args, **kwargs):
+        p = str(path)
+        if "sst"    in p:
+            if missing_file == "sst":    raise FileNotFoundError
             return sst_data
-        elif "status" in file:
-            if missing_file == "status":
-                raise FileNotFoundError
+        if "status" in p:
+            if missing_file == "status": raise FileNotFoundError
             return status_data
-        elif "log" in file:
-            if missing_file == "log":
-                raise FileNotFoundError
+        if "log"    in p:
+            if missing_file == "log":    raise FileNotFoundError
             return log_data
-        else:
-            raise FileNotFoundError
+        raise FileNotFoundError
 
     mock_open.side_effect = open_side_effect
+
+    # control which processes appear 'running'
     mock_process_handler.side_effect = lambda name, action="check": name in process_names
 
-    # Call the function
+    # run the handler
     viewport.status_handler()
 
+    # assertions
     if expected_log_error:
         mock_log_error.assert_called_once()
         assert expected_log_error in mock_log_error.call_args[0][0]
     else:
-        captured = capsys.readouterr()
-        for text in expect_in_output:
-            assert text in captured.out
+        out = capsys.readouterr().out
+        for snippet in expect_in_output:
+            assert snippet in out
         mock_log_error.assert_not_called()
 # -------------------------------------------------------------------------
 # Test for Process Handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize(
-    "stdout_output, action, expected_result, should_kill",
+    "proc_list, current_pid, name, action, expected_result, expected_kill_calls, expected_api_calls, expected_log_info",
     [
-        ("12345\n67890", "check", True, False),   # Process exists, check mode
-        ("12345\n67890", "kill", False, True),    # Process exists, kill mode
-        ("", "check", False, False),              # No process found
-    ],
+        # Process Running
+        # Current PID, Name to, Check, Exists?
+        # Expected Kill Calls, Expected API Calls
+
+        # No process, 'viewport', check, Not Present
+        (
+            [], 
+            100, "viewport.py", "check", False, 
+            [], [], []
+        ),
+
+        # Only Self Viewport Process running
+        # 'viewport', 'check', Should be False
+        (
+            [_make_proc(100, ["viewport.py"])],
+            100, "viewport.py", "check", False, 
+            [], [], []
+        ),
+
+        # Different Viewport Process running
+        # 'viewport', 'check', Should be True
+        (
+            [_make_proc(1, ["python", "viewport.py"])],
+            100, "viewport.py", "check", True, 
+            [], [], []
+        ),
+
+        # Different commandline process with argument
+        # 'viewport', 'check', Should be True
+        (
+            [_make_proc(10, "/usr/bin/viewport.py --foo")], 
+            0, "viewport.py", "check", True, 
+            [], [], []
+        ),
+
+        # No Process Running = None to kill
+        # 'viewport', 'kill', Should be False
+        (
+            [], 
+            200, "viewport.py", "kill", False, 
+            [], [], []
+        ),
+
+        # Only Self Viewport Process Runnning = Do not Kill
+        # 'viewport', 'kill', Should be False
+        (
+            [_make_proc(200, ["viewport.py"])], 
+            200, "viewport.py", "kill", False, 
+            [], [], []
+        ),
+
+        # Chrome Processes (2, 3) running in backgrond
+        # 'chrome', 'kill', If killed should return False
+        # Process 2 and 3 gets SIGTERM, API Call should be:
+        (
+            [_make_proc(2, ["chrome"]),
+             _make_proc(3, ["chrome"])], 
+            999, "chrome", "kill", False,
+            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'chrome'"], ["Killed process 'chrome' with PIDs: 2, 3"]
+        ),
+
+        # Chromium Process (2, 3) running in backgrond
+        # 'chromium', 'kill', If killed should return False
+        # Process 2 and 3 get SIGTERM, API Call should be:
+        (
+            [_make_proc(2, ["chromium"]),
+             _make_proc(3, ["chromium"])], 
+            999, "chromium", "kill", False,
+            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'chromium'"], ["Killed process 'chromium' with PIDs: 2, 3"]
+        ),
+
+        # Multiple viewport instances running in background, separate from current instance
+        # 'viewport', 'kill', If killed should return False
+        # Process 2 and 3 get SIGTERM, API Call should be:
+        (   
+            [_make_proc(2, ["viewport.py"]),
+             _make_proc(3, ["viewport.py"]),
+             _make_proc(4, ["other"])], 
+            999, "viewport.py", "kill", False,
+            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2, 3"]
+        ),
+        # One other viewport instance running in background
+        # 'viewport', 'kill', If killed should return False
+        # Process 2, API Call should be:
+        (   
+            [_make_proc(2, ["viewport.py"]),
+             _make_proc(3, ["other"])], 
+            999, "viewport.py", "kill", False,
+            [(2, signal.SIGTERM)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2"]
+        ),
+    ]
 )
-@patch("viewport.time.sleep", return_value=None)
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-@patch("viewport.logging")
+@patch("viewport.logging.info")
+@patch("viewport.psutil.process_iter")
+@patch("viewport.os.getpid")
 @patch("viewport.os.kill")
-@patch("viewport.subprocess.run")
+@patch("viewport.api_status")
 def test_process_handler(
-    mock_run, mock_kill, mock_logging, mock_log_error, mock_api_status, mock_sleep,
-    stdout_output, action, expected_result, should_kill
+    mock_api, mock_kill, mock_getpid, mock_iter, mock_log_info,
+    proc_list, current_pid, name, action,
+    expected_result, expected_kill_calls, expected_api_calls, expected_log_info
 ):
-    mock_run.return_value.stdout = stdout_output
+    # arrange
+    mock_iter.return_value   = proc_list
+    mock_getpid.return_value = current_pid
 
-    with patch("viewport.os.getpid", return_value=99999):
-        result = viewport.process_handler("viewport.py", action=action)
+    # act
+    result = viewport.process_handler(name, action=action)
 
-    assert result == expected_result
+    # assert return value
+    assert result is expected_result
 
-    if should_kill:
-        mock_kill.assert_any_call(12345, signal.SIGTERM)
-        mock_kill.assert_any_call(67890, signal.SIGTERM)
+    # assert os.kill calls
+    if expected_kill_calls:
+        assert mock_kill.call_count == len(expected_kill_calls)
+        for pid, sig in expected_kill_calls:
+            mock_kill.assert_any_call(pid, sig)
     else:
         mock_kill.assert_not_called()
-
-    mock_log_error.assert_not_called()
-
-@patch("viewport.time.sleep", return_value=None)
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-@patch("viewport.logging")
-@patch("viewport.os.kill")
-@patch("viewport.subprocess.run")
-def test_process_handler_exception(
-    mock_run, mock_kill, mock_logging, mock_log_error, mock_api_status, mock_sleep
-):
-    # Simulate subprocess.run throwing an exception
-    mock_run.side_effect = Exception("Something went wrong")
-
-    result = viewport.process_handler("viewport.py", action="check")
-
-    assert result is False
-    mock_log_error.assert_called_once()
-    mock_api_status.assert_called_once()
-
+    
+    # Assert logging.info calls
+    if expected_log_info:
+        for msg in expected_log_info:
+            mock_log_info.assert_any_call(msg)
+    else:
+        mock_log_info.assert_not_called()
+    # assert api_status calls
+    if expected_api_calls:
+        assert mock_api.call_args_list == [call(msg) for msg in expected_api_calls]
+    else:
+        mock_api.assert_not_called()
 # -------------------------------------------------------------------------
 # Test for Service Handler
 # -------------------------------------------------------------------------
 @patch("viewport.ChromeDriverManager")
-def test_service_handler_installs_chromedriver(mock_chrome_driver_manager):
-    # Reset global path first
+def test_service_handler_installs_chrome_driver_google(mock_chrome_driver_manager):
+    # Reset the cached path
     viewport._chrome_driver_path = None
+    # Simulate a Google-Chrome binary
+    viewport.BROWSER_BINARY = "/usr/bin/google-chrome-stable"
 
+    # Stub out the installer
     mock_installer = MagicMock()
     mock_installer.install.return_value = "/fake/path/to/chromedriver"
     mock_chrome_driver_manager.return_value = mock_installer
 
-    result = viewport.service_handler()
+    path = viewport.service_handler()
 
-    assert result == "/fake/path/to/chromedriver"
+    assert path == "/fake/path/to/chromedriver"
+    mock_chrome_driver_manager.assert_called_once_with(chrome_type=ChromeType.GOOGLE)
     mock_installer.install.assert_called_once()
+@patch("viewport.ChromeDriverManager")
+def test_service_handler_installs_chrome_driver_chromium(mock_chrome_driver_manager):
+    # Reset the cached path
+    viewport._chrome_driver_path = None
+    # Simulate a Chromium binary
+    viewport.BROWSER_BINARY = "/usr/lib/chromium/chromium"
 
+    # Stub out the installer
+    mock_installer = MagicMock()
+    mock_installer.install.return_value = "/fake/path/to/chromedriver-chromium"
+    mock_chrome_driver_manager.return_value = mock_installer
+
+    path = viewport.service_handler()
+
+    assert path == "/fake/path/to/chromedriver-chromium"
+    mock_chrome_driver_manager.assert_called_once_with(chrome_type=ChromeType.CHROMIUM)
+    mock_installer.install.assert_called_once()
 @patch("viewport.ChromeDriverManager")
 def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
+    # Pre-seed the cache
     viewport._chrome_driver_path = "/already/installed/driver"
 
-    result = viewport.service_handler()
+    path = viewport.service_handler()
 
-    assert result == "/already/installed/driver"
+    assert path == "/already/installed/driver"
     mock_chrome_driver_manager.assert_not_called()
-
 # -------------------------------------------------------------------------
 # Test for Chrome Handler
 # -------------------------------------------------------------------------
@@ -200,7 +337,7 @@ def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
 @patch("viewport.os.execv")
 @patch("viewport.api_status")
 @patch("viewport.log_error")
-def test_chrome_handler_parametrized(
+def test_chrome_handler(
     mock_log_error,
     mock_api_status,
     mock_execv,
@@ -241,7 +378,7 @@ def test_chrome_handler_parametrized(
 
     # Assert: process_handler("chrome", "kill") at start and possibly at final retry
     assert mock_process_handler.call_count == expected_kill_calls
-    mock_process_handler.assert_any_call("chrome", action="kill")
+    mock_process_handler.assert_any_call(viewport.BROWSER, action="kill")
 
     # Assert: webdriver.Chrome called up to MAX_RETRIES or until success
     assert mock_chrome.call_count == len(chrome_side_effects)
@@ -261,7 +398,7 @@ def test_chrome_handler_parametrized(
             ['python3'] + viewport.sys.argv
         )
         # And we should have logged and API-status’d the restart
-        mock_log_error.assert_any_call("Failed to start Chrome after maximum retries.")
+        mock_log_error.assert_any_call(f"Failed to start {viewport.BROWSER} after maximum retries.")
         mock_api_status.assert_any_call("Restarting Script in 5 seconds.")
     else:
         mock_execv.assert_not_called()
@@ -269,27 +406,45 @@ def test_chrome_handler_parametrized(
         if len(chrome_side_effects) > 1:
             # at least one log_error for each Exception
             assert mock_log_error.call_count >= sum(isinstance(e, Exception) for e in chrome_side_effects)
-
 # -------------------------------------------------------------------------
 # Tests for chrome_restart_handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize(
-    "chrome_exc, check_exc, handle_page_ret, "
-    "expect_sleep, expect_feed_healthy, expect_return_driver, "
-    "expect_log_error, expect_api_calls",
+    "chrome_exc,    check_exc,     handle_page_ret, "
+    "should_sleep,  should_feed_ok, should_return, "
+    "should_log_err, expected_api_calls",
     [
-        # 1) All good, handle_page=True  ⇒ sleep, Feed Healthy, returns driver
-        (None, None, True, True, True, True, False,
-         [call("Restarting Chrome"), call("Feed Healthy")]),
-        # 2) All good, handle_page=False ⇒ no sleep, no Feed Healthy, returns driver
-        (None, None, False, False, False, True, False,
-         [call("Restarting Chrome")]),
-        # 3) chrome_handler raises ⇒ no sleep, no return, log_error & Error Killing Chrome
-        (Exception("boom"), None, None, False, False, False, True,
-         [call("Restarting Chrome"), call("Error Killing Chrome")]),
-        # 4) check_for_title raises ⇒ same as #3
-        (None, Exception("oops"), None, False, False, False, True,
-         [call("Restarting Chrome"), call("Error Killing Chrome")]),
+        # 1) Success, handle_page=True
+        #    → sleep, log "Feed Healthy", return driver, no log_error
+        (
+            None,         None,            True,
+            True,         True,            True,
+            False,        [call(f"Restarting {viewport.BROWSER}"), call("Feed Healthy")],
+        ),
+
+        # 2) Success, handle_page=False
+        #    → no sleep, no "Feed Healthy", return driver, no log_error
+        (
+            None,         None,            False,
+            False,        False,           True,
+            False,        [call(f"Restarting {viewport.BROWSER}")],
+        ),
+
+        # 3) chrome_handler throws
+        #    → no sleep, no return, log_error, Error Killing Chrome
+        (
+            Exception("boom"), None,       None,
+            False,        False,           False,
+            True,         [call(f"Restarting {viewport.BROWSER}"), call(f"Error Killing {viewport.BROWSER}")],
+        ),
+
+        # 4) check_for_title throws
+        #    → same as case 3
+        (
+            None,         Exception("oops"), None,
+            False,        False,           False,
+            True,         [call(f"Restarting {viewport.BROWSER}"), call(f"Error Killing {viewport.BROWSER}")],
+        ),
     ]
 )
 @patch("viewport.time.sleep", return_value=None)
@@ -310,138 +465,109 @@ def test_chrome_restart_handler(
     chrome_exc,
     check_exc,
     handle_page_ret,
-    expect_sleep,
-    expect_feed_healthy,
-    expect_return_driver,
-    expect_log_error,
-    expect_api_calls,
+    should_sleep,
+    should_feed_ok,
+    should_return,
+    should_log_err,
+    expected_api_calls,
 ):
     url = "http://example.com"
-    mock_driver = MagicMock()
+    fake_driver = MagicMock()
 
-    # Setup chrome_handler side effect or return
+    # wire up chrome_handler
     if chrome_exc:
         mock_chrome_handler.side_effect = chrome_exc
     else:
-        mock_chrome_handler.return_value = mock_driver
+        mock_chrome_handler.return_value = fake_driver
 
-    # Setup check_for_title side effect
+    # wire up check_for_title
     if check_exc:
         mock_check_for_title.side_effect = check_exc
 
-    # Setup handle_page return
+    # wire up handle_page
     mock_handle_page.return_value = handle_page_ret
 
     # Act
     result = viewport.chrome_restart_handler(url)
 
-    # Assert api_status calls
-    assert mock_api_status.call_args_list == expect_api_calls
+    # Always start by logging & api_status "Restarting BROWSER"
+    mock_log_info.assert_any_call(f"Restarting {viewport.BROWSER}...")
+    mock_api_status.assert_any_call(f"Restarting {viewport.BROWSER}")
 
-    # Assert log_error only when exceptions
-    assert bool(mock_log_error.called) == expect_log_error
+    # Check the full sequence of api_status calls
+    assert mock_api_status.call_args_list == expected_api_calls
 
-    # If full success path with driver:
-    if expect_return_driver:
-        assert result is mock_driver
-        # handle_page True ⇒ sleep called once
-        assert mock_sleep.called == expect_sleep
-        if expect_feed_healthy:
-            # feed-healthy log/info
-            mock_log_info.assert_any_call("Page successfully reloaded.")
+    # Sleep only when handle_page returned True and no exception
+    assert mock_sleep.called == should_sleep
+
+    # "Page successfully reloaded." only when handle_page was True and no exception
+    if should_feed_ok:
+        mock_log_info.assert_any_call("Page successfully reloaded.")
     else:
-        # on exception path, returns None
+        assert not any("Page successfully reloaded." in args[0][0]
+                       for args in mock_log_info.call_args_list)
+
+    # Return driver only on full success
+    if should_return:
+        assert result is fake_driver
+    else:
         assert result is None
 
-    # Always logs "Restarting chrome..."
-    mock_log_info.assert_any_call("Restarting chrome...")
-
+    # log_error only on exception paths
+    assert mock_log_error.called == should_log_err
 # -------------------------------------------------------------------------
 # Tests for restart_handler
 # -------------------------------------------------------------------------
-import sys
-import pytest
-from unittest.mock import MagicMock, patch
-
-import viewport  # or your module name
-
-@pytest.mark.parametrize(
-    "initial_argv, driver_present, execv_exc, "
-    "expect_quit, expect_sleep, expect_api, expect_execv, expect_log_error, expect_exit",
-    [
-        # 1) driver present, execv OK ⇒ quit, sleep, api_status, execv called
-        (["script.py", "--restart", "foo"],
-         True, None,
-         True, True, True, True, False, False),
-        # 2) driver None, execv OK ⇒ no quit, sleep, api_status, execv
-        (["script.py"],
-         False, None,
-         False, True, True, True, False, False),
-        # 3) execv raises ⇒ quit, sleep, initial api_status, execv attempt,
-        #    then log_error, error api_status, sys.exit(1)
-        (["script.py", "--restart"],
-         True, Exception("bad"),
-         True, True, True, True, True, True),
-    ]
-)
+@pytest.mark.parametrize("initial_argv, driver_present, expected_flags", [
+    # No flags → no extra flags
+    (["viewport.py"],                        False, []),
+    # Short background → background preserved
+    (["viewport.py", "-b"],                  False, ["--background"]),
+    # Long background → background preserved
+    (["viewport.py", "--background"],        False, ["--background"]),
+    # Incomplete background → background preserved
+    (["viewport.py", "--backg"],             False, ["--background"]),
+    # Short restart → replaced by background
+    (["viewport.py", "-r"],                  False, ["--background"]),
+    # Long restart → replaced by background
+    (["viewport.py", "--restart"],           False, ["--background"]),
+    # Incomplete restart → replaced by background
+    (["viewport.py", "--rest"],              False, ["--background"]),
+    # Driver present + restart → driver.quit() + background
+    (["viewport.py", "--restart"],           True, ["--background"]),
+])
 @patch("viewport.sys.exit")
 @patch("viewport.os.execv")
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.api_status")
-@patch("viewport.log_error")
 def test_restart_handler(
-    mock_log_error,
     mock_api_status,
     mock_sleep,
     mock_execv,
     mock_exit,
     initial_argv,
     driver_present,
-    execv_exc,
-    expect_quit,
-    expect_sleep,
-    expect_api,
-    expect_execv,
-    expect_log_error,
-    expect_exit,
+    expected_flags,
 ):
-    # Arrange
+    # Arrange: set sys.argv and optional driver
     viewport.sys.argv = list(initial_argv)
-    dummy_driver = MagicMock() if driver_present else None
-
-    if execv_exc:
-        mock_execv.side_effect = execv_exc
+    driver = MagicMock() if driver_present else None
 
     # Act
-    viewport.restart_handler(dummy_driver)
+    viewport.restart_handler(driver)
 
-    # driver.quit() only if driver_present
-    if expect_quit:
-        dummy_driver.quit.assert_called_once()
-    else:
-        if dummy_driver:
-            dummy_driver.quit.assert_not_called()
+    # Assert: api_status and sleep always happen first
+    mock_api_status.assert_called_once_with("Restarting script...")
+    mock_sleep.assert_called_once_with(2)
 
-    # sleep and initial api_status should always run before execv
-    assert mock_sleep.called == expect_sleep
-    assert mock_api_status.called == expect_api
+    # Assert: driver.quit() only if driver was passed in
+    if driver_present:
+        driver.quit.assert_called_once()
+    # (if driver is None we simply don't check .quit())
 
-    # os.execv()
-    if expect_execv:
-        new_args = [arg for arg in initial_argv if arg != "--restart"]
-        if "--background" not in new_args:
-            new_args.append("--background")
-        mock_execv.assert_called_once_with(
-            sys.executable,
-            [sys.executable] + new_args
-        )
-    else:
-        mock_execv.assert_not_called()
+    # Assert: os.execv() called exactly once with correct args
+    expected_argv = [sys.executable, viewport.sys.argv[0]] + expected_flags
+    mock_execv.assert_called_once_with(sys.executable, expected_argv)
 
-    # on execv exception, we log_error, do error api_status, and exit(1)
-    assert bool(mock_log_error.called) == expect_log_error
-    if expect_exit:
-        mock_api_status.assert_any_call("Error Restarting, exiting...")
-        mock_exit.assert_called_once_with(1)
-    else:
-        mock_exit.assert_not_called()
+    # No errors or exit() on normal path
+    mock_exit.assert_not_called()

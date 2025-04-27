@@ -1,5 +1,6 @@
 [![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
 [![CodeQL](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml)
+
 # Fake Viewport
 
 Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. With this setup, you can automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
@@ -29,7 +30,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 
 ### Software
 - A lightweight Linux distribution of your choice (Preferably Debian based).
-- Chrome installed.
+- Chrome or Chromium installed (Chromium preferred as it is more lightweight).
 - OPTIONAL but recommended: ssh installed and configured for remote monitoring.
 
 ---
@@ -89,24 +90,24 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ```bash
    venv/bin/python3 viewport.py
    ```
-   or by activating the virtual environment and running it:
+   or by activating the virtual environment and running it with python3:
    ```bash
    source venv/bin/activate
    python3 viewport.py
    ```
 
 ### Stopping the Script
-If the script is running and you cannot use `CTRL+C` to stop it, you can manually kill the process: 
-```bash
-ps aux | grep viewport.py
-kill <pid>
-```
-or run the script with the `--quit` or `-q` argument:
+If the script is running and you cannot use `CTRL+C` to stop it, you can call the script with the `-q` argument: 
 ```bash
 viewport -q
 ```
 ```bash
 python3 viewport.py -q
+```
+or manually kill the process with pgrep:
+```bash
+ps aux | grep viewport.py
+kill <pid>
 ```
 
 ### API Integration (Optional)

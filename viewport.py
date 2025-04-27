@@ -1,5 +1,6 @@
 #!/usr/bin/venv python3
 import os
+import psutil
 import sys
 import time
 import argparse
@@ -17,7 +18,7 @@ from dotenv import load_dotenv
 # -------------------------------------------------------------------
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
-viewport_version = "2.1.2"
+viewport_version = "2.1.3"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 # Directory and file paths
 script_dir = Path(__file__).resolve().parent
@@ -32,49 +33,55 @@ YELLOW="\033[1;33m"
 CYAN = "\033[36m"
 NC="\033[0m"
 # -------------------------------------------------------------------
-# Argument Handler and Conditional Imports
+# Argument Handlers
 # -------------------------------------------------------------------
-def arguments_handler():
+def args_helper():
     # Parse command-line arguments for the script.
     parser = argparse.ArgumentParser(
         description=f"{YELLOW}===== Fake Viewport {viewport_version} ====={NC}"
     )
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "-s", "--status",
         action="store_true",
+        dest="status",
         help="Display status information about the script."
     )
-    parser.add_argument(
+    group.add_argument(
         "-b","--background",
         action="store_true",
+        dest="background",
         help="Runs the script in the background."
     )
-    parser.add_argument(
+    group.add_argument(
         "-r", "--restart",
         action="store_true",
+        dest="restart",
         help="Force restarts the script (in background)."
     )
-    parser.add_argument(
+    group.add_argument(
         "-q", "--quit",
         action="store_true",
+        dest="quit",
         help="Stops the running Viewport script."
     )
-    parser.add_argument(
+    group.add_argument(
         "-l", "--logs",
         nargs="?",
         type=int,
         const=5,
         metavar="n",
+        dest="logs",
         help="Display the last n lines from the log file (default: 5)."
     )
-    parser.add_argument(
+    group.add_argument(
         "-a", "--api",
         action="store_true",
+        dest="api",
         help="Toggles the API on or off. Requires USA_API=True in config.ini"
     )
-    args = parser.parse_args()
-    return args
-args = arguments_handler()
+    return parser.parse_args()
+args = args_helper()
 if not any(vars(args).values()) or args.background:
     import threading
     from webdriver_manager.chrome import ChromeDriverManager
@@ -129,19 +136,23 @@ def args_handler(args):
         sys.exit(0)
     if args.background:
         logging.info("Starting the script in the background...")
+        child_argv = args_child_handler(
+            args,
+            drop_flags={"background"},  # don’t re-daemonize when the child starts
+        )
         subprocess.Popen(
-            [sys.executable, __file__] + [arg for arg in sys.argv[1:] if arg not in ("--background", "-b")],
+            [sys.executable, __file__] + child_argv,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
             close_fds=True,
-            start_new_session=True  # Detach from the terminal
+            start_new_session=True,
         )
         sys.exit(0)
     if args.quit:
         logging.info("Stopping the Fake Viewport script...")
-        process_handler('viewport.py', action="kill")
-        process_handler('chrome', action="kill")
+        process_handler("viewport.py", action="kill")
+        process_handler(BROWSER, action="kill")
         sys.exit(0)
     if args.api:
         if process_handler('monitoring.py', action="check"):
@@ -155,19 +166,65 @@ def args_handler(args):
         restart_handler(driver=None)
     else:
         return "continue"
+def args_child_handler(args, *, drop_flags=(), add_flags=None):
+    # Returns a list of flags for a child invocation.
+    # If we're dropping 'restart', force-add '--background'.
+    
+    # normalize drop_flags to a set
+    drop = set(drop_flags or ())
+
+    # Normalize add_flags to a dict mapping dest → override
+    if add_flags is None:
+        add = {}
+    elif isinstance(add_flags, dict):
+        add = dict(add_flags)
+    else:
+        add = {name: None for name in add_flags}
+    # If we're dropping 'restart' *and* the original invocation actually had restart=True,
+    # then force-add the background flag
+    if "restart" in drop and getattr(args, "restart", False):
+        add.setdefault("background", None)
+    # Canonical mapping of each dest to its CLI tokens
+    mapping = {
+        "status":     ["--status"],
+        "background": ["--background"],
+        "restart":    ["--restart"],
+        "quit":       ["--quit"],
+        "api":        ["--api"],
+        "logs":       (["--logs", str(args.logs)] if args.logs is not None else []),
+    }
+    child = []
+    # 1) Re-emit any flags the user originally set,
+    #    except those in drop_flags or those we’ll override via add_flags
+    for dest, flags in mapping.items():
+        if dest in drop or dest in add:
+            continue
+        if getattr(args, dest, False):
+            child.extend(flags)
+    # 2) Force-add any overrides from add_flags (e.g. background after restart)
+    for dest, override in add.items():
+        if override is None:
+            # No explicit value ⇒ use the canonical tokens
+            child.extend(mapping.get(dest, [f"--{dest}"]))
+        else:
+            # Explicit override could be a list or single value
+            if isinstance(override, (list, tuple)):
+                child.extend(override)
+            else:
+                child.extend([f"--{dest}", str(override)])
+    return child
 # -------------------------------------------------------------------
 # Config file initialization
 # -------------------------------------------------------------------
 config = configparser.ConfigParser()
 config.read('config.ini')
-# Conditional variables if code executes with no arguments or with --background
-if not any(vars(args).values()) or args.background:
-    user = getpass.getuser()
-    default_profile_path = f"/home/{user}/.config/google-chrome/Default"
-    CHROME_PROFILE_PATH = config.get('Chrome', 'CHROME_PROFILE_PATH', fallback=default_profile_path).strip()
-    CHROME_BINARY = config.get('Chrome', 'CHROME_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
-    WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
-    MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
+user = getpass.getuser()
+default_profile_path = f"/home/{user}/.config/google-chrome/Default"
+BROWSER_PROFILE_PATH = config.get('Chrome', 'BROWSER_PROFILE_PATH', fallback=default_profile_path).strip()
+WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
+MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
+BROWSER_BINARY = config.get('Chrome', 'BROWSER_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
+BROWSER = "chromium" if "chromium" in BROWSER_BINARY.lower() else "chrome"
 SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
@@ -293,7 +350,7 @@ def api_handler():
 # -------------------------------------------------------------------
 def signal_handler(signum, frame, driver=None):
     if driver is not None:
-        logging.info('Gracefully shutting down Chrome.')
+        logging.info(f'Gracefully shutting down {BROWSER}.')
         driver.quit()
     api_status("Stopped ")
     logging.info("Gracefully shutting down script instance.")
@@ -303,6 +360,56 @@ signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
 # -------------------------------------------------------------------
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
+def get_cpu_color(name, pct):
+    # viewport.py & monitoring.py thresholds
+    if name in ("viewport.py", "monitoring.py"):
+        if pct < 1:
+            return GREEN
+        if pct <= 10:
+            return YELLOW
+        return RED
+    # Browser thresholds
+    if pct < 50:
+        return GREEN
+    if pct <= 70:
+        return YELLOW
+    return RED
+def get_mem_color(pct):
+    if pct <= 35:
+        return GREEN
+    if pct <= 60:
+        return YELLOW
+    return RED
+def get_browser_version(binary_path):
+    # e.g. returns "135.0.7049.95"
+    out = subprocess.check_output([binary_path, "--version"], stderr=subprocess.DEVNULL)
+    return out.decode().split()[1].strip()
+def usage_handler(match_str):
+    """
+    Sum CPU & RSS for processes whose name or cmdline contains match_str.
+    Returns (total_cpu, total_mem_bytes).
+    """
+    # build the list of substrings to look for
+    names_to_match = [match_str]
+    total_cpu = 0.0
+    total_mem = 0
+    for p in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            # normalize cmdline → string
+            raw = p.info.get('cmdline') or []
+            cmd = " ".join(raw) if isinstance(raw, (list, tuple)) else str(raw)
+
+            # if any of our target names appear in name or cmdline
+            if any(ns in (p.info.get('name') or "") or ns in cmd for ns in names_to_match):
+                # block for 100 ms so psutil can sample real CPU usage
+                total_cpu += p.cpu_percent(interval=0.1)
+                total_mem += p.memory_info().rss
+
+        except Exception:
+            # skip processes we can’t inspect
+            continue
+
+    return total_cpu, total_mem
 def status_handler():
     # Displays the status of the script.
     # Script Version, Uptime, Status of API, config values for SLEEP and INTERVAL, and last log message
@@ -312,6 +419,9 @@ def status_handler():
         script_uptime = datetime.now() - script_start_time
         uptime_seconds = script_uptime.total_seconds()
 
+        # Check if viewport and api are running
+        uptime = process_handler('viewport.py', action="check")
+        monitoring = process_handler('monitoring.py', action="check")
         # Convert uptime_seconds to months, days, hours, minutes, and seconds
         uptime_months = int(uptime_seconds // 2592000)
         uptime_days = int(uptime_seconds // 86400)
@@ -326,9 +436,9 @@ def status_handler():
         if uptime_hours > 0: uptime_parts.append(f"{uptime_hours}h")
         if uptime_minutes > 0: uptime_parts.append(f"{uptime_minutes}m")
         if uptime_seconds > 0: uptime_parts.append(f"{uptime_seconds}s")
-        uptime_str = f"{GREEN}{' '.join(uptime_parts)}{NC}" if process_handler('viewport.py', action="check") else f"{RED}Not Running{NC}"
+        uptime_str = f"{GREEN}{' '.join(uptime_parts)}{NC}" if uptime else f"{RED}Not Running{NC}"
         # Check if monitoring.py is running
-        monitoring = f"{GREEN}Running{NC}" if process_handler('monitoring.py', action="check") else f"{RED}Not Running{NC}"
+        monitoring_str = f"{GREEN}Running{NC}" if monitoring else f"{RED}Not Running{NC}"
         # Convert SLEEP_TIME to minutes and seconds
         sleep_minutes = SLEEP_TIME // 60
         sleep_seconds = SLEEP_TIME % 60
@@ -336,12 +446,76 @@ def status_handler():
         if sleep_minutes > 0: sleep_parts.append(f"{sleep_minutes} min")
         if sleep_seconds > 0: sleep_parts.append(f"{sleep_seconds} sec")
         sleep_str = f"{GREEN}{' '.join(sleep_parts)}{NC}"
-        # Display Status
-        print(f"{YELLOW}===== Fake Viewport {viewport_version} ======{NC}")
-        print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
-        print(f"{CYAN}Monitoring API:{NC} {monitoring}")
-        print(f"{CYAN}Checking Page Health Every{NC}: {sleep_str}")
-        print(f"{CYAN}Printing to Log Every{NC}:{GREEN} {LOG_INTERVAL} min{NC}")
+        # CPU & Memory usage
+        # gather raw sums (each sum can exceed 100%)
+        cpu_vp, mem_vp = usage_handler('viewport.py')
+        cpu_mon, mem_mon = usage_handler('monitoring.py')
+        cpu_ch,  mem_ch  = usage_handler(BROWSER)
+
+        # normalize across all logical cores (so 0–100%)
+        ncpus = psutil.cpu_count(logical=True) or 1
+        cpu_vp  /= ncpus
+        cpu_mon /= ncpus
+        cpu_ch  /= ncpus
+
+        total_ram = psutil.virtual_memory().total
+        # Individual memory colors based on their percentage
+        mem_vp_cl = get_mem_color(mem_vp / total_ram * 100)
+        mem_mon_cl = get_mem_color(mem_mon / total_ram * 100)
+        mem_ch_cl = get_mem_color(mem_ch / total_ram * 100)
+        # overall RAM used
+        total_used    = mem_vp + mem_mon + mem_ch
+        used_pct      = total_used / total_ram * 100
+        ram_color     = get_mem_color(used_pct)
+        # helper to format bytes→GB
+        fmt_mem = lambda b: f"{b/(1024**3):.1f}GB"
+        # next health-check countdown
+        next_ts = check_next_interval(SLEEP_TIME)
+        secs = int(next_ts - time.time())
+        hrs, rem = divmod(secs, 3600)
+        mins, sc = divmod(rem, 60)
+        if hrs:
+            next = f"{YELLOW}{hrs}h {mins}m{NC}"
+        elif mins:
+            next = f"{GREEN}{mins}m {sc}s{NC}"
+        else:
+            next = f"{GREEN}{sc}s{NC}"
+        next_str = next if monitoring else f"{RED}Not Running{NC}"
+        # Printing
+        print(f"{YELLOW}======= Fake Viewport {viewport_version} ========{NC}")
+        print(f"{CYAN}Script Uptime:{NC}      {uptime_str}")
+        print(f"{CYAN}Monitoring API:{NC}     {monitoring_str}")
+        print(f"{CYAN}Next Health Check:{NC}  {next_str}")
+        print(
+            f"{CYAN}RAM Used/Available:{NC} "
+            f"{ram_color}{fmt_mem(total_used)}/"
+            f"{fmt_mem(total_ram)}{NC}"
+        )
+        print(f"{CYAN}Usage:{NC}")
+        # CPU & Memory usage (normalized % already applied)
+        metrics = [
+            ("viewport.py", "viewport", cpu_vp, mem_vp, mem_vp_cl),
+            ("monitoring.py", "api",     cpu_mon, mem_mon, mem_mon_cl),
+            (BROWSER,        BROWSER,  cpu_ch,  mem_ch, mem_ch_cl),
+        ]
+        for proc_name, label, cpu, mem, mem_color in metrics:
+            # determine colors per metric
+            cpu_color = get_cpu_color(proc_name, cpu)
+            # label takes worst-case color
+            if RED in (cpu_color, mem_color):
+                label_color = RED
+            elif YELLOW in (cpu_color, mem_color):
+                label_color = YELLOW
+            else:
+                label_color = GREEN
+            # print with colored label, CPU, and Mem
+            print(
+                f"  {label_color}{label:<9}{NC}"
+                f" {CYAN}CPU:{NC} {cpu_color}{cpu:04.1f}%{NC}"
+                f"   {CYAN}Mem:{NC} {mem_color}{fmt_mem(mem)}{NC}"
+            )
+        print(f"{CYAN}Check Health Every:{NC} {sleep_str}")
+        print(f"{CYAN}Print to Log Every:{NC}{GREEN} {LOG_INTERVAL} min{NC}")
         try:
             with open(status_file, "r") as f:
                 # Read the status file
@@ -374,57 +548,84 @@ def status_handler():
         except FileNotFoundError:
             print(f"{RED}Log file not found.{NC}")
             log_error("Log File not found")
+    except FileNotFoundError:
+        print(f"{RED}Uptime file not found.{NC}")
+        log_error("Uptime File not found")
     except Exception as e:
-        log_error("Error while checking system uptime: ", e)
-def process_handler(process_name, action="check"):
+        log_error("Error while checking status: ", e)
+def process_handler(name, action="check"):
     # Handles process management for the script. Checks if a process is running and takes action based on the specified behavior
     # Ensures the current instance is not affected if told to kill the process
-    # Args: process_name (str): The name of the process to check (e.g., 'monitoring.py', 'viewport.py').
+    # Args: name (str): The name of the process to check (e.g., 'monitoring.py', 'viewport.py').
     # action (str): The action to take if the process is found. Options are:
     # - "check": Checks that the process is running and return True. 
     # - "kill": Kill the process if it is running (excluding the current instance).
     # Returns: bool: True if a process exists with that name, False otherwise.
-    current_pid = os.getpid()  # Get the PID of the current process
-    killed = False  # Flag to check if any process was killed
     try:
-        time.sleep(5) # Sleep for 5 seconds to allow the process to stop on their own
-        # Use pgrep to check if the process is running
-        result = subprocess.run(['pgrep', '-f', process_name], stdout=subprocess.PIPE, text=True)
-        if result.stdout:
-            pids = result.stdout.strip().split('\n')  # Get all matching PIDs
-            # Filter out the current process's PID
-            filtered_pids = [pid for pid in pids if int(pid) != current_pid]
-            if action == "kill":
-                for pid in filtered_pids:
-                    try:    
-                        os.kill(int(pid), signal.SIGTERM)  # Send termination signal
-                    except ProcessLookupError:
-                        logging.warning(f"Process with PID {pid} no longer exists.")
-                        api_status(f"Process with PID {pid} no longer exists.")
-                    killed = True  # Set the flag to indicate a process was killed
-            if killed:
-                logging.info(f"Killed process '{process_name}' with PID(s): {', '.join(filtered_pids)}")
-                api_status(f"Killed process '{process_name}'")
-                return False  # Return False if a process was killed - No process exists with that name
-            elif action == "check":
-                for pid in filtered_pids:
-                    return True  # Return True if a process other than current_pid exists with that name
-        else:
+        current = os.getpid()
+        matches = []
+
+        for p in psutil.process_iter(["pid", "cmdline"]):
+            try:
+                # get raw cmdline, which may be list or string
+                raw = p.info.get("cmdline") or []
+                if isinstance(raw, (list, tuple)):
+                    cmd = " ".join(raw)
+                else:
+                    cmd = str(raw)
+
+                # if the target name appears as a substring in the command line
+                if name in cmd:
+                    pid = p.info["pid"]
+                    # skip the current process itself
+                    if pid != current:
+                        matches.append(pid)
+
+                # in "check" mode, return True as soon as we find one
+                if action == "check" and matches:
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                # skip processes that disappear or we can't inspect
+                continue
+
+        # in "kill" mode, terminate all matched pids
+        if action == "kill" and matches:
+            for pid in matches:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    log_error(f"Process {pid} already gone")
+                    api_status(f"Process {pid} already gone")
+            pids = ', '.join(str(x) for x in matches)
+            logging.info(f"Killed process '{name}' with PIDs: {pids}")
+            api_status(f"Killed process '{name}'")
             return False
+
+        # return True/False whether we found any matches
+        return bool(matches)
     except Exception as e:
-        log_error(f"Error while checking process '{process_name}'", e)
-        api_status(f"Error Checking Process '{process_name}'")
+        # catch-all: log and notify API on unexpected errors
+        log_error(f"Error while checking process '{name}'", e)
+        api_status(f"Error Checking Process '{name}'")
         return False
 def service_handler():
     global _chrome_driver_path
     if not _chrome_driver_path:
-        _chrome_driver_path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
+        # pick Chrome vs. Chromium
+        is_chromium = "chromium" in BROWSER_BINARY.lower()
+        chrome_type = ChromeType.CHROMIUM if is_chromium else ChromeType.GOOGLE
+
+        # just grab whatever version the manager thinks is appropriate
+        _chrome_driver_path = ChromeDriverManager(
+            chrome_type=chrome_type
+        ).install()
+
     return _chrome_driver_path
 def chrome_handler(url):
     # Kills any chrome instance, then launches a new one with the specified URL
     # Starts a chrome 'driver' and handles error reattempts
     # If the driver fails to start, it will retry a few times before killing all existing chrome processes and restarting the script
-    process_handler("chrome", action="kill")
+    process_handler(BROWSER, action="kill")
     retry_count = 0
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
@@ -441,9 +642,9 @@ def chrome_handler(url):
             chrome_options.add_argument('--ignore-ssl-errors')
             chrome_options.add_argument("--hide-crash-restore-bubble")
             chrome_options.add_argument("--remote-debugging-port=9222")
-            chrome_options.add_argument(f"--user-data-dir={CHROME_PROFILE_PATH}")
+            chrome_options.add_argument(f"--user-data-dir={BROWSER_PROFILE_PATH}")
             chrome_options.add_experimental_option("excludeSwitches", ['enable-automation'])
-            chrome_options.binary_location = CHROME_BINARY
+            chrome_options.binary_location = BROWSER_BINARY
             chrome_options.add_experimental_option("prefs", {
                 "credentials_enable_service": False,
                 "profile.password_manager_enabled": False
@@ -452,16 +653,16 @@ def chrome_handler(url):
             driver.get(url)
             return driver
         except Exception as e:
-            log_error("Error starting Chrome: ", e)
-            api_status("Error Starting Chrome")
+            log_error(f"Error starting {BROWSER}: ", e)
+            api_status(f"Error Starting {BROWSER}")
             retry_count += 1
             logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
-            # If this is the final attempt, kill all existing Chrome processes
+            # If this is the final attempt, kill all existing browser processes
             if retry_count == max_retries:
-                logging.info("Killing existing Chrome processes...")
-                process_handler("chrome", action="kill")
+                logging.info(f"Killing existing {BROWSER} processes...")
+                process_handler(BROWSER, action="kill")
             time.sleep(5)
-    log_error("Failed to start Chrome after maximum retries.")
+    log_error(f"Failed to start {BROWSER} after maximum retries.")
     logging.info(f"Starting Script again in {int(SLEEP_TIME/2)} seconds.")
     api_status(f"Restarting Script in {int(SLEEP_TIME/2)} seconds.")
     time.sleep(SLEEP_TIME/2)
@@ -470,8 +671,8 @@ def chrome_restart_handler(url):
     # Restarts chrome, checks for the title and logs the result
     # This used to be in handle_retry but gets repeated in handle_view
     try:
-        logging.info("Restarting chrome...")
-        api_status("Restarting Chrome")
+        logging.info(f"Restarting {BROWSER}...")
+        api_status(f"Restarting {BROWSER}")
         driver = chrome_handler(url)
         check_for_title(driver)
         if handle_page(driver):
@@ -480,28 +681,28 @@ def chrome_restart_handler(url):
             time.sleep(WAIT_TIME)
         return driver
     except Exception as e:
-        log_error("Error while killing Chrome processes: ", e)
-        api_status("Error Killing Chrome")
+        log_error(f"Error while killing {BROWSER} processes: ", e)
+        api_status(f"Error Killing {BROWSER}")
 def restart_handler(driver):
-    # Gracefully shuts down the script and restarts it with the same arguments.
-    # Args:
-    #    driver: The Selenium WebDriver instance to be closed (if any).
+    # Reparse args
+    args = args_helper()
     try:
+        # 1) notify API & shut down driver if present
         api_status("Restarting script...")
         if driver is not None:
-            logging.info("Gracefully shutting down Chrome...")
             driver.quit()
         time.sleep(2)
-        # Modify sys.argv to replace --restart with --background
-        new_args = [arg for arg in sys.argv if arg != "--restart"]
-        if "--background" not in new_args:
-            new_args.append("--background")
-        # Restart the script with the modified arguments
-        os.execv(sys.executable, [sys.executable] + new_args)
+
+        # 2) build the new flags: drop --restart, force --background only if the --restart flag was passed:
+        child_argv = args_child_handler(
+            args,
+            drop_flags={"restart"}
+        )
+        os.execv(sys.executable, [sys.executable, sys.argv[0]] + child_argv)
     except Exception as e:
-        log_error("Error during restart process: ", e)
+        log_error("Error during restart process:", e)
         api_status("Error Restarting, exiting...")
-        sys.exit(1)  # Exit with an error code if restart fails
+        sys.exit(1)
 # -------------------------------------------------------------------
 # Helper Functions for main script
 # These functions return true or false but don't interact directly with the webpage
@@ -654,7 +855,7 @@ def handle_fullscreen_button(driver):
         api_status("Fullscreen Activated")
         return True
     except WebDriverException:
-        log_error("Tab Crashed. Restarting Chrome...")
+        log_error(f"Tab Crashed. Restarting {BROWSER}...")
         api_status("Tab Crashed")
         driver = chrome_restart_handler(url)
     except Exception as e:
@@ -688,7 +889,7 @@ def handle_login(driver):
         # Verify successful login
         return check_for_title(driver, "Dashboard")
     except WebDriverException:
-        log_error("Tab Crashed. Restarting Chrome...")
+        log_error(f"Tab Crashed. Restarting {BROWSER}...")
         api_status("Tab Crashed")
         driver = chrome_restart_handler(url)
     except Exception as e: 
@@ -718,7 +919,7 @@ def handle_page(driver):
 def handle_retry(driver, url, attempt, max_retries):
     # Handles the retry logic for the main loop
     # First checks if the title of the page indicate a login page, and if not, reloads the page.
-    # If it's the second to last attempt, it kills all existing Chrome processes and calls chrome_handler again.
+    # If it's the second to last attempt, it kills all existing browser processes and calls chrome_handler again.
     # If it's the last attempt, it restarts the script.
     logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
     api_status(f"Retrying: {attempt} of {max_retries}")
@@ -743,11 +944,11 @@ def handle_retry(driver, url, attempt, max_retries):
                         logging.warning("Failed to activate fullscreen, but continuing anyway.")
                 api_status("Feed Healthy")
         except InvalidSessionIdException:
-            log_error("Chrome session is invalid. Restarting the program.")
+            log_error(f"{BROWSER} session is invalid. Restarting the program.")
             api_status("Restarting Program")
             restart_handler(driver)
         except WebDriverException:
-            log_error("Tab Crashed. Restarting Chrome...")
+            log_error(f"Tab Crashed. Restarting {BROWSER}...")
             api_status("Tab Crashed")
             driver = chrome_restart_handler(url)
         except Exception as e:
@@ -778,48 +979,46 @@ def handle_view(driver, url):
         restart_handler(driver)
     while True:
         try:
-            if not check_driver(driver):
-                logging.warning("WebDriver crashed.")
-                driver = chrome_restart_handler(url)
-            # Check for "Console Offline" or "Protect Offline"
-            offline_status = driver.execute_script("""
-                return Array.from(document.querySelectorAll('span')).find(el => 
-                    el.innerHTML.includes('Console Offline') || el.innerHTML.includes('Protect Offline')
-                );
-            """)
-            if offline_status:
-                logging.warning("Detected offline status: Console or Protect Offline.")
-                api_status("Console or Protect Offline")
-                time.sleep(SLEEP_TIME)  # Wait before retrying
-                retry_count += 1
-                handle_retry(driver, url, retry_count, max_retries)
-            WebDriverWait(driver, WAIT_TIME).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
-            )
-            retry_count = 0
-            screen_size = driver.get_window_size()
-            if screen_size['width'] != driver.execute_script("return screen.width;") or \
-                screen_size['height'] != driver.execute_script("return screen.height;"):
-                logging.info("Attempting to make live-view fullscreen.")
-                if not handle_fullscreen_button(driver):
-                    logging.warning("Failed to activate fullscreen, but continuing anyway.")
-            # Check for "Unable to Stream" message
-            handle_loading_issue(driver)
-            handle_elements(driver)
-            api_status("Feed Healthy")
-            if check_unable_to_stream(driver):
-                logging.warning("Live view contains cameras that the browser cannot decode.")
-                api_status("Decoding Error in some cameras")
-            if iteration_counter >= log_interval_iterations:
-                logging.info("Video feeds healthy.")
-                iteration_counter = 0  # Reset the counter
-            # Calculate the time to sleep until the next health check
-            # Based on the difference between the current time and the next health check time
-            sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
-            time.sleep(sleep_duration)
-            iteration_counter += 1
+            if check_driver(driver):   
+                # Check for "Console Offline" or "Protect Offline"
+                offline_status = driver.execute_script("""
+                    return Array.from(document.querySelectorAll('span')).find(el => 
+                        el.innerHTML.includes('Console Offline') || el.innerHTML.includes('Protect Offline')
+                    );
+                """)
+                if offline_status:
+                    logging.warning("Detected offline status: Console or Protect Offline.")
+                    api_status("Console or Protect Offline")
+                    time.sleep(SLEEP_TIME)  # Wait before retrying
+                    retry_count += 1
+                    handle_retry(driver, url, retry_count, max_retries)
+                WebDriverWait(driver, WAIT_TIME).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
+                )
+                retry_count = 0
+                screen_size = driver.get_window_size()
+                if screen_size['width'] != driver.execute_script("return screen.width;") or \
+                    screen_size['height'] != driver.execute_script("return screen.height;"):
+                    logging.info("Attempting to make live-view fullscreen.")
+                    if not handle_fullscreen_button(driver):
+                        logging.warning("Failed to activate fullscreen, but continuing anyway.")
+                # Check for "Unable to Stream" message
+                handle_loading_issue(driver)
+                handle_elements(driver)
+                api_status("Feed Healthy")
+                if check_unable_to_stream(driver):
+                    logging.warning("Live view contains cameras that the browser cannot decode.")
+                    api_status("Decoding Error in some cameras")
+                if iteration_counter >= log_interval_iterations:
+                    logging.info("Video feeds healthy.")
+                    iteration_counter = 0  # Reset the counter
+                # Calculate the time to sleep until the next health check
+                # Based on the difference between the current time and the next health check time
+                sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
+                time.sleep(sleep_duration)
+                iteration_counter += 1
         except InvalidSessionIdException:
-            log_error("Chrome session is invalid. Restarting the program.")
+            log_error(f"{BROWSER} session is invalid. Restarting the program.")
             api_status("Restarting Program")
             restart_handler(driver)
         except (TimeoutException, NoSuchElementException):
@@ -837,7 +1036,7 @@ def handle_view(driver, url):
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except WebDriverException:
-            log_error("Tab Crashed. Restarting Chrome...")
+            log_error(f"Tab Crashed. Restarting {BROWSER}...")
             api_status("Tab Crashed")
             driver = chrome_restart_handler(url)
         except Exception as e:
