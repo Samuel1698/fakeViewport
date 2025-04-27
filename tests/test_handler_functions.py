@@ -9,7 +9,8 @@ logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.Null
 import pytest
 from unittest.mock import MagicMock, patch, call
 from io import StringIO
-from datetime import datetime, timedelta
+from datetime import datetime
+from webdriver_manager.core.os_manager import ChromeType
 import viewport
 import signal
 
@@ -36,7 +37,6 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
     mock_logging.info.assert_any_call("Gracefully shutting down script instance.")
     mock_api_status.assert_called_once_with("Stopped ")
     mock_exit.assert_called_once_with(0)
-
 # -------------------------------------------------------------------------
 # Test for Status Handler
 # -------------------------------------------------------------------------
@@ -130,6 +130,9 @@ def test_status_handler(
         for snippet in expect_in_output:
             assert snippet in out
         mock_log_error.assert_not_called()
+# -------------------------------------------------------------------------
+# Test for Process Handler
+# -------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "proc_list, current_pid, name, action, expected_result, "
     "expected_kill_calls, expected_api_calls",
@@ -182,7 +185,7 @@ def test_status_handler(
 @patch("viewport.os.getpid")
 @patch("viewport.os.kill")
 @patch("viewport.api_status")
-def test_process_handler_param(
+def test_process_handler(
     mock_api, mock_kill, mock_getpid, mock_iter,
     proc_list, current_pid, name, action,
     expected_result, expected_kill_calls, expected_api_calls
@@ -214,28 +217,48 @@ def test_process_handler_param(
 # Test for Service Handler
 # -------------------------------------------------------------------------
 @patch("viewport.ChromeDriverManager")
-def test_service_handler_installs_chromedriver(mock_chrome_driver_manager):
-    # Reset global path first
+def test_service_handler_installs_chrome_driver_google(mock_chrome_driver_manager):
+    # Reset the cached path
     viewport._chrome_driver_path = None
+    # Simulate a Google-Chrome binary
+    viewport.CHROME_BINARY = "/usr/bin/google-chrome-stable"
 
+    # Stub out the installer
     mock_installer = MagicMock()
     mock_installer.install.return_value = "/fake/path/to/chromedriver"
     mock_chrome_driver_manager.return_value = mock_installer
 
-    result = viewport.service_handler()
+    path = viewport.service_handler()
 
-    assert result == "/fake/path/to/chromedriver"
+    assert path == "/fake/path/to/chromedriver"
+    mock_chrome_driver_manager.assert_called_once_with(chrome_type=ChromeType.GOOGLE)
     mock_installer.install.assert_called_once()
+@patch("viewport.ChromeDriverManager")
+def test_service_handler_installs_chrome_driver_chromium(mock_chrome_driver_manager):
+    # Reset the cached path
+    viewport._chrome_driver_path = None
+    # Simulate a Chromium binary
+    viewport.CHROME_BINARY = "/usr/bin/chromium-browser"
 
+    # Stub out the installer
+    mock_installer = MagicMock()
+    mock_installer.install.return_value = "/fake/path/to/chromedriver-chromium"
+    mock_chrome_driver_manager.return_value = mock_installer
+
+    path = viewport.service_handler()
+
+    assert path == "/fake/path/to/chromedriver-chromium"
+    mock_chrome_driver_manager.assert_called_once_with(chrome_type=ChromeType.CHROMIUM)
+    mock_installer.install.assert_called_once()
 @patch("viewport.ChromeDriverManager")
 def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
+    # Pre-seed the cache
     viewport._chrome_driver_path = "/already/installed/driver"
 
-    result = viewport.service_handler()
+    path = viewport.service_handler()
 
-    assert result == "/already/installed/driver"
+    assert path == "/already/installed/driver"
     mock_chrome_driver_manager.assert_not_called()
-
 # -------------------------------------------------------------------------
 # Test for Chrome Handler
 # -------------------------------------------------------------------------
@@ -329,27 +352,45 @@ def test_chrome_handler(
         if len(chrome_side_effects) > 1:
             # at least one log_error for each Exception
             assert mock_log_error.call_count >= sum(isinstance(e, Exception) for e in chrome_side_effects)
-
 # -------------------------------------------------------------------------
 # Tests for chrome_restart_handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize(
-    "chrome_exc, check_exc, handle_page_ret, "
-    "expect_sleep, expect_feed_healthy, expect_return_driver, "
-    "expect_log_error, expect_api_calls",
+    "chrome_exc,    check_exc,     handle_page_ret, "
+    "should_sleep,  should_feed_ok, should_return, "
+    "should_log_err, expected_api_calls",
     [
-        # 1) All good, handle_page=True  ⇒ sleep, Feed Healthy, returns driver
-        (None, None, True, True, True, True, False,
-         [call("Restarting Chrome"), call("Feed Healthy")]),
-        # 2) All good, handle_page=False ⇒ no sleep, no Feed Healthy, returns driver
-        (None, None, False, False, False, True, False,
-         [call("Restarting Chrome")]),
-        # 3) chrome_handler raises ⇒ no sleep, no return, log_error & Error Killing Chrome
-        (Exception("boom"), None, None, False, False, False, True,
-         [call("Restarting Chrome"), call("Error Killing Chrome")]),
-        # 4) check_for_title raises ⇒ same as #3
-        (None, Exception("oops"), None, False, False, False, True,
-         [call("Restarting Chrome"), call("Error Killing Chrome")]),
+        # 1) Success, handle_page=True
+        #    → sleep, log "Feed Healthy", return driver, no log_error
+        (
+            None,         None,            True,
+            True,         True,            True,
+            False,        [call("Restarting Chrome"), call("Feed Healthy")],
+        ),
+
+        # 2) Success, handle_page=False
+        #    → no sleep, no "Feed Healthy", return driver, no log_error
+        (
+            None,         None,            False,
+            False,        False,           True,
+            False,        [call("Restarting Chrome")],
+        ),
+
+        # 3) chrome_handler throws
+        #    → no sleep, no return, log_error, Error Killing Chrome
+        (
+            Exception("boom"), None,       None,
+            False,        False,           False,
+            True,         [call("Restarting Chrome"), call("Error Killing Chrome")],
+        ),
+
+        # 4) check_for_title throws
+        #    → same as case 3
+        (
+            None,         Exception("oops"), None,
+            False,        False,           False,
+            True,         [call("Restarting Chrome"), call("Error Killing Chrome")],
+        ),
     ]
 )
 @patch("viewport.time.sleep", return_value=None)
@@ -370,52 +411,56 @@ def test_chrome_restart_handler(
     chrome_exc,
     check_exc,
     handle_page_ret,
-    expect_sleep,
-    expect_feed_healthy,
-    expect_return_driver,
-    expect_log_error,
-    expect_api_calls,
+    should_sleep,
+    should_feed_ok,
+    should_return,
+    should_log_err,
+    expected_api_calls,
 ):
     url = "http://example.com"
-    mock_driver = MagicMock()
+    fake_driver = MagicMock()
 
-    # Setup chrome_handler side effect or return
+    # wire up chrome_handler
     if chrome_exc:
         mock_chrome_handler.side_effect = chrome_exc
     else:
-        mock_chrome_handler.return_value = mock_driver
+        mock_chrome_handler.return_value = fake_driver
 
-    # Setup check_for_title side effect
+    # wire up check_for_title
     if check_exc:
         mock_check_for_title.side_effect = check_exc
 
-    # Setup handle_page return
+    # wire up handle_page
     mock_handle_page.return_value = handle_page_ret
 
     # Act
     result = viewport.chrome_restart_handler(url)
 
-    # Assert api_status calls
-    assert mock_api_status.call_args_list == expect_api_calls
+    # Always start by logging & api_status "Restarting Chrome"
+    mock_log_info.assert_any_call("Restarting chrome...")
+    mock_api_status.assert_any_call("Restarting Chrome")
 
-    # Assert log_error only when exceptions
-    assert bool(mock_log_error.called) == expect_log_error
+    # Check the full sequence of api_status calls
+    assert mock_api_status.call_args_list == expected_api_calls
 
-    # If full success path with driver:
-    if expect_return_driver:
-        assert result is mock_driver
-        # handle_page True ⇒ sleep called once
-        assert mock_sleep.called == expect_sleep
-        if expect_feed_healthy:
-            # feed-healthy log/info
-            mock_log_info.assert_any_call("Page successfully reloaded.")
+    # Sleep only when handle_page returned True and no exception
+    assert mock_sleep.called == should_sleep
+
+    # "Page successfully reloaded." only when handle_page was True and no exception
+    if should_feed_ok:
+        mock_log_info.assert_any_call("Page successfully reloaded.")
     else:
-        # on exception path, returns None
+        assert not any("Page successfully reloaded." in args[0][0]
+                       for args in mock_log_info.call_args_list)
+
+    # Return driver only on full success
+    if should_return:
+        assert result is fake_driver
+    else:
         assert result is None
 
-    # Always logs "Restarting chrome..."
-    mock_log_info.assert_any_call("Restarting chrome...")
-
+    # log_error only on exception paths
+    assert mock_log_error.called == should_log_err
 # -------------------------------------------------------------------------
 # Tests for restart_handler
 # -------------------------------------------------------------------------
