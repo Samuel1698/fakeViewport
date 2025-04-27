@@ -130,59 +130,76 @@ def test_status_handler(
         for snippet in expect_in_output:
             assert snippet in out
         mock_log_error.assert_not_called()
-# -------------------------------------------------------------------------
-# Test for Process Handler
-# -------------------------------------------------------------------------
-@patch("viewport.psutil.process_iter")
-@patch("viewport.os.getpid", return_value=100)
-def test_process_handler_check_mode_finds_a_match(mock_getpid, mock_iter):
-    # simulate two processes: one is ourselves (pid 100), one is a child of interest
-    mock_iter.return_value = [
-        _make_proc(100, ["python", "viewport.py"]),
-        _make_proc(123, ["python", "/usr/bin/viewport.py", "--foo"]),
+@pytest.mark.parametrize(
+    "proc_list, current_pid, action, expected_result, "
+    "expected_kill_calls, expected_api_calls",
+    [
+        # check mode, no processes at all
+        ([],                     100, "check", False, [], []),
+
+        # check mode, only self → False
+        ([_make_proc(100, ["viewport.py"])], 100, "check", False, [], []),
+
+        # check mode, one other process → True
+        ([_make_proc(1,   ["python","viewport.py"])],  
+                                 100, "check", True,  [], []),
+
+        # kill mode, no processes → False, no kills, no api
+        ([],                     200, "kill",  False, [], []),
+
+        # kill mode, only self → False, no kills, no api
+        ([_make_proc(200, ["viewport.py"])], 200, "kill", False, [], []),
+
+        # kill mode, two others → False, two kills, one api_status
+        (
+            [
+                _make_proc(2, ["viewport.py"]), 
+                _make_proc(3, ["viewport.py"]),
+                _make_proc(4, ["other.py"])
+            ],
+            999,
+            "kill",
+            False,
+            [(2, signal.SIGTERM), (3, signal.SIGTERM)],
+            ["Killed process 'viewport.py'"]
+        ),
+
+        # check mode, string‐cmdline instead of list → True
+        ([_make_proc(10, "/usr/bin/viewport.py --foo")],
+                                 0,   "check", True,  [], []),
     ]
-
-    # in "check" mode, as soon as we see pid 123 we return True
-    result = viewport.process_handler("viewport.py", action="check")
-    assert result is True
-
+)
 @patch("viewport.psutil.process_iter")
+@patch("viewport.os.getpid")
 @patch("viewport.os.kill")
 @patch("viewport.api_status")
-@patch("viewport.os.getpid", return_value=42)
-def test_process_handler_kill_mode_terminates_all(mock_getpid, mock_api, mock_kill, mock_iter):
-    # simulate three processes: self + two to kill
-    procs = [
-        _make_proc(42, ["python", "viewport.py"]),   # self
-        _make_proc(111, ["bash", "viewport.py", "-b"]),
-        _make_proc(222, ["python", "viewport.py"]),
-    ]
-    mock_iter.return_value = procs
+def test_process_handler(
+    mock_api, mock_kill, mock_getpid, mock_iter,
+    proc_list, current_pid, action, expected_result,
+    expected_kill_calls, expected_api_calls
+):
+    # arrange
+    mock_iter.return_value   = proc_list
+    mock_getpid.return_value = current_pid
 
-    # run in kill mode
-    result = viewport.process_handler("viewport.py", action="kill")
+    # act
+    result = viewport.process_handler("viewport.py", action=action)
 
-    # should return False (no longer “running”)
-    assert result is False
+    # assert result
+    assert result is expected_result
 
-    # both 111 and 222 should have been SIGTERM'd
-    mock_kill.assert_any_call(111, signal.SIGTERM)
-    mock_kill.assert_any_call(222, signal.SIGTERM)
-    assert mock_kill.call_count == 2
-
-    # api_status should have been told we killed the process
-    mock_api.assert_called_once_with("Killed process 'viewport.py'")
-
-@patch("viewport.psutil.process_iter", side_effect=RuntimeError("no /proc"))
-@patch("viewport.log_error")
-@patch("viewport.api_status")
-def test_process_handler_on_exception_returns_false(mock_api, mock_log, mock_iter):
-    # any exception during iteration should log and api_status, then return False
-    result = viewport.process_handler("viewport.py", action="check")
-    assert result is False
-    mock_log.assert_called_once()
-    mock_api.assert_called_once()
-
+    # assert kill calls
+    if expected_kill_calls:
+        assert mock_kill.call_count == len(expected_kill_calls)
+        for pid, sig in expected_kill_calls:
+            mock_kill.assert_any_call(pid, sig)
+    else:
+        mock_kill.assert_not_called()
+    # assert api_status calls
+    if expected_api_calls:
+        assert mock_api.call_args_list == [call(msg) for msg in expected_api_calls]
+    else:
+        mock_api.assert_not_called()
 # -------------------------------------------------------------------------
 # Test for Service Handler
 # -------------------------------------------------------------------------

@@ -560,16 +560,27 @@ def process_handler(name, action="check"):
         matches = []
         for p in psutil.process_iter(["pid", "cmdline"]):
             try:
-                if name in " ".join(p.info["cmdline"]):
+                # grab raw cmdline; could be None, list, or string
+                raw_cmdline = p.info.get("cmdline") or []
+                # if it's a list/tuple, join into one string
+                if isinstance(raw_cmdline, (list, tuple)):
+                    cmd = " ".join(raw_cmdline)
+                else:
+                    # fallback: convert whatever it is into string
+                    cmd = str(raw_cmdline)
+                # if the target name appears in the cmd string
+                if name in cmd:
                     pid = p.info["pid"]
+                    # ignore our own process
                     if pid != current:
                         matches.append(pid)
-                # early-exit if you just wanted to check
+                # early exit for "check" mode once we found one
                 if action == "check" and matches:
                     return True
             except (psutil.NoSuchProcess, psutil.AccessDenied):
+                # skip processes that vanish or deny access
                 continue
-
+        # if we're asked to kill, terminate all matched pids
         if action == "kill" and matches:
             for pid in matches:
                 try:
@@ -578,10 +589,10 @@ def process_handler(name, action="check"):
                     api_status(f"Process {pid} already gone")
             api_status(f"Killed process '{name}'")
             return False
-
+        # otherwise return True/False whether we found any matches
         return bool(matches)
     except Exception as e:
-        # catches errors from psutil.process_iter or anything above
+        # on unexpected errors, log and notify API
         log_error(f"Error while checking process '{name}'", e)
         api_status(f"Error Checking Process '{name}'")
         return False
