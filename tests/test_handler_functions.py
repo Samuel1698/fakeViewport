@@ -452,7 +452,7 @@ def test_restart_handler(
         if args.api:         expected.append("--api")
         # (note: args.restart is dropped on purpose)
         expected.append("--background")
-
+        expected = [sys.executable] + expected
         mock_execv.assert_called_once_with(sys.executable, expected)
     else:
         mock_execv.assert_not_called()
@@ -464,3 +464,36 @@ def test_restart_handler(
         mock_exit.assert_called_once_with(1)
     else:
         mock_exit.assert_not_called()
+
+@pytest.mark.parametrize("orig_argv, expected_child_flags", [
+    # restarting should drop -r and add only --background
+    (["viewport.py", "-r"], ["--background"]),
+    (["viewport.py", "--restart"], ["--background"]),
+    (["viewport.py", "-r", "--resta"], ["--background"]),
+])
+def test_restart_round_trip_parses_background(orig_argv, expected_child_flags, monkeypatch):
+    # 1) Simulate the original invocation
+    monkeypatch.setattr(viewport.sys, "argv", list(orig_argv))
+    args = viewport.args_helper()
+    assert args.restart is True, "original args_helper should see restart=True"
+
+    # 2) Compute the flags that restart_handler would re-exec with
+    child_flags = viewport.args_child_handler(
+        args,
+        drop_flags={"restart"},
+        add_flags={"background"}
+    )
+    assert child_flags == expected_child_flags
+
+    # 3) Now simulate a fresh process with just those flags
+    monkeypatch.setattr(viewport.sys, "argv", ["viewport.py"] + child_flags)
+
+    # 4) Ensure args_helper() accepts --background and nothing else
+    new_args = viewport.args_helper()
+    assert new_args.background is True
+    # all the other switches must be False / None
+    assert not new_args.restart
+    assert not new_args.status
+    assert not new_args.quit
+    assert not new_args.api
+    assert new_args.logs is None

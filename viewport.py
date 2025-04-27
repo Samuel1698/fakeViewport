@@ -544,18 +544,19 @@ def chrome_restart_handler(url):
         api_status("Error Killing Chrome")
 def restart_handler(driver):
     try:
+        # 1) notify API & shut down Chrome if present
         api_status("Restarting script...")
         if driver is not None:
             driver.quit()
         time.sleep(2)
 
+        # 2) build the new flags: drop --restart, force --background
         child_argv = args_child_handler(
             args,
-            drop_flags={"restart"},        # strip out any -r/--restart
-            add_flags={"background": None} # force --background back in
+            drop_flags={"restart"},
+            add_flags={"background": None}
         )
-        # re-exec with the original script name and the new flags
-        os.execv(sys.executable, [sys.argv[0]] + child_argv)
+        os.execv(sys.executable, [sys.executable, sys.argv[0]] + child_argv)
     except Exception as e:
         log_error("Error during restart process:", e)
         api_status("Error Restarting, exiting...")
