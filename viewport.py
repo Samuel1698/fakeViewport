@@ -358,6 +358,19 @@ signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
 # -------------------------------------------------------------------
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
+def usage_handler(match_str):
+    total_cpu = 0.0
+    total_mem = 0
+    for p in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            cmd = " ".join(p.info.get('cmdline') or [])
+            if match_str in p.info.get('name', "") or match_str in cmd:
+                # block for 100 ms so psutil can sample real CPU usage
+                total_cpu += p.cpu_percent(interval=0.1)
+                total_mem += p.memory_info().rss
+        except Exception:
+            continue
+    return total_cpu, total_mem
 def status_handler():
     # Displays the status of the script.
     # Script Version, Uptime, Status of API, config values for SLEEP and INTERVAL, and last log message
@@ -395,23 +408,16 @@ def status_handler():
         if sleep_seconds > 0: sleep_parts.append(f"{sleep_seconds} sec")
         sleep_str = f"{GREEN}{' '.join(sleep_parts)}{NC}"
         # CPU & Memory usage
-        # helper to sum cpu% and rss for processes matching name or cmdline
-        def sum_usage(match_str):
-            total_cpu = 0.0
-            total_mem = 0
-            for p in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    cmd = " ".join(p.info.get('cmdline') or [])
-                    if match_str in p.info.get('name', "") or match_str in cmd:
-                        # measure over 0.2 s so we get a real reading
-                        total_cpu += p.cpu_percent(interval=0.2)
-                        total_mem += p.memory_info().rss
-                except Exception:
-                    continue
-            return total_cpu, total_mem
-        cpu_vp, mem_vp = sum_usage('viewport.py')
-        cpu_mon, mem_mon = sum_usage('monitoring.py')
-        cpu_ch, mem_ch = sum_usage('chrome')
+        # gather raw sums (each sum can exceed 100 %)
+        cpu_vp, mem_vp = usage_handler('viewport.py')
+        cpu_mon, mem_mon = usage_handler('monitoring.py')
+        cpu_ch,  mem_ch  = usage_handler('chrome')
+
+        # normalize across all logical cores (so 0–100 %)
+        ncpus = psutil.cpu_count(logical=True) or 1
+        cpu_vp  /= ncpus
+        cpu_mon /= ncpus
+        cpu_ch  /= ncpus
 
         total_ram = psutil.virtual_memory().total
         # helper to format bytes→GB
