@@ -27,6 +27,7 @@ env_dir = script_dir / '.env'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file = logs_dir / 'viewport.log'
+config_file = script_dir / 'config.ini'
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
@@ -217,7 +218,7 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
 # Config file initialization
 # -------------------------------------------------------------------
 config = configparser.ConfigParser()
-config.read('config.ini')
+config.read(config_file)
 user = getpass.getuser()
 default_profile_path = f"/home/{user}/.config/google-chrome/Default"
 BROWSER_PROFILE_PATH = config.get('Chrome', 'BROWSER_PROFILE_PATH', fallback=default_profile_path).strip()
