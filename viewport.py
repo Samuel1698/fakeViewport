@@ -403,8 +403,8 @@ def status_handler():
                 try:
                     cmd = " ".join(p.info.get('cmdline') or [])
                     if match_str in p.info.get('name', "") or match_str in cmd:
-                        # non-blocking last-interval CPU
-                        total_cpu += p.cpu_percent(interval=0.0)
+                        # measure over 0.2 s so we get a real reading
+                        total_cpu += p.cpu_percent(interval=0.2)
                         total_mem += p.memory_info().rss
                 except Exception:
                     continue
