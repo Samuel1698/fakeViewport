@@ -372,22 +372,6 @@ def get_cpu_color(name, pct):
     if pct <= 70:
         return YELLOW
     return RED
-def get_mem_color(name, mem_bytes):
-    # convert to GB
-    gb = mem_bytes / (1024 ** 3)
-    # viewport.py & monitoring.py thresholds
-    if name in ("viewport.py", "monitoring.py"):
-        if gb <= 0.2:
-            return GREEN
-        if gb <= 0.6:
-            return YELLOW
-        return RED
-    # chrome thresholds
-    if gb < 2:
-        return GREEN
-    if gb <= 3.2:
-        return YELLOW
-    return RED
 def get_mem_color_pct(pct):
     if pct <= 35:
         return GREEN
@@ -456,6 +440,10 @@ def status_handler():
         cpu_ch  /= ncpus
 
         total_ram = psutil.virtual_memory().total
+        # Individual memory colors based on their percentage
+        mem_vp_cl = get_mem_color_pct(mem_vp / total_ram * 100)
+        mem_mon_cl = get_mem_color_pct(mem_mon / total_ram * 100)
+        mem_ch_cl = get_mem_color_pct(mem_ch / total_ram * 100)
         # overall RAM used
         total_used    = mem_vp + mem_mon + mem_ch
         used_pct      = total_used / total_ram * 100
@@ -486,14 +474,13 @@ def status_handler():
         print(f"{CYAN}Usage:{NC}")
         # CPU & Memory usage (normalized % already applied)
         metrics = [
-            ("viewport.py", "viewport", cpu_vp, mem_vp),
-            ("monitoring.py", "api",     cpu_mon, mem_mon),
-            ("chrome",        "chrome",  cpu_ch,  mem_ch),
+            ("viewport.py", "viewport", cpu_vp, mem_vp, mem_vp_cl),
+            ("monitoring.py", "api",     cpu_mon, mem_mon, mem_mon_cl),
+            ("chrome",        "chrome",  cpu_ch,  mem_ch, mem_ch_cl),
         ]
-        for proc_name, label, cpu, mem in metrics:
+        for proc_name, label, cpu, mem, mem_color in metrics:
             # determine colors per metric
             cpu_color = get_cpu_color(proc_name, cpu)
-            mem_color = get_mem_color(proc_name, mem)
             # label takes worst-case color
             if RED in (cpu_color, mem_color):
                 label_color = RED
