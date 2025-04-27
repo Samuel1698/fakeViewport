@@ -96,7 +96,6 @@ def test_handle_loading_issue_no_persistence(
 # -----------------------------------------------------------------------------
 @pytest.mark.parametrize("throw_exc, expect_return, expect_error_msg, expect_api", [
     (None, True, None, "Fullscreen Activated"),
-    (WebDriverException(), None, f"Tab Crashed. Restarting {viewport.BROWSER}...", "Tab Crashed"),
     (Exception("bad"), False, "Error while clicking the fullscreen button: ", "Error Clicking Fullscreen"),
 ])
 @patch("viewport.chrome_restart_handler")
@@ -141,11 +140,6 @@ def test_handle_fullscreen_button(
         mock_log_info.assert_called_with("Fullscreen activated")
         mock_api_status.assert_called_with(expect_api)
         assert result is True
-    elif isinstance(throw_exc, WebDriverException):
-        mock_log_error.assert_called_with(f"Tab Crashed. Restarting {viewport.BROWSER}...")
-        mock_api_status.assert_called_with(expect_api)
-        mock_restart.assert_called_once()  # called with undefined url in code
-        assert result is None
     else:
         # generic exception path
         mock_log_error.assert_called()
@@ -440,65 +434,82 @@ def test_handle_view_offline_branch(
 
 # -----------------------------------------------------------------------------
 # All errors branch
+# -----------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "trigger, expected_log_args, expected_api, recovery_fn, recovery_args",
     [
-        # 1) InvalidSessionIdException => restart_handler(driver)
+        # 1) InvalidSessionIdException ⇒ restart_handler(driver)
         (
-            # make check_driver raise
-            lambda drv, wdw: setattr(viewport, "check_driver", MagicMock(side_effect=InvalidSessionIdException())),
-            (f"{viewport.BROWSER} session is invalid. Restarting the program.",),
+            lambda drv, wdw: setattr(
+                viewport, "check_driver",
+                MagicMock(side_effect=InvalidSessionIdException())
+            ),
+            # now expects the exception as second arg
+            (f"{viewport.BROWSER} session is invalid. Restarting the program.", ANY),
             "Restarting Program",
             "restart_handler",
-            lambda drv, url, mw: (drv,)
+            lambda drv, url, mw: (drv,),
         ),
-        # 2) TimeoutException => handle_retry(driver, url, 1, max_retries)
+        # 2) TimeoutException ⇒ handle_retry(driver, url, 1, max_retries)
         (
-            lambda drv, wdw: setattr(wdw, "until", MagicMock(side_effect=TimeoutException())),
-            ("Video feeds not found or page timed out.",),
+            lambda drv, wdw: setattr(
+                wdw, "until",
+                MagicMock(side_effect=TimeoutException())
+            ),
+            ("Video feeds not found or page timed out.", ANY),
             "Video Feeds Not Found",
             "handle_retry",
-            lambda drv, url, mw: (drv, url, 1, mw)
+            lambda drv, url, mw: (drv, url, 1, mw),
         ),
-        # 3) NoSuchElementException => same as TimeoutException
+        # 3) NoSuchElementException ⇒ same as TimeoutException
         (
-            lambda drv, wdw: setattr(wdw, "until", MagicMock(side_effect=NoSuchElementException())),
-            ("Video feeds not found or page timed out.",),
+            lambda drv, wdw: setattr(
+                wdw, "until",
+                MagicMock(side_effect=NoSuchElementException())
+            ),
+            ("Video feeds not found or page timed out.", ANY),
             "Video Feeds Not Found",
             "handle_retry",
-            lambda drv, url, mw: (drv, url, 1, mw)
+            lambda drv, url, mw: (drv, url, 1, mw),
         ),
-        # 4) NewConnectionError => handle_retry(driver, url, 1, max_retries)
+        # 4) NewConnectionError ⇒ handle_retry(driver, url, 1, max_retries)
         (
-            # driver.execute_script raises NewConnectionError
-            lambda drv, wdw: drv.execute_script.__setattr__("side_effect", NewConnectionError(None, "fail")),
-            ("Connection error occurred. Retrying...",),
+            lambda drv, wdw: drv.execute_script.__setattr__(
+                "side_effect", NewConnectionError(None, "fail")
+            ),
+            ("Connection error occurred. Retrying...", ANY),
             "Connection Error",
             "handle_retry",
-            lambda drv, url, mw: (drv, url, 1, mw)
+            lambda drv, url, mw: (drv, url, 1, mw),
         ),
-        # 5) WebDriverException => chrome_restart_handler(url)
+        # 5) WebDriverException ⇒ chrome_restart_handler(url)
         (
-            lambda drv, wdw: setattr(wdw, "until", MagicMock(side_effect=WebDriverException())),
-            (f"Tab Crashed. Restarting {viewport.BROWSER}...",),
+            lambda drv, wdw: setattr(
+                wdw, "until",
+                MagicMock(side_effect=WebDriverException())
+            ),
+            (f"Tab Crashed. Restarting {viewport.BROWSER}...", ANY),
             "Tab Crashed",
             "chrome_restart_handler",
-            lambda drv, url, mw: (url,)
+            lambda drv, url, mw: (url,),
         ),
-        # 6) Generic Exception => handle_retry(driver, url, 1, max_retries)
+        # 6) Generic Exception ⇒ handle_retry(driver, url, 1, max_retries)
         (
-            lambda drv, wdw: setattr(wdw, "until", MagicMock(side_effect=Exception("oops"))),
+            lambda drv, wdw: setattr(
+                wdw, "until",
+                MagicMock(side_effect=Exception("oops"))
+            ),
             ("Unexpected error occurred: ", ANY),
             "Unexpected Error",
             "handle_retry",
-            lambda drv, url, mw: (drv, url, 1, mw)
+            lambda drv, url, mw: (drv, url, 1, mw),
         ),
-    ]
+    ],
 )
 @patch("viewport.time.sleep", return_value=None)
-@patch("viewport.chrome_restart_handler", side_effect=BreakLoop)
-@patch("viewport.handle_retry", side_effect=BreakLoop)
-@patch("viewport.restart_handler", side_effect=BreakLoop)
+@patch("viewport.chrome_restart_handler", side_effect=Exception)  # break loop
+@patch("viewport.handle_retry", side_effect=Exception)
+@patch("viewport.restart_handler", side_effect=Exception)
 @patch("viewport.api_status")
 @patch("viewport.log_error")
 @patch("viewport.logging.warning")
@@ -507,54 +518,49 @@ def test_handle_view_offline_branch(
 @patch("viewport.check_driver", return_value=True)
 @patch("viewport.handle_page", return_value=True)
 def test_handle_view_all_error_branches(
-    mock_handle_page,        # bottom‐most patch
+    mock_handle_page,
     mock_check_driver,
     mock_wdw,
     mock_log_info,
     mock_log_warn,
     mock_log_error,
     mock_api_status,
-    mock_restart,            # restart_handler patch → mock_restart
-    mock_retry,              # handle_retry patch   → mock_retry
-    mock_chrome_restart,     # chrome_restart_handler → mock_chrome_restart
-    mock_sleep,              # time.sleep patch
+    mock_restart,
+    mock_retry,
+    mock_chrome_restart,
+    mock_sleep,
     trigger,
     expected_log_args,
     expected_api,
     recovery_fn,
-    recovery_args
+    recovery_args,
 ):
-    drv = MagicMock()
+    driver = MagicMock()
     url = "http://example.com"
 
-    # handle_page passes, no offline status
-    drv.execute_script.return_value = None
-
-    # stub presence_of_element_located to succeed by default
+    # normal path into the loop
+    driver.execute_script.return_value = None
     fake_wait = MagicMock()
     fake_wait.until.return_value = True
     mock_wdw.return_value = fake_wait
 
-    # inject the chosen exception scenario
-    trigger(drv, fake_wait)
+    # inject the exception scenario
+    trigger(driver, fake_wait)
 
-    with pytest.raises(BreakLoop):
-        viewport.handle_view(drv, url)
+    with pytest.raises(Exception):
+        viewport.handle_view(driver, url)
 
-    # 1) check log_error args
+    # now every log_error gets two args
     mock_log_error.assert_any_call(*expected_log_args)
 
-    # 2) check api_status
     mock_api_status.assert_called_with(expected_api)
 
-    # 3) dispatch to the right recovery mock
+    # check that the correct recovery function was called
     if recovery_fn == "restart_handler":
         rec = mock_restart
     elif recovery_fn == "handle_retry":
         rec = mock_retry
-    elif recovery_fn == "chrome_restart_handler":
-        rec = mock_chrome_restart
     else:
-        pytest.fail(f"Unknown recovery_fn: {recovery_fn}")
+        rec = mock_chrome_restart
 
-    rec.assert_called_once_with(*recovery_args(drv, url, viewport.MAX_RETRIES))
+    rec.assert_called_once_with(*recovery_args(driver, url, viewport.MAX_RETRIES))

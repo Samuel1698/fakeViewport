@@ -854,10 +854,6 @@ def handle_fullscreen_button(driver):
         logging.info("Fullscreen activated")
         api_status("Fullscreen Activated")
         return True
-    # except WebDriverException:
-    #     log_error(f"Tab Crashed. Restarting {BROWSER}...")
-    #     api_status("Tab Crashed")
-    #     driver = chrome_restart_handler(url)
     except Exception as e:
         log_error("Error while clicking the fullscreen button: ", e)
         api_status("Error Clicking Fullscreen")
@@ -1021,7 +1017,7 @@ def handle_view(driver, url):
             log_error(f"{BROWSER} session is invalid. Restarting the program.", e)
             api_status("Restarting Program")
             restart_handler(driver)
-        except (TimeoutException, NoSuchElementException):
+        except (TimeoutException, NoSuchElementException) as e:
             log_error("Video feeds not found or page timed out.", e)
             api_status("Video Feeds Not Found")
             time.sleep(WAIT_TIME)
