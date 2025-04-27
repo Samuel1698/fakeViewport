@@ -1,12 +1,15 @@
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+import logging
+import logging.handlers
+# stub out the rotating‐file handler before viewport.py ever sees it
+logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
 
 import pytest
 from unittest.mock import MagicMock, patch, call
 from io import StringIO
 from datetime import datetime, timedelta
-
 import viewport
 import signal
 
@@ -40,66 +43,92 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
 @pytest.mark.parametrize(
     "missing_file, expected_log_error, process_names, expect_in_output",
     [
-        (None, None, ["viewport.py"], ["Fake Viewport 1.2.3", "Script Uptime", "Monitoring API", "Last Status Update", "Last Log Entry"]),
-        ("sst", "Error while checking system uptime", ["viewport.py"], None),
+        # happy path: all files present, check for key output lines
+        (None, None, ["viewport.py"], [
+            "Fake Viewport 1.2.3",
+            "Script Uptime",
+            "Monitoring API",
+            "Usage:",
+            "Next Health Check in:",
+            "Last Status Update",
+            "Last Log Entry",
+        ]),
+        # missing uptime file triggers only log_error
+        ("sst", "Uptime File not found", ["viewport.py"], None),
+        # missing status file
         ("status", "Status File not found", ["viewport.py", "monitoring.py"], None),
+        # missing log file
         ("log", "Log File not found", ["viewport.py", "monitoring.py"], None),
     ]
 )
-@patch("viewport.time.sleep", return_value=None)
-@patch("builtins.open")
-@patch("viewport.process_handler")
-@patch("viewport.log_error")
-@patch("viewport.datetime")
-def test_status_handler_parametrized(
-    mock_datetime, mock_log_error, mock_process_handler, mock_open, mock_sleep,
-    missing_file, expected_log_error, process_names, expect_in_output, capsys
+@patch("viewport.time.time", return_value=0)                         # freeze time.time()
+@patch("viewport.check_next_interval", return_value=60)              # fixed next-interval
+@patch("viewport.psutil.virtual_memory")                             # stub RAM
+@patch("viewport.psutil.process_iter", return_value=[])              # no real processes
+@patch("viewport.process_handler")                                   # control running-process flags
+@patch("builtins.open")                                              # intercept file IO
+@patch("viewport.log_error")                                         # spy on errors
+def test_status_handler(
+    mock_log_error,
+    mock_open,
+    mock_process_handler,
+    mock_process_iter,
+    mock_virtual_memory,
+    mock_check_next_interval,
+    mock_time_time,
+    missing_file,
+    expected_log_error,
+    process_names,
+    expect_in_output,
+    capsys
 ):
-    # Setup datetime mock for .now()
-    now = datetime(2024, 4, 25, 12, 0, 0)
-    mock_datetime.now.return_value = now
+    # set a predictable total RAM in GB
+    mock_virtual_memory.return_value = MagicMock(total=1024**3)
 
-    # Variables
+    # override module globals to simple strings/numbers
     viewport.sst_file = "sst.txt"
     viewport.status_file = "status.txt"
     viewport.log_file = "viewport.log"
     viewport.viewport_version = "1.2.3"
-    # Prepare formatted string data (not datetime objects)
-    start_time = now - timedelta(days=1, hours=2, minutes=30, seconds=45)
-    start_time_str = start_time.strftime('%Y-%m-%d %H:%M:%S.%f')
-    sst_data = StringIO(start_time_str)
-    status_data = StringIO("Feed Healthy")
-    log_data = StringIO("[INFO] Viewport check successful.")
+    viewport.SLEEP_TIME = 60
+    viewport.LOG_INTERVAL = 10
 
-    def open_side_effect(file, *args, **kwargs):
-        if "sst" in file:
-            if missing_file == "sst":
-                raise FileNotFoundError
+    # prepare in-memory file contents
+    start = datetime(2024, 4, 25, 12, 0, 0)
+    sst_data    = StringIO(start.strftime('%Y-%m-%d %H:%M:%S.%f'))
+    status_data = StringIO("Feed Healthy")
+    log_data    = StringIO("[INFO] Viewport check successful.")
+
+    # simulate FileNotFound at different stages
+    def open_side_effect(path, *args, **kwargs):
+        p = str(path)
+        if "sst"    in p:
+            if missing_file == "sst":    raise FileNotFoundError
             return sst_data
-        elif "status" in file:
-            if missing_file == "status":
-                raise FileNotFoundError
+        if "status" in p:
+            if missing_file == "status": raise FileNotFoundError
             return status_data
-        elif "log" in file:
-            if missing_file == "log":
-                raise FileNotFoundError
+        if "log"    in p:
+            if missing_file == "log":    raise FileNotFoundError
             return log_data
-        else:
-            raise FileNotFoundError
+        raise FileNotFoundError
 
     mock_open.side_effect = open_side_effect
+
+    # control which processes appear 'running'
     mock_process_handler.side_effect = lambda name, action="check": name in process_names
 
-    # Call the function
+    # run the handler
     viewport.status_handler()
 
+    # assertions
     if expected_log_error:
         mock_log_error.assert_called_once()
         assert expected_log_error in mock_log_error.call_args[0][0]
     else:
-        captured = capsys.readouterr()
-        for text in expect_in_output:
-            assert text in captured.out
+        out = capsys.readouterr().out
+        for snippet in expect_in_output:
+            assert snippet in out
         mock_log_error.assert_not_called()
 # -------------------------------------------------------------------------
 # Test for Process Handler
@@ -204,7 +233,7 @@ def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
 @patch("viewport.os.execv")
 @patch("viewport.api_status")
 @patch("viewport.log_error")
-def test_chrome_handler_parametrized(
+def test_chrome_handler(
     mock_log_error,
     mock_api_status,
     mock_execv,

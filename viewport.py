@@ -181,7 +181,6 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
     else:
         # treat any sequence of names as { name: None }
         add = {name: None for name in add_flags}
-
     mapping = {
         "status":     ["--status"],
         "background": ["--background"],
@@ -190,9 +189,7 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
         "api":        ["--api"],
         "logs":       ["--logs", str(args.logs)] if args.logs is not None else [],
     }
-
     child = []
-
     # 1) re-emit any flags the user originally set,
     #    except those in drop_flags *or* those we’re going to force-add
     for dest, flags in mapping.items():
@@ -397,11 +394,51 @@ def status_handler():
         if sleep_minutes > 0: sleep_parts.append(f"{sleep_minutes} min")
         if sleep_seconds > 0: sleep_parts.append(f"{sleep_seconds} sec")
         sleep_str = f"{GREEN}{' '.join(sleep_parts)}{NC}"
-        # Display Status
+        # CPU & Memory usage
+        # helper to sum cpu% and rss for processes matching name or cmdline
+        def sum_usage(match_str):
+            total_cpu = 0.0
+            total_mem = 0
+            for p in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmd = " ".join(p.info.get('cmdline') or [])
+                    if match_str in p.info.get('name', "") or match_str in cmd:
+                        # non-blocking last-interval CPU
+                        total_cpu += p.cpu_percent(interval=0.0)
+                        total_mem += p.memory_info().rss
+                except Exception:
+                    continue
+            return total_cpu, total_mem
+        cpu_vp, mem_vp = sum_usage('viewport.py')
+        cpu_mon, mem_mon = sum_usage('monitoring.py')
+        cpu_ch, mem_ch = sum_usage('chrome')
+
+        total_ram = psutil.virtual_memory().total
+        # helper to format bytes→GB
+        fmt_mem = lambda b: f"{b/(1024**3):.1f}GB"
+        # next health-check countdown
+        next_ts = check_next_interval(SLEEP_TIME)
+        secs = int(next_ts - time.time())
+        hrs, rem = divmod(secs, 3600)
+        mins, sc = divmod(rem, 60)
+        if hrs:
+            next = f"{YELLOW}{hrs}h {mins}m{NC}"
+        elif mins:
+            next = f"{GREEN}{mins}m {sc}s{NC}"
+        else:
+            next = f"{GREEN}{sc}s{NC}"
+        next_str = next if monitoring else f"{RED}Not Running{NC}"
+        # Printing
         print(f"{YELLOW}===== Fake Viewport {viewport_version} ======{NC}")
         print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
         print(f"{CYAN}Monitoring API:{NC} {monitoring_str}")
+        print(f"{CYAN}Usage:{NC}")
+        print(f"  viewport   CPU: {cpu_vp:.1f}%   Mem: {fmt_mem(mem_vp)}")
+        print(f"  api        CPU: {cpu_mon:.1f}%   Mem: {fmt_mem(mem_mon)}")
+        print(f"  chrome     CPU: {cpu_ch:.1f}%   Mem: {fmt_mem(mem_ch)}")
+        print(f"{CYAN}Total RAM:{NC} {fmt_mem(mem_vp+mem_mon+mem_ch)}/{fmt_mem(total_ram)}")
         print(f"{CYAN}Checking Page Health Every{NC}: {sleep_str}")
+        print(f"{CYAN}Next Health Check in:{NC} {next_str}")
         print(f"{CYAN}Printing to Log Every{NC}:{GREEN} {LOG_INTERVAL} min{NC}")
         try:
             with open(status_file, "r") as f:
@@ -435,8 +472,11 @@ def status_handler():
         except FileNotFoundError:
             print(f"{RED}Log file not found.{NC}")
             log_error("Log File not found")
+    except FileNotFoundError:
+        print(f"{RED}Uptime file not found.{NC}")
+        log_error("Uptime File not found")
     except Exception as e:
-        log_error("Error while checking system uptime: ", e)
+        log_error("Error while checking status: ", e)
 def process_handler(name, action="check"):
     # Handles process management for the script. Checks if a process is running and takes action based on the specified behavior
     # Ensures the current instance is not affected if told to kill the process
