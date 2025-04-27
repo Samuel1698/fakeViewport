@@ -958,46 +958,44 @@ def handle_view(driver, url):
         restart_handler(driver)
     while True:
         try:
-            if not check_driver(driver):
-                logging.warning("WebDriver crashed.")
-                driver = chrome_restart_handler(url)
-            # Check for "Console Offline" or "Protect Offline"
-            offline_status = driver.execute_script("""
-                return Array.from(document.querySelectorAll('span')).find(el => 
-                    el.innerHTML.includes('Console Offline') || el.innerHTML.includes('Protect Offline')
-                );
-            """)
-            if offline_status:
-                logging.warning("Detected offline status: Console or Protect Offline.")
-                api_status("Console or Protect Offline")
-                time.sleep(SLEEP_TIME)  # Wait before retrying
-                retry_count += 1
-                handle_retry(driver, url, retry_count, max_retries)
-            WebDriverWait(driver, WAIT_TIME).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
-            )
-            retry_count = 0
-            screen_size = driver.get_window_size()
-            if screen_size['width'] != driver.execute_script("return screen.width;") or \
-                screen_size['height'] != driver.execute_script("return screen.height;"):
-                logging.info("Attempting to make live-view fullscreen.")
-                if not handle_fullscreen_button(driver):
-                    logging.warning("Failed to activate fullscreen, but continuing anyway.")
-            # Check for "Unable to Stream" message
-            handle_loading_issue(driver)
-            handle_elements(driver)
-            api_status("Feed Healthy")
-            if check_unable_to_stream(driver):
-                logging.warning("Live view contains cameras that the browser cannot decode.")
-                api_status("Decoding Error in some cameras")
-            if iteration_counter >= log_interval_iterations:
-                logging.info("Video feeds healthy.")
-                iteration_counter = 0  # Reset the counter
-            # Calculate the time to sleep until the next health check
-            # Based on the difference between the current time and the next health check time
-            sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
-            time.sleep(sleep_duration)
-            iteration_counter += 1
+            if check_driver(driver):   
+                # Check for "Console Offline" or "Protect Offline"
+                offline_status = driver.execute_script("""
+                    return Array.from(document.querySelectorAll('span')).find(el => 
+                        el.innerHTML.includes('Console Offline') || el.innerHTML.includes('Protect Offline')
+                    );
+                """)
+                if offline_status:
+                    logging.warning("Detected offline status: Console or Protect Offline.")
+                    api_status("Console or Protect Offline")
+                    time.sleep(SLEEP_TIME)  # Wait before retrying
+                    retry_count += 1
+                    handle_retry(driver, url, retry_count, max_retries)
+                WebDriverWait(driver, WAIT_TIME).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
+                )
+                retry_count = 0
+                screen_size = driver.get_window_size()
+                if screen_size['width'] != driver.execute_script("return screen.width;") or \
+                    screen_size['height'] != driver.execute_script("return screen.height;"):
+                    logging.info("Attempting to make live-view fullscreen.")
+                    if not handle_fullscreen_button(driver):
+                        logging.warning("Failed to activate fullscreen, but continuing anyway.")
+                # Check for "Unable to Stream" message
+                handle_loading_issue(driver)
+                handle_elements(driver)
+                api_status("Feed Healthy")
+                if check_unable_to_stream(driver):
+                    logging.warning("Live view contains cameras that the browser cannot decode.")
+                    api_status("Decoding Error in some cameras")
+                if iteration_counter >= log_interval_iterations:
+                    logging.info("Video feeds healthy.")
+                    iteration_counter = 0  # Reset the counter
+                # Calculate the time to sleep until the next health check
+                # Based on the difference between the current time and the next health check time
+                sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
+                time.sleep(sleep_duration)
+                iteration_counter += 1
         except InvalidSessionIdException:
             log_error("Chrome session is invalid. Restarting the program.")
             api_status("Restarting Program")
