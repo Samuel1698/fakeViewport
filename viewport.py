@@ -167,44 +167,47 @@ def args_handler(args):
     else:
         return "continue"
 def args_child_handler(args, *, drop_flags=(), add_flags=None):
-    # Returns a list of (flag, maybe:value) for restarting or backgrounding.
-    # drop_flags  = a set of dest-names to omit (e.g. {"restart"} when backgrounding)
-    # add_flags   = a dict of dest -> override-value to force-add
+    # Returns a list of flags for a child invocation.
+    # If we're dropping 'restart', force-add '--background'.
     
     # normalize drop_flags to a set
     drop = set(drop_flags or ())
-    # normalize add_flags to a dict
+
+    # Normalize add_flags to a dict mapping dest → override
     if add_flags is None:
         add = {}
     elif isinstance(add_flags, dict):
-        add = add_flags
+        add = dict(add_flags)
     else:
-        # treat any sequence of names as { name: None }
         add = {name: None for name in add_flags}
+    # If we're dropping 'restart' *and* the original invocation actually had restart=True,
+    # then force-add the background flag
+    if "restart" in drop and getattr(args, "restart", False):
+        add.setdefault("background", None)
+    # Canonical mapping of each dest to its CLI tokens
     mapping = {
         "status":     ["--status"],
         "background": ["--background"],
         "restart":    ["--restart"],
         "quit":       ["--quit"],
         "api":        ["--api"],
-        "logs":       ["--logs", str(args.logs)] if args.logs is not None else [],
+        "logs":       (["--logs", str(args.logs)] if args.logs is not None else []),
     }
     child = []
-    # 1) re-emit any flags the user originally set,
-    #    except those in drop_flags *or* those we’re going to force-add
+    # 1) Re-emit any flags the user originally set,
+    #    except those in drop_flags or those we’ll override via add_flags
     for dest, flags in mapping.items():
         if dest in drop or dest in add:
             continue
-        if getattr(args, dest):
+        if getattr(args, dest, False):
             child.extend(flags)
-    # 2) force-add any extras from add_flags (e.g. restart→background)
+    # 2) Force-add any overrides from add_flags (e.g. background after restart)
     for dest, override in add.items():
-        # even if dest was in drop_flags, we still want to apply overrides here
         if override is None:
-            # no explicit value, so use your canonical mapping or fallback
+            # No explicit value ⇒ use the canonical tokens
             child.extend(mapping.get(dest, [f"--{dest}"]))
         else:
-            # override could be a str or list of strs
+            # Explicit override could be a list or single value
             if isinstance(override, (list, tuple)):
                 child.extend(override)
             else:
@@ -688,6 +691,8 @@ def chrome_restart_handler(url):
         log_error("Error while killing Chrome processes: ", e)
         api_status("Error Killing Chrome")
 def restart_handler(driver):
+    # Reparse args
+    args = args_helper()
     try:
         # 1) notify API & shut down Chrome if present
         api_status("Restarting script...")
@@ -695,11 +700,10 @@ def restart_handler(driver):
             driver.quit()
         time.sleep(2)
 
-        # 2) build the new flags: drop --restart, force --background
+        # 2) build the new flags: drop --restart, force --background only if the --restart flag was passed:
         child_argv = args_child_handler(
             args,
-            drop_flags={"restart"},
-            add_flags={"background": None}
+            drop_flags={"restart"}
         )
         os.execv(sys.executable, [sys.executable, sys.argv[0]] + child_argv)
     except Exception as e:

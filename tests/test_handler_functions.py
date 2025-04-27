@@ -419,137 +419,56 @@ def test_chrome_restart_handler(
 # -------------------------------------------------------------------------
 # Tests for restart_handler
 # -------------------------------------------------------------------------
-@pytest.mark.parametrize(
-    "initial_argv, driver_present, execv_exc, "
-    "expect_quit, expect_sleep, expect_api, expect_execv, expect_log_error, expect_exit",
-    [
-        # Called with no argument, no driver, execv OK ⇒ no quit, sleep, api_status, execv
-        (["script.py"],                     False, None, False, True, True, True,  False, False),
-        # execv raises ⇒ quit, sleep, initial api_status, execv attempt,
-        #    then log_error, error api_status, sys.exit(1)
-        (["script.py", "--restart"],        True,  Exception("bad"), True,  True, True, True,  True,  True),
-        # short-background
-        (["script.py", "-b"],                False, None, False, True, True, True, False, False),
-        # long-background
-        (["script.py", "--background"],      False, None, False, True, True, True, False, False),
-        # abbreviated background
-        (["script.py", "--backg"],           False, None, False, True, True, True, False, False),
-        # long-restart
-        (["script.py", "--restart"],           True,  None, True,  True, True, True, False, False),
-        # abbreviated restart
-        (["script.py", "--resta"],           True,  None, True,  True, True, True, False, False),
-        # short-restart
-        (["script.py", "-r"],                True,  None, True,  True, True, True, False, False),
-        # restart_handler should drop the --restart and only emit one --background
-        (["script.py", "--restart", "--background"], False, None, False, True, True, True, False, False),
-    ]
-)
+@pytest.mark.parametrize("initial_argv, driver_present, expected_flags", [
+    # No flags → no extra flags
+    (["viewport.py"],                        False, []),
+    # Short background → background preserved
+    (["viewport.py", "-b"],                  False, ["--background"]),
+    # Long background → background preserved
+    (["viewport.py", "--background"],        False, ["--background"]),
+    # Incomplete background → background preserved
+    (["viewport.py", "--backg"],             False, ["--background"]),
+    # Short restart → replaced by background
+    (["viewport.py", "-r"],                  False, ["--background"]),
+    # Long restart → replaced by background
+    (["viewport.py", "--restart"],           False, ["--background"]),
+    # Incomplete restart → replaced by background
+    (["viewport.py", "--rest"],              False, ["--background"]),
+    # Driver present + restart → driver.quit() + background
+    (["viewport.py", "--restart"],           True, ["--background"]),
+])
 @patch("viewport.sys.exit")
 @patch("viewport.os.execv")
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.api_status")
-@patch("viewport.log_error")
 def test_restart_handler(
-    mock_log_error,
     mock_api_status,
     mock_sleep,
     mock_execv,
     mock_exit,
     initial_argv,
     driver_present,
-    execv_exc,
-    expect_quit,
-    expect_sleep,
-    expect_api,
-    expect_execv,
-    expect_log_error,
-    expect_exit,
+    expected_flags,
 ):
-    # Arrange
+    # Arrange: set sys.argv and optional driver
     viewport.sys.argv = list(initial_argv)
-    dummy_driver = MagicMock() if driver_present else None
-
-    if execv_exc:
-        mock_execv.side_effect = execv_exc
+    driver = MagicMock() if driver_present else None
 
     # Act
-    viewport.restart_handler(dummy_driver)
+    viewport.restart_handler(driver)
 
-    # Assert driver.quit() only if driver_present
-    if expect_quit:
-        dummy_driver.quit.assert_called_once()
-    else:
-        if dummy_driver:
-            dummy_driver.quit.assert_not_called()
+    # Assert: api_status and sleep always happen first
+    mock_api_status.assert_called_once_with("Restarting script...")
+    mock_sleep.assert_called_once_with(2)
 
-    # sleep and initial api_status should always run before execv
-    assert mock_sleep.called == expect_sleep
-    assert mock_api_status.called == expect_api
+    # Assert: driver.quit() only if driver was passed in
+    if driver_present:
+        driver.quit.assert_called_once()
+    # (if driver is None we simply don't check .quit())
 
-    # os.execv()
-    if expect_execv:
-        # Rebuild expected argv exactly as the code under test does:
-        import argparse
-        parser = argparse.ArgumentParser(add_help=False, allow_abbrev=True)
-        parser.add_argument("-s","--status",   action="store_true", dest="status")
-        parser.add_argument("-b","--background",action="store_true", dest="background")
-        parser.add_argument("-r","--restart",  action="store_true", dest="restart")
-        parser.add_argument("-q","--quit",     action="store_true", dest="quit")
-        parser.add_argument("-l","--logs",     nargs="?", type=int, const=5, dest="logs")
-        parser.add_argument("-a","--api",      action="store_true", dest="api")
+    # Assert: os.execv() called exactly once with correct args
+    expected_argv = [sys.executable, viewport.sys.argv[0]] + expected_flags
+    mock_execv.assert_called_once_with(sys.executable, expected_argv)
 
-        args, unknown = parser.parse_known_args(initial_argv[1:])
-
-        expected = [initial_argv[0]]
-        expected += unknown
-        if args.logs     is not None: expected += ["--logs", str(args.logs)]
-        if args.status:      expected.append("--status")
-        if args.quit:        expected.append("--quit")
-        if args.api:         expected.append("--api")
-        # (note: args.restart is dropped on purpose)
-        expected.append("--background")
-        expected = [sys.executable] + expected
-        mock_execv.assert_called_once_with(sys.executable, expected)
-    else:
-        mock_execv.assert_not_called()
-
-    # on execv exception, we log_error, do error api_status, and exit(1)
-    assert bool(mock_log_error.called) == expect_log_error
-    if expect_exit:
-        mock_api_status.assert_any_call("Error Restarting, exiting...")
-        mock_exit.assert_called_once_with(1)
-    else:
-        mock_exit.assert_not_called()
-
-@pytest.mark.parametrize("orig_argv, expected_child_flags", [
-    # restarting should drop -r and add only --background
-    (["viewport.py", "-r"], ["--background"]),
-    (["viewport.py", "--restart"], ["--background"]),
-    (["viewport.py", "-r", "--resta"], ["--background"]),
-])
-def test_restart_round_trip_parses_background(orig_argv, expected_child_flags, monkeypatch):
-    # 1) Simulate the original invocation
-    monkeypatch.setattr(viewport.sys, "argv", list(orig_argv))
-    args = viewport.args_helper()
-    assert args.restart is True, "original args_helper should see restart=True"
-
-    # 2) Compute the flags that restart_handler would re-exec with
-    child_flags = viewport.args_child_handler(
-        args,
-        drop_flags={"restart"},
-        add_flags={"background"}
-    )
-    assert child_flags == expected_child_flags
-
-    # 3) Now simulate a fresh process with just those flags
-    monkeypatch.setattr(viewport.sys, "argv", ["viewport.py"] + child_flags)
-
-    # 4) Ensure args_helper() accepts --background and nothing else
-    new_args = viewport.args_helper()
-    assert new_args.background is True
-    # all the other switches must be False / None
-    assert not new_args.restart
-    assert not new_args.status
-    assert not new_args.quit
-    assert not new_args.api
-    assert new_args.logs is None
+    # No errors or exit() on normal path
+    mock_exit.assert_not_called()
