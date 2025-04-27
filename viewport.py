@@ -385,13 +385,13 @@ def get_mem_color(name, mem_bytes):
     # chrome thresholds
     if gb < 2:
         return GREEN
-    if gb <= 3.5:
+    if gb <= 3.2:
         return YELLOW
     return RED
 def get_mem_color_pct(pct):
-    if pct < 20:
+    if pct <= 35:
         return GREEN
-    if pct <= 50:
+    if pct <= 60:
         return YELLOW
     return RED
 def usage_handler(match_str):
@@ -444,12 +444,12 @@ def status_handler():
         if sleep_seconds > 0: sleep_parts.append(f"{sleep_seconds} sec")
         sleep_str = f"{GREEN}{' '.join(sleep_parts)}{NC}"
         # CPU & Memory usage
-        # gather raw sums (each sum can exceed 100 %)
+        # gather raw sums (each sum can exceed 100%)
         cpu_vp, mem_vp = usage_handler('viewport.py')
         cpu_mon, mem_mon = usage_handler('monitoring.py')
         cpu_ch,  mem_ch  = usage_handler('chrome')
 
-        # normalize across all logical cores (so 0–100 %)
+        # normalize across all logical cores (so 0–100%)
         ncpus = psutil.cpu_count(logical=True) or 1
         cpu_vp  /= ncpus
         cpu_mon /= ncpus
