@@ -64,7 +64,7 @@ def test_quit_flag(mock_process_handler, mock_exit):
     })()
     viewport.args_handler(mock_args)
     mock_process_handler.assert_any_call("viewport.py", action="kill")
-    mock_process_handler.assert_any_call("chrome", action="kill")
+    mock_process_handler.assert_any_call(viewport.BROWSER, action="kill")
     mock_exit.assert_called_once_with(0)
 
 @patch("viewport.sys.exit")

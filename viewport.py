@@ -577,8 +577,8 @@ def process_handler(name, action="check"):
                 else:
                     cmd = str(raw)
 
-                # if any of our target names appear in the command line
-                if any(n in cmd for n in name):
+                # if the target name appears as a substring in the command line
+                if name in cmd:
                     pid = p.info["pid"]
                     # skip the current process itself
                     if pid != current:
@@ -597,7 +597,10 @@ def process_handler(name, action="check"):
                 try:
                     os.kill(pid, signal.SIGTERM)
                 except ProcessLookupError:
+                    log_error(f"Process {pid} already gone")
                     api_status(f"Process {pid} already gone")
+            pids = ', '.join(str(x) for x in matches)
+            logging.info(f"Killed process '{name}' with PIDs: {pids}")
             api_status(f"Killed process '{name}'")
             return False
 

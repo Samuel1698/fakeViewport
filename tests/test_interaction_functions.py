@@ -96,7 +96,7 @@ def test_handle_loading_issue_no_persistence(
 # -----------------------------------------------------------------------------
 @pytest.mark.parametrize("throw_exc, expect_return, expect_error_msg, expect_api", [
     (None, True, None, "Fullscreen Activated"),
-    (WebDriverException(), None, "Tab Crashed. Restarting Chrome...", "Tab Crashed"),
+    (WebDriverException(), None, f"Tab Crashed. Restarting {viewport.BROWSER}...", "Tab Crashed"),
     (Exception("bad"), False, "Error while clicking the fullscreen button: ", "Error Clicking Fullscreen"),
 ])
 @patch("viewport.chrome_restart_handler")
@@ -142,7 +142,7 @@ def test_handle_fullscreen_button(
         mock_api_status.assert_called_with(expect_api)
         assert result is True
     elif isinstance(throw_exc, WebDriverException):
-        mock_log_error.assert_called_with("Tab Crashed. Restarting Chrome...")
+        mock_log_error.assert_called_with(f"Tab Crashed. Restarting {viewport.BROWSER}...")
         mock_api_status.assert_called_with(expect_api)
         mock_restart.assert_called_once()  # called with undefined url in code
         assert result is None
@@ -157,7 +157,7 @@ def test_handle_fullscreen_button(
 # -----------------------------------------------------------------------------
 @pytest.mark.parametrize("exc, expect_ret, expect_error_msg, expect_api", [
     (None, True, None, None),
-    (WebDriverException(), None, "Tab Crashed. Restarting Chrome...", "Tab Crashed"),
+    (WebDriverException(), None, f"Tab Crashed. Restarting {viewport.BROWSER}...", "Tab Crashed"),
     (Exception("oops"), False, "Error during login: ", "Error Logging In"),
 ])
 @patch("viewport.chrome_restart_handler")
@@ -198,7 +198,7 @@ def test_handle_login(
             mock_check.assert_called_with(driver, "Dashboard")
             assert result is True
         elif isinstance(exc, WebDriverException):
-            mock_log_error.assert_called_with("Tab Crashed. Restarting Chrome...")
+            mock_log_error.assert_called_with(f"Tab Crashed. Restarting {viewport.BROWSER}...")
             mock_api_status.assert_called_with("Tab Crashed")
             mock_restart.assert_called_once_with("http://example.com")
             assert result is None
@@ -447,7 +447,7 @@ def test_handle_view_offline_branch(
         (
             # make check_driver raise
             lambda drv, wdw: setattr(viewport, "check_driver", MagicMock(side_effect=InvalidSessionIdException())),
-            ("Chrome session is invalid. Restarting the program.",),
+            (f"{viewport.BROWSER} session is invalid. Restarting the program.",),
             "Restarting Program",
             "restart_handler",
             lambda drv, url, mw: (drv,)
@@ -480,7 +480,7 @@ def test_handle_view_offline_branch(
         # 5) WebDriverException => chrome_restart_handler(url)
         (
             lambda drv, wdw: setattr(wdw, "until", MagicMock(side_effect=WebDriverException())),
-            ("Tab Crashed. Restarting Chrome...",),
+            (f"Tab Crashed. Restarting {viewport.BROWSER}...",),
             "Tab Crashed",
             "chrome_restart_handler",
             lambda drv, url, mw: (url,)

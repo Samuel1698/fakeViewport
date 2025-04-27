@@ -33,7 +33,7 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
 
     # Assertions
     mock_driver.quit.assert_called_once()
-    mock_logging.info.assert_any_call("Gracefully shutting down Chrome.")
+    mock_logging.info.assert_any_call(f"Gracefully shutting down {viewport.BROWSER}.")
     mock_logging.info.assert_any_call("Gracefully shutting down script instance.")
     mock_api_status.assert_called_once_with("Stopped ")
     mock_exit.assert_called_once_with(0)
@@ -134,67 +134,115 @@ def test_status_handler(
 # Test for Process Handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize(
-    "proc_list, current_pid, name, action, expected_result, "
-    "expected_kill_calls, expected_api_calls",
+    "proc_list, current_pid, name, action, expected_result, expected_kill_calls, expected_api_calls, expected_log_info",
     [
-        # check mode, no processes at all
-        ([], 100, "viewport.py", "check", False, [], []),
+        # Process Running
+        # Current PID, Name to, Check, Exists?
+        # Expected Kill Calls, Expected API Calls
 
-        # check mode, only self → False
-        ([_make_proc(100, ["viewport.py"])],
-         100, "viewport.py", "check", False, [], []),
-
-        # check mode, one other process → True
-        ([_make_proc(1, ["python","viewport.py"])],
-         100, "viewport.py", "check", True, [], []),
-
-        # kill mode, no processes → False, no kills, no api
-        ([], 200, "viewport.py", "kill", False, [], []),
-
-        # kill mode, only self → False, no kills, no api
-        ([_make_proc(200, ["viewport.py"])],
-         200, "viewport.py", "kill", False, [], []),
-
-        # **kill mode, chrome & chromium** → both killed when name="chrome"
-        ([
-            _make_proc(2, ["chrome"]),
-            _make_proc(3, ["chromium"])
-        ],
-         999, "chrome", "kill", False,
-         [(2, signal.SIGTERM), (3, signal.SIGTERM)],
-         ["Killed process 'chrome'"]
+        # No process, 'viewport', check, Not Present
+        (
+            [], 
+            100, "viewport.py", "check", False, 
+            [], [], []
         ),
 
-        # kill mode, two viewport.py → those two killed
-        ([
-            _make_proc(2, ["viewport.py"]),
-            _make_proc(3, ["viewport.py"]),
-            _make_proc(4, ["other.py"])
-        ],
-         999, "viewport.py", "kill", False,
-         [(2, signal.SIGTERM), (3, signal.SIGTERM)],
-         ["Killed process 'viewport.py'"]
+        # Only Self Viewport Process running
+        # 'viewport', 'check', Should be False
+        (
+            [_make_proc(100, ["viewport.py"])],
+            100, "viewport.py", "check", False, 
+            [], [], []
         ),
 
-        # check mode, string‐cmdline instead of list → True
-        ([_make_proc(10, "/usr/bin/viewport.py --foo")],
-         0, "viewport.py", "check", True, [], []),
+        # Different Viewport Process running
+        # 'viewport', 'check', Should be True
+        (
+            [_make_proc(1, ["python", "viewport.py"])],
+            100, "viewport.py", "check", True, 
+            [], [], []
+        ),
+
+        # Different commandline process with argument
+        # 'viewport', 'check', Should be True
+        (
+            [_make_proc(10, "/usr/bin/viewport.py --foo")], 
+            0, "viewport.py", "check", True, 
+            [], [], []
+        ),
+
+        # No Process Running = None to kill
+        # 'viewport', 'kill', Should be False
+        (
+            [], 
+            200, "viewport.py", "kill", False, 
+            [], [], []
+        ),
+
+        # Only Self Viewport Process Runnning = Do not Kill
+        # 'viewport', 'kill', Should be False
+        (
+            [_make_proc(200, ["viewport.py"])], 
+            200, "viewport.py", "kill", False, 
+            [], [], []
+        ),
+
+        # Chrome Processes (2, 3) running in backgrond
+        # 'chrome', 'kill', If killed should return False
+        # Process 2 and 3 gets SIGTERM, API Call should be:
+        (
+            [_make_proc(2, ["chrome"]),
+             _make_proc(3, ["chrome"])], 
+            999, "chrome", "kill", False,
+            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'chrome'"], ["Killed process 'chrome' with PIDs: 2, 3"]
+        ),
+
+        # Chromium Process (2, 3) running in backgrond
+        # 'chromium', 'kill', If killed should return False
+        # Process 2 and 3 get SIGTERM, API Call should be:
+        (
+            [_make_proc(2, ["chromium"]),
+             _make_proc(3, ["chromium"])], 
+            999, "chromium", "kill", False,
+            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'chromium'"], ["Killed process 'chromium' with PIDs: 2, 3"]
+        ),
+
+        # Multiple viewport instances running in background, separate from current instance
+        # 'viewport', 'kill', If killed should return False
+        # Process 2 and 3 get SIGTERM, API Call should be:
+        (   
+            [_make_proc(2, ["viewport.py"]),
+             _make_proc(3, ["viewport.py"]),
+             _make_proc(4, ["other"])], 
+            999, "viewport.py", "kill", False,
+            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2, 3"]
+        ),
+        # One other viewport instance running in background
+        # 'viewport', 'kill', If killed should return False
+        # Process 2, API Call should be:
+        (   
+            [_make_proc(2, ["viewport.py"]),
+             _make_proc(3, ["other"])], 
+            999, "viewport.py", "kill", False,
+            [(2, signal.SIGTERM)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2"]
+        ),
     ]
 )
+@patch("viewport.logging.info")
 @patch("viewport.psutil.process_iter")
 @patch("viewport.os.getpid")
 @patch("viewport.os.kill")
 @patch("viewport.api_status")
 def test_process_handler(
-    mock_api, mock_kill, mock_getpid, mock_iter,
+    mock_api, mock_kill, mock_getpid, mock_iter, mock_log_info,
     proc_list, current_pid, name, action,
-    expected_result, expected_kill_calls, expected_api_calls
+    expected_result, expected_kill_calls, expected_api_calls, expected_log_info
 ):
     # arrange
     mock_iter.return_value   = proc_list
     mock_getpid.return_value = current_pid
 
-    # act — now uses the parametrized name
+    # act
     result = viewport.process_handler(name, action=action)
 
     # assert return value
@@ -207,7 +255,13 @@ def test_process_handler(
             mock_kill.assert_any_call(pid, sig)
     else:
         mock_kill.assert_not_called()
-
+    
+    # Assert logging.info calls
+    if expected_log_info:
+        for msg in expected_log_info:
+            mock_log_info.assert_any_call(msg)
+    else:
+        mock_log_info.assert_not_called()
     # assert api_status calls
     if expected_api_calls:
         assert mock_api.call_args_list == [call(msg) for msg in expected_api_calls]
@@ -221,7 +275,7 @@ def test_service_handler_installs_chrome_driver_google(mock_chrome_driver_manage
     # Reset the cached path
     viewport._chrome_driver_path = None
     # Simulate a Google-Chrome binary
-    viewport.CHROME_BINARY = "/usr/bin/google-chrome-stable"
+    viewport.BROWSER_BINARY = "/usr/bin/google-chrome-stable"
 
     # Stub out the installer
     mock_installer = MagicMock()
@@ -238,7 +292,7 @@ def test_service_handler_installs_chrome_driver_chromium(mock_chrome_driver_mana
     # Reset the cached path
     viewport._chrome_driver_path = None
     # Simulate a Chromium binary
-    viewport.CHROME_BINARY = "/usr/bin/chromium-browser"
+    viewport.BROWSER_BINARY = "/usr/lib/chromium/chromium"
 
     # Stub out the installer
     mock_installer = MagicMock()
@@ -324,7 +378,7 @@ def test_chrome_handler(
 
     # Assert: process_handler("chrome", "kill") at start and possibly at final retry
     assert mock_process_handler.call_count == expected_kill_calls
-    mock_process_handler.assert_any_call("chrome", action="kill")
+    mock_process_handler.assert_any_call(viewport.BROWSER, action="kill")
 
     # Assert: webdriver.Chrome called up to MAX_RETRIES or until success
     assert mock_chrome.call_count == len(chrome_side_effects)
@@ -344,7 +398,7 @@ def test_chrome_handler(
             ['python3'] + viewport.sys.argv
         )
         # And we should have logged and API-status’d the restart
-        mock_log_error.assert_any_call("Failed to start Chrome after maximum retries.")
+        mock_log_error.assert_any_call(f"Failed to start {viewport.BROWSER} after maximum retries.")
         mock_api_status.assert_any_call("Restarting Script in 5 seconds.")
     else:
         mock_execv.assert_not_called()
@@ -365,7 +419,7 @@ def test_chrome_handler(
         (
             None,         None,            True,
             True,         True,            True,
-            False,        [call("Restarting Chrome"), call("Feed Healthy")],
+            False,        [call(f"Restarting {viewport.BROWSER}"), call("Feed Healthy")],
         ),
 
         # 2) Success, handle_page=False
@@ -373,7 +427,7 @@ def test_chrome_handler(
         (
             None,         None,            False,
             False,        False,           True,
-            False,        [call("Restarting Chrome")],
+            False,        [call(f"Restarting {viewport.BROWSER}")],
         ),
 
         # 3) chrome_handler throws
@@ -381,7 +435,7 @@ def test_chrome_handler(
         (
             Exception("boom"), None,       None,
             False,        False,           False,
-            True,         [call("Restarting Chrome"), call("Error Killing Chrome")],
+            True,         [call(f"Restarting {viewport.BROWSER}"), call(f"Error Killing {viewport.BROWSER}")],
         ),
 
         # 4) check_for_title throws
@@ -389,7 +443,7 @@ def test_chrome_handler(
         (
             None,         Exception("oops"), None,
             False,        False,           False,
-            True,         [call("Restarting Chrome"), call("Error Killing Chrome")],
+            True,         [call(f"Restarting {viewport.BROWSER}"), call(f"Error Killing {viewport.BROWSER}")],
         ),
     ]
 )
@@ -436,9 +490,9 @@ def test_chrome_restart_handler(
     # Act
     result = viewport.chrome_restart_handler(url)
 
-    # Always start by logging & api_status "Restarting Chrome"
-    mock_log_info.assert_any_call("Restarting chrome...")
-    mock_api_status.assert_any_call("Restarting Chrome")
+    # Always start by logging & api_status "Restarting BROWSER"
+    mock_log_info.assert_any_call(f"Restarting {viewport.BROWSER}...")
+    mock_api_status.assert_any_call(f"Restarting {viewport.BROWSER}")
 
     # Check the full sequence of api_status calls
     assert mock_api_status.call_args_list == expected_api_calls
