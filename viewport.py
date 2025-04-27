@@ -854,10 +854,10 @@ def handle_fullscreen_button(driver):
         logging.info("Fullscreen activated")
         api_status("Fullscreen Activated")
         return True
-    except WebDriverException:
-        log_error(f"Tab Crashed. Restarting {BROWSER}...")
-        api_status("Tab Crashed")
-        driver = chrome_restart_handler(url)
+    # except WebDriverException:
+    #     log_error(f"Tab Crashed. Restarting {BROWSER}...")
+    #     api_status("Tab Crashed")
+    #     driver = chrome_restart_handler(url)
     except Exception as e:
         log_error("Error while clicking the fullscreen button: ", e)
         api_status("Error Clicking Fullscreen")
