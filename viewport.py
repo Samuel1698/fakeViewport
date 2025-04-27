@@ -27,7 +27,6 @@ env_dir = script_dir / '.env'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file = logs_dir / 'viewport.log'
-BROWSER="chrome"
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
@@ -219,15 +218,13 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
 # -------------------------------------------------------------------
 config = configparser.ConfigParser()
 config.read('config.ini')
-# Conditional variables if code executes with no arguments or with --background
-if not any(vars(args).values()) or args.background:
-    user = getpass.getuser()
-    default_profile_path = f"/home/{user}/.config/google-chrome/Default"
-    BROWSER_PROFILE_PATH = config.get('Chrome', 'BROWSER_PROFILE_PATH', fallback=default_profile_path).strip()
-    BROWSER_BINARY = config.get('Chrome', 'BROWSER_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
-    WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
-    MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
-    BROWSER = "chromium" if "chromium" in BROWSER_BINARY.lower() else "chrome"
+user = getpass.getuser()
+default_profile_path = f"/home/{user}/.config/google-chrome/Default"
+BROWSER_PROFILE_PATH = config.get('Chrome', 'BROWSER_PROFILE_PATH', fallback=default_profile_path).strip()
+WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
+MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
+BROWSER_BINARY = config.get('Chrome', 'BROWSER_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
+BROWSER = "chromium" if "chromium" in BROWSER_BINARY.lower() else "chrome"
 SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
