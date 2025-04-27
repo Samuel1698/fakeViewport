@@ -7,6 +7,7 @@ import logging.handlers
 logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
 import time
 import pytest
+from itertools import cycle
 from unittest.mock import MagicMock, patch, ANY
 from selenium.common.exceptions import TimeoutException, WebDriverException, InvalidSessionIdException, NoSuchElementException
 from urllib3.exceptions import NewConnectionError
@@ -280,7 +281,6 @@ def test_handle_retry_basic_paths(
         driver.get.assert_called_once_with(url)
         mock_api_status.assert_any_call("Feed Healthy")
         mock_sleep.assert_called()
-
 # max_retries − 1 branch
 @patch("viewport.api_status")
 @patch("viewport.logging.info")
@@ -300,7 +300,6 @@ def test_handle_retry_final_before_restart(
 
     mock_chrome_restart.assert_called_once_with("u")
     assert result == "CH_RESTARTED"
-
 # max_retries branch
 @patch("viewport.restart_handler")
 @patch("viewport.logging.info")
@@ -313,7 +312,44 @@ def test_handle_retry_max_retries_calls_restart(mock_api, mock_info, mock_restar
     mock_info.assert_any_call("Max Attempts reached, restarting script...")
     mock_api.assert_called_with("Max Attempts Reached, restarting script")
     mock_restart.assert_called_once_with(driver)
+# handle_retry triggers chrome_restart_handler when driver has crashed
+@patch("viewport.chrome_restart_handler", return_value=MagicMock(title="Dashboard Home"))
+@patch("viewport.handle_fullscreen_button", return_value=True)
+@patch("viewport.handle_login", return_value=True)
+@patch("viewport.handle_page", return_value=True)
+@patch("viewport.check_driver", return_value=False)                       # simulate crash
+@patch("viewport.api_status")
+@patch("viewport.logging.warning")
+@patch("viewport.logging.info")
+@patch("viewport.time.sleep", return_value=None)
+def test_handle_retry_detects_driver_crash_and_restarts(
+    mock_sleep,
+    mock_log_info,
+    mock_log_warning,
+    mock_api_status,
+    mock_check_driver,
+    mock_handle_page,
+    mock_handle_login,
+    mock_fs_btn,
+    mock_chrome_restart,
+):
+    driver = MagicMock(title="Old Title")
+    url = "http://example.com"
 
+    result = viewport.handle_retry(driver, url, attempt=0, max_retries=3)
+
+    # 1) we should have warned about a crash...
+    mock_log_warning.assert_called_once_with("WebDriver crashed.")
+    # 2) ...and then invoked chrome_restart_handler(url)
+    mock_chrome_restart.assert_called_once_with(url)
+
+    new_driver = mock_chrome_restart.return_value
+    # 3) new driver should be used to reload the page
+    new_driver.get.assert_called_once_with(url)
+    # 4) and we should have reported “Feed Healthy”
+    mock_api_status.assert_called_with("Feed Healthy")
+    # 5) finally, the returned driver is the new one
+    assert result is new_driver
 
 # -----------------------------------------------------------------------------
 # Tests for handle_view function
@@ -388,8 +424,126 @@ def test_handle_view_healthy_iteration(
     mock_loading.assert_called_once_with(drv)
     mock_elements.assert_called_once_with(drv)
     mock_api_status.assert_called_with("Feed Healthy")
+# -----------------------------------------------------------------------------
+# Interval Logging Test
+@pytest.mark.parametrize("sleep_time, log_interval", [
+    (60, 1),   # threshold = round((1*60)/60)   = 1  => fires on 1st iteration
+    (120, 2),  # threshold = round((2*60)/60)   = 2  => fires on 2nd iteration
+    (300, 10), # threshold = round((10*60/300)) = 2  => fires on 2nd iteration
+])
+@patch("viewport.handle_page", return_value=True)
+@patch("viewport.check_driver", return_value=True)
+@patch("viewport.WebDriverWait")
+@patch("viewport.handle_fullscreen_button", return_value=True)
+@patch("viewport.handle_loading_issue")
+@patch("viewport.handle_elements")
+@patch("viewport.check_unable_to_stream", return_value=False)
+@patch("viewport.check_next_interval", return_value=0)
+@patch("viewport.api_status")
+@patch("viewport.logging.info")
+def test_handle_view_video_feeds_healthy_logging(
+    mock_log_info,
+    mock_api_status,
+    mock_check_next_interval,
+    mock_unable,
+    mock_elements,
+    mock_loading,
+    mock_fs_btn,
+    mock_wdw,
+    mock_check_driver,
+    mock_handle_page,
+    sleep_time,
+    log_interval,
+    monkeypatch,
+):
+    # 1) figure out how many loops it should take before the "Video feeds healthy." branch
+    threshold = max(1, round((log_interval * 60) / sleep_time))
 
+    # 2) replace time.sleep so that after threshold+1 calls it raises BreakLoop
+    sleep_calls = []
+    def fake_sleep(duration):
+        sleep_calls.append(duration)
+        # on the (threshold+1)th sleep, bail out
+        if len(sleep_calls) == threshold + 1:
+            raise BreakLoop
+        return None
+    monkeypatch.setattr(viewport.time, "sleep", fake_sleep)
 
+    # 3) stub out driver calls and make execute_script cycle forever
+    driver = MagicMock()
+    driver.get_window_size.return_value = {"width": 1920, "height": 1080}
+    # cycle: offline_status=None, then width, then height, then repeat
+    driver.execute_script.side_effect = cycle([None, 1920, 1080])
+
+    # 4) stub WebDriverWait so it always succeeds
+    fake_wdw = MagicMock()
+    fake_wdw.until.return_value = True
+    mock_wdw.return_value = fake_wdw
+
+    # 5) set the module‐level SLEEP_TIME & LOG_INTERVAL
+    viewport.SLEEP_TIME = sleep_time
+    viewport.LOG_INTERVAL = log_interval
+
+    # 6) run it and catch our BreakLoop
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, "http://example.com")
+
+    # 7) Video feeds healthy should appear exactly once, and it must be the very last info() call
+    calls = mock_log_info.call_args_list
+    healthy_indices = [
+        idx for idx, call in enumerate(calls)
+        if "Video feeds healthy." in call.args[0]
+    ]
+    assert healthy_indices == [len(calls) - 1], (
+        f"'Video feeds healthy.' expected only in the final log call, "
+        f"but found at positions {healthy_indices} among {len(calls)} calls"
+    )
+# -----------------------------------------------------------------------------
+# Decoding Error
+@patch("viewport.logging.warning")
+@patch("viewport.api_status")
+@patch("viewport.time.sleep", side_effect=BreakLoop)                       # break out after first sleep
+@patch("viewport.check_next_interval", return_value=time.time())
+@patch("viewport.check_unable_to_stream", return_value=True)               # simulate decoding error
+@patch("viewport.handle_elements")
+@patch("viewport.handle_loading_issue")
+@patch("viewport.handle_fullscreen_button", return_value=True)
+@patch("viewport.WebDriverWait")
+@patch("viewport.check_driver", return_value=True)
+@patch("viewport.handle_page", return_value=True)
+def test_handle_view_decoding_error_branch(
+    mock_handle_page,
+    mock_check_driver,
+    mock_wdw,
+    mock_fs_btn,
+    mock_loading,
+    mock_elements,
+    mock_check_unable,
+    mock_next_interval,
+    mock_sleep,
+    mock_api_status,
+    mock_warning,
+):
+    driver = MagicMock()
+    url = "http://example.com"
+
+    # first two execute_script() calls: offline check → None, then width/height
+    driver.execute_script.side_effect = [None, 1920, 1080]
+    driver.get_window_size.return_value = {"width": 1920, "height": 1080}
+
+    # stub out presence checks so we get past the wrapper logic
+    fake_wdw = MagicMock()
+    fake_wdw.until.return_value = True
+    mock_wdw.return_value = fake_wdw
+
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, url)
+
+    # on decoding error we should warn and set API status
+    mock_warning.assert_called_once_with(
+        "Live view contains cameras that the browser cannot decode."
+    )
+    mock_api_status.assert_called_with("Decoding Error in some cameras")
 # -----------------------------------------------------------------------------
 # Offline‐status branch
 @patch("viewport.time.sleep", return_value=None)
@@ -427,7 +581,7 @@ def test_handle_view_offline_branch(
     mock_handle_retry.assert_called_once_with(drv, url, 1, viewport.MAX_RETRIES)
 
 # -----------------------------------------------------------------------------
-# All errors branch
+# All Exceptions branch
 # -----------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "trigger, expected_log_args, expected_api, recovery_fn, recovery_args",
