@@ -388,6 +388,12 @@ def get_mem_color(name, mem_bytes):
     if gb <= 3.5:
         return YELLOW
     return RED
+def get_mem_color_pct(pct):
+    if pct < 20:
+        return GREEN
+    if pct <= 50:
+        return YELLOW
+    return RED
 def usage_handler(match_str):
     total_cpu = 0.0
     total_mem = 0
@@ -450,6 +456,10 @@ def status_handler():
         cpu_ch  /= ncpus
 
         total_ram = psutil.virtual_memory().total
+        # overall RAM used
+        total_used    = mem_vp + mem_mon + mem_ch
+        used_pct      = total_used / total_ram * 100
+        ram_color     = get_mem_color_pct(used_pct)
         # helper to format bytes→GB
         fmt_mem = lambda b: f"{b/(1024**3):.1f}GB"
         # next health-check countdown
@@ -468,8 +478,13 @@ def status_handler():
         print(f"{YELLOW}===== Fake Viewport {viewport_version} ======{NC}")
         print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
         print(f"{CYAN}Monitoring API:{NC} {monitoring_str}")
+        print(
+            f"{CYAN}RAM Used/Available:{NC} "
+            f"{ram_color}{fmt_mem(total_used)}/"
+            f"{fmt_mem(total_ram)}{NC}"
+        )
         print(f"{CYAN}Usage:{NC}")
-       # CPU & Memory usage (normalized % already applied)
+        # CPU & Memory usage (normalized % already applied)
         metrics = [
             ("viewport.py", "viewport", cpu_vp, mem_vp),
             ("monitoring.py", "api",     cpu_mon, mem_mon),
@@ -489,10 +504,9 @@ def status_handler():
             # print with colored label, CPU, and Mem
             print(
                 f"  {label_color}{label:<9}{NC}"
-                f" CPU: {cpu_color}{cpu:.1f}%{NC}"
-                f"   Mem: {mem_color}{fmt_mem(mem)}{NC}"
+                f" {CYAN}CPU:{NC} {cpu_color}{cpu:04.1f}%{NC}"
+                f"   {CYAN}Mem:{NC} {mem_color}{fmt_mem(mem)}{NC}"
             )
-        print(f"{CYAN}RAM Used/Available:{NC} {fmt_mem(mem_vp+mem_mon+mem_ch)}/{fmt_mem(total_ram)}")
         print(f"{CYAN}Checking Page Health Every{NC}: {sleep_str}")
         print(f"{CYAN}Next Health Check in:{NC} {next_str}")
         print(f"{CYAN}Printing to Log Every{NC}:{GREEN} {LOG_INTERVAL} min{NC}")
