@@ -27,6 +27,7 @@ env_dir = script_dir / '.env'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file = logs_dir / 'viewport.log'
+BROWSER="chrome"
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
@@ -152,7 +153,7 @@ def args_handler(args):
     if args.quit:
         logging.info("Stopping the Fake Viewport script...")
         process_handler("viewport.py", action="kill")
-        process_handler("chrome", action="kill")
+        process_handler(BROWSER, action="kill")
         sys.exit(0)
     if args.api:
         if process_handler('monitoring.py', action="check"):
@@ -222,10 +223,11 @@ config.read('config.ini')
 if not any(vars(args).values()) or args.background:
     user = getpass.getuser()
     default_profile_path = f"/home/{user}/.config/google-chrome/Default"
-    CHROME_PROFILE_PATH = config.get('Chrome', 'CHROME_PROFILE_PATH', fallback=default_profile_path).strip()
-    CHROME_BINARY = config.get('Chrome', 'CHROME_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
+    BROWSER_PROFILE_PATH = config.get('Chrome', 'BROWSER_PROFILE_PATH', fallback=default_profile_path).strip()
+    BROWSER_BINARY = config.get('Chrome', 'BROWSER_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
     WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
     MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
+    BROWSER = "chromium" if "chromium" in BROWSER_BINARY.lower() else "chrome"
 SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
@@ -351,7 +353,7 @@ def api_handler():
 # -------------------------------------------------------------------
 def signal_handler(signum, frame, driver=None):
     if driver is not None:
-        logging.info('Gracefully shutting down Chrome.')
+        logging.info(f'Gracefully shutting down {BROWSER}.')
         driver.quit()
     api_status("Stopped ")
     logging.info("Gracefully shutting down script instance.")
@@ -369,7 +371,7 @@ def get_cpu_color(name, pct):
         if pct <= 10:
             return YELLOW
         return RED
-    # chrome thresholds
+    # Browser thresholds
     if pct < 50:
         return GREEN
     if pct <= 70:
@@ -388,14 +390,10 @@ def get_browser_version(binary_path):
 def usage_handler(match_str):
     """
     Sum CPU & RSS for processes whose name or cmdline contains match_str.
-    If match_str == "chrome", also include "chromium" matches.
     Returns (total_cpu, total_mem_bytes).
     """
     # build the list of substrings to look for
     names_to_match = [match_str]
-    if match_str == "chrome":
-        names_to_match.append("chromium")
-
     total_cpu = 0.0
     total_mem = 0
     for p in psutil.process_iter(['pid', 'name', 'cmdline']):
@@ -455,7 +453,7 @@ def status_handler():
         # gather raw sums (each sum can exceed 100%)
         cpu_vp, mem_vp = usage_handler('viewport.py')
         cpu_mon, mem_mon = usage_handler('monitoring.py')
-        cpu_ch,  mem_ch  = usage_handler('chrome')
+        cpu_ch,  mem_ch  = usage_handler(BROWSER)
 
         # normalize across all logical cores (so 0–100%)
         ncpus = psutil.cpu_count(logical=True) or 1
@@ -500,7 +498,7 @@ def status_handler():
         metrics = [
             ("viewport.py", "viewport", cpu_vp, mem_vp, mem_vp_cl),
             ("monitoring.py", "api",     cpu_mon, mem_mon, mem_mon_cl),
-            ("chrome",        "chrome",  cpu_ch,  mem_ch, mem_ch_cl),
+            (BROWSER,        BROWSER,  cpu_ch,  mem_ch, mem_ch_cl),
         ]
         for proc_name, label, cpu, mem, mem_color in metrics:
             # determine colors per metric
@@ -570,11 +568,6 @@ def process_handler(name, action="check"):
         current = os.getpid()
         matches = []
 
-        # if we're targeting chrome, also match chromium
-        names_to_match = [name]
-        if name == "chrome":
-            names_to_match.append("chromium")
-
         for p in psutil.process_iter(["pid", "cmdline"]):
             try:
                 # get raw cmdline, which may be list or string
@@ -585,7 +578,7 @@ def process_handler(name, action="check"):
                     cmd = str(raw)
 
                 # if any of our target names appear in the command line
-                if any(n in cmd for n in names_to_match):
+                if any(n in cmd for n in name):
                     pid = p.info["pid"]
                     # skip the current process itself
                     if pid != current:
@@ -619,7 +612,7 @@ def service_handler():
     global _chrome_driver_path
     if not _chrome_driver_path:
         # pick Chrome vs. Chromium
-        is_chromium = "chromium" in CHROME_BINARY.lower()
+        is_chromium = "chromium" in BROWSER_BINARY.lower()
         chrome_type = ChromeType.CHROMIUM if is_chromium else ChromeType.GOOGLE
 
         # just grab whatever version the manager thinks is appropriate
@@ -632,7 +625,7 @@ def chrome_handler(url):
     # Kills any chrome instance, then launches a new one with the specified URL
     # Starts a chrome 'driver' and handles error reattempts
     # If the driver fails to start, it will retry a few times before killing all existing chrome processes and restarting the script
-    process_handler("chrome", action="kill")
+    process_handler(BROWSER, action="kill")
     retry_count = 0
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
@@ -649,9 +642,9 @@ def chrome_handler(url):
             chrome_options.add_argument('--ignore-ssl-errors')
             chrome_options.add_argument("--hide-crash-restore-bubble")
             chrome_options.add_argument("--remote-debugging-port=9222")
-            chrome_options.add_argument(f"--user-data-dir={CHROME_PROFILE_PATH}")
+            chrome_options.add_argument(f"--user-data-dir={BROWSER_PROFILE_PATH}")
             chrome_options.add_experimental_option("excludeSwitches", ['enable-automation'])
-            chrome_options.binary_location = CHROME_BINARY
+            chrome_options.binary_location = BROWSER_BINARY
             chrome_options.add_experimental_option("prefs", {
                 "credentials_enable_service": False,
                 "profile.password_manager_enabled": False
@@ -660,16 +653,16 @@ def chrome_handler(url):
             driver.get(url)
             return driver
         except Exception as e:
-            log_error("Error starting Chrome: ", e)
-            api_status("Error Starting Chrome")
+            log_error(f"Error starting {BROWSER}: ", e)
+            api_status(f"Error Starting {BROWSER}")
             retry_count += 1
             logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
-            # If this is the final attempt, kill all existing Chrome processes
+            # If this is the final attempt, kill all existing browser processes
             if retry_count == max_retries:
-                logging.info("Killing existing Chrome processes...")
-                process_handler("chrome", action="kill")
+                logging.info(f"Killing existing {BROWSER} processes...")
+                process_handler(BROWSER, action="kill")
             time.sleep(5)
-    log_error("Failed to start Chrome after maximum retries.")
+    log_error(f"Failed to start {BROWSER} after maximum retries.")
     logging.info(f"Starting Script again in {int(SLEEP_TIME/2)} seconds.")
     api_status(f"Restarting Script in {int(SLEEP_TIME/2)} seconds.")
     time.sleep(SLEEP_TIME/2)
@@ -678,8 +671,8 @@ def chrome_restart_handler(url):
     # Restarts chrome, checks for the title and logs the result
     # This used to be in handle_retry but gets repeated in handle_view
     try:
-        logging.info("Restarting chrome...")
-        api_status("Restarting Chrome")
+        logging.info(f"Restarting {BROWSER}...")
+        api_status(f"Restarting {BROWSER}")
         driver = chrome_handler(url)
         check_for_title(driver)
         if handle_page(driver):
@@ -688,13 +681,13 @@ def chrome_restart_handler(url):
             time.sleep(WAIT_TIME)
         return driver
     except Exception as e:
-        log_error("Error while killing Chrome processes: ", e)
-        api_status("Error Killing Chrome")
+        log_error(f"Error while killing {BROWSER} processes: ", e)
+        api_status(f"Error Killing {BROWSER}")
 def restart_handler(driver):
     # Reparse args
     args = args_helper()
     try:
-        # 1) notify API & shut down Chrome if present
+        # 1) notify API & shut down driver if present
         api_status("Restarting script...")
         if driver is not None:
             driver.quit()
@@ -862,7 +855,7 @@ def handle_fullscreen_button(driver):
         api_status("Fullscreen Activated")
         return True
     except WebDriverException:
-        log_error("Tab Crashed. Restarting Chrome...")
+        log_error(f"Tab Crashed. Restarting {BROWSER}...")
         api_status("Tab Crashed")
         driver = chrome_restart_handler(url)
     except Exception as e:
@@ -896,7 +889,7 @@ def handle_login(driver):
         # Verify successful login
         return check_for_title(driver, "Dashboard")
     except WebDriverException:
-        log_error("Tab Crashed. Restarting Chrome...")
+        log_error(f"Tab Crashed. Restarting {BROWSER}...")
         api_status("Tab Crashed")
         driver = chrome_restart_handler(url)
     except Exception as e: 
@@ -926,7 +919,7 @@ def handle_page(driver):
 def handle_retry(driver, url, attempt, max_retries):
     # Handles the retry logic for the main loop
     # First checks if the title of the page indicate a login page, and if not, reloads the page.
-    # If it's the second to last attempt, it kills all existing Chrome processes and calls chrome_handler again.
+    # If it's the second to last attempt, it kills all existing browser processes and calls chrome_handler again.
     # If it's the last attempt, it restarts the script.
     logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
     api_status(f"Retrying: {attempt} of {max_retries}")
@@ -951,11 +944,11 @@ def handle_retry(driver, url, attempt, max_retries):
                         logging.warning("Failed to activate fullscreen, but continuing anyway.")
                 api_status("Feed Healthy")
         except InvalidSessionIdException:
-            log_error("Chrome session is invalid. Restarting the program.")
+            log_error(f"{BROWSER} session is invalid. Restarting the program.")
             api_status("Restarting Program")
             restart_handler(driver)
         except WebDriverException:
-            log_error("Tab Crashed. Restarting Chrome...")
+            log_error(f"Tab Crashed. Restarting {BROWSER}...")
             api_status("Tab Crashed")
             driver = chrome_restart_handler(url)
         except Exception as e:
@@ -1025,7 +1018,7 @@ def handle_view(driver, url):
                 time.sleep(sleep_duration)
                 iteration_counter += 1
         except InvalidSessionIdException:
-            log_error("Chrome session is invalid. Restarting the program.")
+            log_error(f"{BROWSER} session is invalid. Restarting the program.")
             api_status("Restarting Program")
             restart_handler(driver)
         except (TimeoutException, NoSuchElementException):
@@ -1043,7 +1036,7 @@ def handle_view(driver, url):
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except WebDriverException:
-            log_error("Tab Crashed. Restarting Chrome...")
+            log_error(f"Tab Crashed. Restarting {BROWSER}...")
             api_status("Tab Crashed")
             driver = chrome_restart_handler(url)
         except Exception as e:

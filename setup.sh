@@ -107,7 +107,7 @@ if [ -f ".env.example" ]; then
         echo -e "${GREEN}✓ .env already exists. Skipping...${NC}"
     else
         echo -e "${YELLOW}Renaming .env.example to .env...${NC}"
-        if mv -n .env.example .env; then
+        if mv  --update=none .env.example .env; then
             echo -e "${GREEN}✓ Configuration file prepared${NC}"
             echo -e "${YELLOW}  Please edit .env to set your UniFi Protect credentials.${NC}"
             echo -e "${YELLOW}  You can do so with the command: nano .env\n${NC}"
@@ -129,7 +129,7 @@ if [ -f "config.ini.example" ]; then
         echo -e "${GREEN}✓ config.ini already exists. Skipping...${NC}"
     else
         echo -e "${YELLOW}Renaming config.ini.example to config.ini...${NC}"
-        if cp -n config.ini.example config.ini; then
+        if cp --update=none config.ini.example config.ini; then
             echo -e "${GREEN}✓ Configuration file prepared${NC}"
         else
             echo -e "${RED}Failed to rename configuration file!${NC}"
