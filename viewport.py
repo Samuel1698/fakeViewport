@@ -151,8 +151,8 @@ def args_handler(args):
         sys.exit(0)
     if args.quit:
         logging.info("Stopping the Fake Viewport script...")
-        process_handler('viewport.py', action="kill")
-        process_handler('chrome', action="kill")
+        process_handler("viewport.py", action="kill")
+        process_handler("chrome", action="kill")
         sys.exit(0)
     if args.api:
         if process_handler('monitoring.py', action="check"):
@@ -379,17 +379,34 @@ def get_mem_color_pct(pct):
         return YELLOW
     return RED
 def usage_handler(match_str):
+    """
+    Sum CPU & RSS for processes whose name or cmdline contains match_str.
+    If match_str == "chrome", also include "chromium" matches.
+    Returns (total_cpu, total_mem_bytes).
+    """
+    # build the list of substrings to look for
+    names_to_match = [match_str]
+    if match_str == "chrome":
+        names_to_match.append("chromium")
+
     total_cpu = 0.0
     total_mem = 0
     for p in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
-            cmd = " ".join(p.info.get('cmdline') or [])
-            if match_str in p.info.get('name', "") or match_str in cmd:
+            # normalize cmdline → string
+            raw = p.info.get('cmdline') or []
+            cmd = " ".join(raw) if isinstance(raw, (list, tuple)) else str(raw)
+
+            # if any of our target names appear in name or cmdline
+            if any(ns in (p.info.get('name') or "") or ns in cmd for ns in names_to_match):
                 # block for 100 ms so psutil can sample real CPU usage
                 total_cpu += p.cpu_percent(interval=0.1)
                 total_mem += p.memory_info().rss
+
         except Exception:
+            # skip processes we can’t inspect
             continue
+
     return total_cpu, total_mem
 def status_handler():
     # Displays the status of the script.
@@ -545,29 +562,36 @@ def process_handler(name, action="check"):
     try:
         current = os.getpid()
         matches = []
+
+        # if we're targeting chrome, also match chromium
+        names_to_match = [name]
+        if name == "chrome":
+            names_to_match.append("chromium")
+
         for p in psutil.process_iter(["pid", "cmdline"]):
             try:
-                # grab raw cmdline; could be None, list, or string
-                raw_cmdline = p.info.get("cmdline") or []
-                # if it's a list/tuple, join into one string
-                if isinstance(raw_cmdline, (list, tuple)):
-                    cmd = " ".join(raw_cmdline)
+                # get raw cmdline, which may be list or string
+                raw = p.info.get("cmdline") or []
+                if isinstance(raw, (list, tuple)):
+                    cmd = " ".join(raw)
                 else:
-                    # fallback: convert whatever it is into string
-                    cmd = str(raw_cmdline)
-                # if the target name appears in the cmd string
-                if name in cmd:
+                    cmd = str(raw)
+
+                # if any of our target names appear in the command line
+                if any(n in cmd for n in names_to_match):
                     pid = p.info["pid"]
-                    # ignore our own process
+                    # skip the current process itself
                     if pid != current:
                         matches.append(pid)
-                # early exit for "check" mode once we found one
+
+                # in "check" mode, return True as soon as we find one
                 if action == "check" and matches:
                     return True
             except (psutil.NoSuchProcess, psutil.AccessDenied):
-                # skip processes that vanish or deny access
+                # skip processes that disappear or we can't inspect
                 continue
-        # if we're asked to kill, terminate all matched pids
+
+        # in "kill" mode, terminate all matched pids
         if action == "kill" and matches:
             for pid in matches:
                 try:
@@ -576,10 +600,11 @@ def process_handler(name, action="check"):
                     api_status(f"Process {pid} already gone")
             api_status(f"Killed process '{name}'")
             return False
-        # otherwise return True/False whether we found any matches
+
+        # return True/False whether we found any matches
         return bool(matches)
     except Exception as e:
-        # on unexpected errors, log and notify API
+        # catch-all: log and notify API on unexpected errors
         log_error(f"Error while checking process '{name}'", e)
         api_status(f"Error Checking Process '{name}'")
         return False

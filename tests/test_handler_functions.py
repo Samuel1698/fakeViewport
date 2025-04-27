@@ -131,70 +131,80 @@ def test_status_handler(
             assert snippet in out
         mock_log_error.assert_not_called()
 @pytest.mark.parametrize(
-    "proc_list, current_pid, action, expected_result, "
+    "proc_list, current_pid, name, action, expected_result, "
     "expected_kill_calls, expected_api_calls",
     [
         # check mode, no processes at all
-        ([],                     100, "check", False, [], []),
+        ([], 100, "viewport.py", "check", False, [], []),
 
         # check mode, only self → False
-        ([_make_proc(100, ["viewport.py"])], 100, "check", False, [], []),
+        ([_make_proc(100, ["viewport.py"])],
+         100, "viewport.py", "check", False, [], []),
 
         # check mode, one other process → True
-        ([_make_proc(1,   ["python","viewport.py"])],  
-                                 100, "check", True,  [], []),
+        ([_make_proc(1, ["python","viewport.py"])],
+         100, "viewport.py", "check", True, [], []),
 
         # kill mode, no processes → False, no kills, no api
-        ([],                     200, "kill",  False, [], []),
+        ([], 200, "viewport.py", "kill", False, [], []),
 
         # kill mode, only self → False, no kills, no api
-        ([_make_proc(200, ["viewport.py"])], 200, "kill", False, [], []),
+        ([_make_proc(200, ["viewport.py"])],
+         200, "viewport.py", "kill", False, [], []),
 
-        # kill mode, two others → False, two kills, one api_status
-        (
-            [
-                _make_proc(2, ["viewport.py"]), 
-                _make_proc(3, ["viewport.py"]),
-                _make_proc(4, ["other.py"])
-            ],
-            999,
-            "kill",
-            False,
-            [(2, signal.SIGTERM), (3, signal.SIGTERM)],
-            ["Killed process 'viewport.py'"]
+        # **kill mode, chrome & chromium** → both killed when name="chrome"
+        ([
+            _make_proc(2, ["chrome"]),
+            _make_proc(3, ["chromium"])
+        ],
+         999, "chrome", "kill", False,
+         [(2, signal.SIGTERM), (3, signal.SIGTERM)],
+         ["Killed process 'chrome'"]
+        ),
+
+        # kill mode, two viewport.py → those two killed
+        ([
+            _make_proc(2, ["viewport.py"]),
+            _make_proc(3, ["viewport.py"]),
+            _make_proc(4, ["other.py"])
+        ],
+         999, "viewport.py", "kill", False,
+         [(2, signal.SIGTERM), (3, signal.SIGTERM)],
+         ["Killed process 'viewport.py'"]
         ),
 
         # check mode, string‐cmdline instead of list → True
         ([_make_proc(10, "/usr/bin/viewport.py --foo")],
-                                 0,   "check", True,  [], []),
+         0, "viewport.py", "check", True, [], []),
     ]
 )
 @patch("viewport.psutil.process_iter")
 @patch("viewport.os.getpid")
 @patch("viewport.os.kill")
 @patch("viewport.api_status")
-def test_process_handler(
+def test_process_handler_param(
     mock_api, mock_kill, mock_getpid, mock_iter,
-    proc_list, current_pid, action, expected_result,
-    expected_kill_calls, expected_api_calls
+    proc_list, current_pid, name, action,
+    expected_result, expected_kill_calls, expected_api_calls
 ):
     # arrange
     mock_iter.return_value   = proc_list
     mock_getpid.return_value = current_pid
 
-    # act
-    result = viewport.process_handler("viewport.py", action=action)
+    # act — now uses the parametrized name
+    result = viewport.process_handler(name, action=action)
 
-    # assert result
+    # assert return value
     assert result is expected_result
 
-    # assert kill calls
+    # assert os.kill calls
     if expected_kill_calls:
         assert mock_kill.call_count == len(expected_kill_calls)
         for pid, sig in expected_kill_calls:
             mock_kill.assert_any_call(pid, sig)
     else:
         mock_kill.assert_not_called()
+
     # assert api_status calls
     if expected_api_calls:
         assert mock_api.call_args_list == [call(msg) for msg in expected_api_calls]
