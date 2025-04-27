@@ -358,6 +358,36 @@ signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
 # -------------------------------------------------------------------
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
+def get_cpu_color(name, pct):
+    # viewport.py & monitoring.py thresholds
+    if name in ("viewport.py", "monitoring.py"):
+        if pct < 1:
+            return GREEN
+        if pct <= 10:
+            return YELLOW
+        return RED
+    # chrome thresholds
+    if pct < 50:
+        return GREEN
+    if pct <= 70:
+        return YELLOW
+    return RED
+def get_mem_color(name, mem_bytes):
+    # convert to GB
+    gb = mem_bytes / (1024 ** 3)
+    # viewport.py & monitoring.py thresholds
+    if name in ("viewport.py", "monitoring.py"):
+        if gb <= 0.2:
+            return GREEN
+        if gb <= 0.6:
+            return YELLOW
+        return RED
+    # chrome thresholds
+    if gb < 2:
+        return GREEN
+    if gb <= 3.5:
+        return YELLOW
+    return RED
 def usage_handler(match_str):
     total_cpu = 0.0
     total_mem = 0
@@ -439,10 +469,30 @@ def status_handler():
         print(f"{CYAN}Script Uptime:{NC} {uptime_str}")
         print(f"{CYAN}Monitoring API:{NC} {monitoring_str}")
         print(f"{CYAN}Usage:{NC}")
-        print(f"  viewport   CPU: {cpu_vp:.1f}%   Mem: {fmt_mem(mem_vp)}")
-        print(f"  api        CPU: {cpu_mon:.1f}%   Mem: {fmt_mem(mem_mon)}")
-        print(f"  chrome     CPU: {cpu_ch:.1f}%   Mem: {fmt_mem(mem_ch)}")
-        print(f"{CYAN}Total RAM:{NC} {fmt_mem(mem_vp+mem_mon+mem_ch)}/{fmt_mem(total_ram)}")
+       # CPU & Memory usage (normalized % already applied)
+        metrics = [
+            ("viewport.py", "viewport", cpu_vp, mem_vp),
+            ("monitoring.py", "api",     cpu_mon, mem_mon),
+            ("chrome",        "chrome",  cpu_ch,  mem_ch),
+        ]
+        for proc_name, label, cpu, mem in metrics:
+            # determine colors per metric
+            cpu_color = get_cpu_color(proc_name, cpu)
+            mem_color = get_mem_color(proc_name, mem)
+            # label takes worst-case color
+            if RED in (cpu_color, mem_color):
+                label_color = RED
+            elif YELLOW in (cpu_color, mem_color):
+                label_color = YELLOW
+            else:
+                label_color = GREEN
+            # print with colored label, CPU, and Mem
+            print(
+                f"  {label_color}{label:<9}{NC}"
+                f" CPU: {cpu_color}{cpu:.1f}%{NC}"
+                f"   Mem: {mem_color}{fmt_mem(mem)}{NC}"
+            )
+        print(f"{CYAN}RAM Used/Available:{NC} {fmt_mem(mem_vp+mem_mon+mem_ch)}/{fmt_mem(total_ram)}")
         print(f"{CYAN}Checking Page Health Every{NC}: {sleep_str}")
         print(f"{CYAN}Next Health Check in:{NC} {next_str}")
         print(f"{CYAN}Printing to Log Every{NC}:{GREEN} {LOG_INTERVAL} min{NC}")
