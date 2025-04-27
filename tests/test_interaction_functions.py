@@ -151,7 +151,6 @@ def test_handle_fullscreen_button(
 # -----------------------------------------------------------------------------
 @pytest.mark.parametrize("exc, expect_ret, expect_error_msg, expect_api", [
     (None, True, None, None),
-    (WebDriverException(), None, f"Tab Crashed. Restarting {viewport.BROWSER}...", "Tab Crashed"),
     (Exception("oops"), False, "Error during login: ", "Error Logging In"),
 ])
 @patch("viewport.chrome_restart_handler")
@@ -191,11 +190,6 @@ def test_handle_login(
             submit_el.click.assert_called_once()
             mock_check.assert_called_with(driver, "Dashboard")
             assert result is True
-        elif isinstance(exc, WebDriverException):
-            mock_log_error.assert_called_with(f"Tab Crashed. Restarting {viewport.BROWSER}...")
-            mock_api_status.assert_called_with("Tab Crashed")
-            mock_restart.assert_called_once_with("http://example.com")
-            assert result is None
         else:
             mock_log_error.assert_called()
             mock_api_status.assert_called_with(expect_api)

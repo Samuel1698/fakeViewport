@@ -884,10 +884,6 @@ def handle_login(driver):
         submit_button.click()
         # Verify successful login
         return check_for_title(driver, "Dashboard")
-    except WebDriverException:
-        log_error(f"Tab Crashed. Restarting {BROWSER}...")
-        api_status("Tab Crashed")
-        driver = chrome_restart_handler(url)
     except Exception as e: 
         log_error("Error during login: ", e)
         api_status("Error Logging In")
