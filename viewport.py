@@ -501,7 +501,7 @@ def status_handler():
             next = f"{GREEN}{mins}m {sc}s{NC}"
         else:
             next = f"{GREEN}{sc}s{NC}"
-        next_str = next if monitoring else f"{RED}Not Running{NC}"
+        next_str = next if uptime else f"{RED}Not Running{NC}"
         # Printing
         print(f"{YELLOW}======= Fake Viewport {viewport_version} ========{NC}")
         print(f"{CYAN}Script Uptime:{NC}      {uptime_str}")
