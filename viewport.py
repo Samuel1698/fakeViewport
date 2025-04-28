@@ -328,8 +328,7 @@ def clear_sst():
     # Clear the SST file to reset uptime data on script exit or failure
     try:
         # Opening with 'w' and immediately closing truncates the file to zero length
-        if sst_file.exists():
-            open(sst_file, 'w').close()
+        if sst_file.exists(): open(sst_file, 'w').close()
     except Exception as e:
         log_error("Error clearing SST file:", e)
 def api_status(msg):
