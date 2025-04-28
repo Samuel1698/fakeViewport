@@ -25,6 +25,8 @@ import viewport
         (True,  123,  False, False, True),
         # 4) normal restart: SST present + old process   -> Don't Write
         (True,  123,  True,  True,  False),
+        # 5) Edge case Restart: SST Present, no size + Old process -> Write
+        (True,  0,  True,  True,  True),
     ]
 )
 @patch("viewport.args_handler", return_value="continue")
