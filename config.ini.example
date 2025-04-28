@@ -23,7 +23,9 @@ MAX_RETRIES=3
 # Find it by navigating to chrome://version/ and copying "Executable Path"
 # BROWSER_BINARY=/usr/lib/chromium/chromium
 BROWSER_BINARY=/usr/bin/google-chrome-stable
-
+# Headless mode is only useful for development/testing other parts of the code
+# It will launch the script and run the browser without actually displaying it
+# HEADLESS=True
 [Logging]
 # Put False if you don't want a specific kind of logging.
 # By default, it will log in the console and a logfile, but you can toggle it off

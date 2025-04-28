@@ -160,7 +160,7 @@ def args_handler(args):
         clear_sst()
         sys.exit(0)
     if args.api:
-        if process_handler('monitoring.py', action="check"):
+        if process_handler("monitoring.py", action="check"):
             logging.info("Stopping the API...")
             process_handler('monitoring.py', action="kill")
         elif API: api_handler()
@@ -230,6 +230,7 @@ WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
 MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
 BROWSER_BINARY = config.get('Chrome', 'BROWSER_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
 BROWSER = "chromium" if "chromium" in BROWSER_BINARY.lower() else "chrome"
+HEADLESS = config.getboolean('Chrome', 'HEADLESS', fallback=False)
 SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
@@ -445,8 +446,8 @@ def status_handler():
         uptime_seconds = script_uptime.total_seconds()
 
         # Check if viewport and api are running
-        uptime = process_handler('viewport.py', action="check")
-        monitoring = process_handler('monitoring.py', action="check")
+        uptime = process_handler("viewport.py", action="check")
+        monitoring = process_handler("monitoring.py", action="check")
         # Convert uptime_seconds to months, days, hours, minutes, and seconds
         uptime_months = int(uptime_seconds // 2592000)
         uptime_days = int(uptime_seconds // 86400)
@@ -473,8 +474,8 @@ def status_handler():
         sleep_str = f"{GREEN}{' '.join(sleep_parts)}{NC}"
         # CPU & Memory usage
         # gather raw sums (each sum can exceed 100%)
-        cpu_vp, mem_vp = usage_handler('viewport.py')
-        cpu_mon, mem_mon = usage_handler('monitoring.py')
+        cpu_vp, mem_vp = usage_handler("viewport.py")
+        cpu_mon, mem_mon = usage_handler("monitoring.py")
         cpu_ch,  mem_ch  = usage_handler(BROWSER)
 
         # normalize across all logical cores (so 0–100%)
@@ -661,6 +662,10 @@ def chrome_handler(url):
     while retry_count < max_retries:
         try:
             chrome_options = Options()
+            if HEADLESS:
+                chrome_options.add_argument("--headless")
+                chrome_options.add_argument("--disable-gpu")
+                chrome_options.add_argument("--window-size=1920,1080")
             chrome_options.add_argument("--start-maximized")
             chrome_options.add_argument("--disable-infobars")
             chrome_options.add_argument("--disable-translate")
@@ -1083,18 +1088,28 @@ def handle_view(driver, url):
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():
-    if args_handler(args) == "continue":
-        logging.info(f"===== Fake Viewport {viewport_version} =====")
-        if API: api_handler()
-        api_status("Starting...")
-        # Check and kill any existing instance of viewport.py
-        process_handler('viewport.py', action="kill")
-        # Write the start time to the SST file
-        if not sst_file.exists() or sst_file.stat().st_size == 0:
-            with open(sst_file, 'w') as f:
-                f.write(str(datetime.now()))
-        driver = chrome_handler(url)
-        # Start the handle_view function in a separate thread
-        threading.Thread(target=handle_view, args=(driver, url)).start()
+    if args_handler(args) != "continue":
+        return
+    logging.info(f"===== Fake Viewport {viewport_version} =====")
+    if API: api_handler()
+    api_status("Starting...")
+    # Inspect SST File
+    sst_exists = sst_file.exists()
+    sst_size   = sst_file.stat().st_size if sst_exists else 0
+    sst_non_empty = sst_size > 0
+    # Check existence of another running instance of viewport.py
+    # Used to determine if the previous process likely crashed based on sst file content
+    other_running = process_handler("viewport.py", action="check")
+    crashed = (not other_running) and sst_non_empty
+    # Check and kill any existing instance of viewport.py
+    if other_running: process_handler("viewport.py", action="kill")
+    # Write the start time to the SST file
+    # Only if it's empty or if a crash likely happened
+    if sst_size == 0 or crashed:
+        with open(sst_file, 'w') as f:
+            f.write(str(datetime.now()))
+    driver = chrome_handler(url)
+    # Start the handle_view function in a separate thread
+    threading.Thread(target=handle_view, args=(driver, url)).start()
 if __name__ == "__main__":
     main()
