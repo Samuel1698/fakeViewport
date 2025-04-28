@@ -7,6 +7,8 @@ import logging.handlers
 logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
 import time
 import pytest
+import math
+from datetime import datetime, timedelta
 from itertools import cycle
 from unittest.mock import MagicMock, patch, ANY
 from selenium.common.exceptions import TimeoutException, WebDriverException, InvalidSessionIdException, NoSuchElementException
@@ -426,10 +428,29 @@ def test_handle_view_healthy_iteration(
     mock_api_status.assert_called_with("Feed Healthy")
 # -----------------------------------------------------------------------------
 # Interval Logging Test
-@pytest.mark.parametrize("sleep_time, log_interval", [
-    (60, 1),   # threshold = round((1*60)/60)   = 1  => fires on 1st iteration
-    (120, 2),  # threshold = round((2*60)/60)   = 2  => fires on 2nd iteration
-    (300, 10), # threshold = round((10*60/300)) = 2  => fires on 2nd iteration
+@pytest.mark.parametrize("sleep_time, log_interval, now_minute, now_second, expected_minute", [
+    # at hh:16:45, 1-min interval  → next boundary at :17
+    (60,   1,  16, 45, 17),
+    # at hh:36:33, 2-min interval  → next boundary at :38
+    (60,   2,  36, 33, 38),
+    # at hh:36:00, 10-min interval → next boundary at :40
+    (60,  10,  36,  0, 40),
+    # at hh:36:20, 1-min interval  → next boundary at :37
+    (120,  1,  36, 20, 37),
+    # at hh:36:00, 10-min interval → next boundary at :40
+    (120, 10,  36,  0, 40),
+    # at hh:16:45, 30-min interval → next boundary at :30
+    (300, 30,  16, 45, 30),
+    # at hh:36:40, 30-min interval → next boundary at :00
+    (300, 30,  36, 40,  0),
+    # at hh:16:45, 60-min interval → next boundary at :00 of next hour
+    (300, 60,  16, 45,  0),
+    # at hh:59:45, 60-min interval → next boundary at :00 of next hour
+    (300, 60,  59, 45,  0),
+    # at hh:46:45, 5-min  interval but sleep is 5m → effective interval=5m → boundary at :50
+    (300,  5,  46, 45, 50),
+    # at hh:46:45, 3-min  interval but sleep is 5m → effective interval=5m → boundary at :50
+    (300,  3,  46, 45, 50),
 ])
 @patch("viewport.handle_page", return_value=True)
 @patch("viewport.check_driver", return_value=True)
@@ -438,13 +459,11 @@ def test_handle_view_healthy_iteration(
 @patch("viewport.handle_loading_issue")
 @patch("viewport.handle_elements")
 @patch("viewport.check_unable_to_stream", return_value=False)
-@patch("viewport.check_next_interval", return_value=0)
 @patch("viewport.api_status")
 @patch("viewport.logging.info")
 def test_handle_view_video_feeds_healthy_logging(
     mock_log_info,
     mock_api_status,
-    mock_check_next_interval,
     mock_unable,
     mock_elements,
     mock_loading,
@@ -454,50 +473,64 @@ def test_handle_view_video_feeds_healthy_logging(
     mock_handle_page,
     sleep_time,
     log_interval,
+    now_minute,
+    now_second,
+    expected_minute,
     monkeypatch,
 ):
-    # 1) figure out how many loops it should take before the "Video feeds healthy." branch
-    threshold = max(1, round((log_interval * 60) / sleep_time))
+    from itertools import cycle
+    from datetime import datetime
 
-    # 2) replace time.sleep so that after threshold+1 calls it raises BreakLoop
+    class BreakLoop(BaseException):
+        pass
+
+    # 1) fake current time so we know exactly where the hour is
+    fake_now = datetime(2025, 4, 27, 5, now_minute, now_second)
+    monkeypatch.setattr(viewport, "datetime", MagicMock(now=MagicMock(return_value=fake_now)))
+
+    # 2) compute how many sleeps until we hit the boundary, then stop
+    #    first, figure out effective interval (can't log more often than sleep_time)
+    effective_interval_secs = max(log_interval * 60, sleep_time)
+    secs_since_hour = now_minute * 60 + now_second
+    secs_to_boundary = (effective_interval_secs - (secs_since_hour % effective_interval_secs)) % effective_interval_secs
+    # if we're exactly on a boundary, schedule one full interval out
+    if secs_to_boundary == 0:
+        secs_to_boundary = effective_interval_secs
+
+    boundary_loops = math.ceil(secs_to_boundary / sleep_time)
+
     sleep_calls = []
-    def fake_sleep(duration):
-        sleep_calls.append(duration)
-        # on the (threshold+1)th sleep, bail out
-        if len(sleep_calls) == threshold + 1:
+    def fake_sleep(_):
+        sleep_calls.append(1)
+        # once we've done boundary_loops sleeps, break
+        if len(sleep_calls) > boundary_loops:
             raise BreakLoop
-        return None
     monkeypatch.setattr(viewport.time, "sleep", fake_sleep)
 
-    # 3) stub out driver calls and make execute_script cycle forever
+    # 3) stub out driver
     driver = MagicMock()
-    driver.get_window_size.return_value = {"width": 1920, "height": 1080}
-    # cycle: offline_status=None, then width, then height, then repeat
     driver.execute_script.side_effect = cycle([None, 1920, 1080])
+    driver.get_window_size.return_value = {"width": 1920, "height": 1080}
+    fake_wait = MagicMock(); fake_wait.until.return_value = True
+    mock_wdw.return_value = fake_wait
 
-    # 4) stub WebDriverWait so it always succeeds
-    fake_wdw = MagicMock()
-    fake_wdw.until.return_value = True
-    mock_wdw.return_value = fake_wdw
-
-    # 5) set the module‐level SLEEP_TIME & LOG_INTERVAL
+    # 4) set module constants
     viewport.SLEEP_TIME = sleep_time
     viewport.LOG_INTERVAL = log_interval
 
-    # 6) run it and catch our BreakLoop
+    # 5) run & break out
     with pytest.raises(BreakLoop):
         viewport.handle_view(driver, "http://example.com")
 
-    # 7) Video feeds healthy should appear exactly once, and it must be the very last info() call
-    calls = mock_log_info.call_args_list
-    healthy_indices = [
-        idx for idx, call in enumerate(calls)
-        if "Video feeds healthy." in call.args[0]
-    ]
-    assert healthy_indices == [len(calls) - 1], (
-        f"'Video feeds healthy.' expected only in the final log call, "
-        f"but found at positions {healthy_indices} among {len(calls)} calls"
+    # 6) make sure the one-and-only “Video feeds healthy.” happened at the final log
+    calls = [c.args[0] for c in mock_log_info.call_args_list]
+    healthy_calls = [i for i, msg in enumerate(calls) if "Video feeds healthy." in msg]
+
+    assert healthy_calls == [len(calls) - 1], (
+        f"Expected first log at minute {expected_minute}, "
+        f"but computed boundary at {datetime(2025,4,27,5, now_minute, now_second) + timedelta(seconds=secs_to_boundary)}"
     )
+
 # -----------------------------------------------------------------------------
 # Decoding Error
 @patch("viewport.logging.warning")

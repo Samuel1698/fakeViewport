@@ -9,6 +9,7 @@ import configparser
 import getpass
 import logging
 import subprocess
+import math
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -18,16 +19,18 @@ from dotenv import load_dotenv
 # -------------------------------------------------------------------
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
-viewport_version = "2.1.3"
+viewport_version = "2.1.4"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 # Directory and file paths
 script_dir = Path(__file__).resolve().parent
-logs_dir = script_dir / 'logs'
+config_file = Path.cwd() / 'config.ini'
+if not config_file.exists():
+    config_file = script_dir / 'config.ini'
 env_dir = script_dir / '.env'
+logs_dir = script_dir / 'logs'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file = logs_dir / 'viewport.log'
-config_file = script_dir / 'config.ini'
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
@@ -961,9 +964,20 @@ def handle_view(driver, url):
     # While on the main loop, it calls the handle_retry, handle_fullscreen_button, check_unable_to_stream handle_loading_issue, and handle_elements functions.
     retry_count = 0
     max_retries = MAX_RETRIES
-    # Calculate how many iterations correspond to one LOG_INTERVAL
-    log_interval_iterations = max(1, round((LOG_INTERVAL * 60) / SLEEP_TIME))
-    iteration_counter = 0
+    # how many loops between regular logs
+    log_interval_iterations = round(max(LOG_INTERVAL * 60, SLEEP_TIME) / SLEEP_TIME)
+    # Align the first log to the next "even" boundary:
+    #   e.g. if LOG_INTERVAL=10 (minutes), we want the first
+    #   log at the next multiple of 10 past the hour.
+    now = datetime.now()
+    interval_secs = LOG_INTERVAL * 60
+    secs_since_hour = now.minute * 60 + now.second
+    # seconds until the next multiple of interval_secs
+    secs_to_boundary = (interval_secs - (secs_since_hour % interval_secs)) % interval_secs
+    # how many sleep‐cycles that is
+    boundary_loops = math.ceil(secs_to_boundary / SLEEP_TIME) if secs_to_boundary > 0 else 0
+    # set iteration_counter so that after `boundary_loops` loops we hit the log
+    iteration_counter = log_interval_iterations - boundary_loops
     if handle_page(driver):
         logging.info(f"Checking health of page every {SLEEP_TIME} seconds...")
     else:
