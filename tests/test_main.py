@@ -6,12 +6,13 @@ import logging.handlers
 # stub out the rotating‐file handler before viewport.py ever sees it
 logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
 
-from unittest.mock import patch, mock_open, ANY
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch, mock_open, ANY
 import viewport
+
 # -----------------------------------------------------------------------------
 # Test main function
 # -----------------------------------------------------------------------------
-
 @patch("viewport.args_handler", return_value="continue")
 @patch("viewport.process_handler")
 @patch("viewport.api_handler")
@@ -30,19 +31,24 @@ def test_main_continue(
 ):
     # Arrange
     viewport.API = False
+    # simulate missing or empty sst_file
+    fake_sst = MagicMock()
+    fake_sst.exists.return_value = False
+    fake_sst.stat.return_value = SimpleNamespace(st_size=0)
+    viewport.sst_file = fake_sst
+
     dummy_driver = object()
     mock_chrome.return_value = dummy_driver
-
     # Act
     viewport.main()
-
-    # Assert args_handler
+    # Assert args_handler was called
     mock_args.assert_called_once_with(viewport.args)
-    # Should kill old viewport
+    # Should kill old viewport instance
     mock_process.assert_called_once_with('viewport.py', action="kill")
-    # Should write timestamp to sst_file
+    # Because sst_file.exists() is False, we should open it once for writing
+    mock_open_file.assert_called_once_with(viewport.sst_file, 'w')
     handle = mock_open_file()
-    handle.write.assert_called_once()
+    handle.write.assert_called_once()  # wrote the timestamp
     # Should launch chrome_handler
     mock_chrome.assert_called_once_with(viewport.url)
     # Should spawn a thread to run handle_view(driver, url)
@@ -51,9 +57,55 @@ def test_main_continue(
         args=(dummy_driver, viewport.url)
     )
     mock_thread.return_value.start.assert_called_once()
-    # api_handler() should NOT have been called (since API=False)
+    # api_handler() should NOT have been called (API=False)
     mock_api_handler.assert_not_called()
-    # api_status("Starting...") should have run
+    # api_status("Starting...") should have been called
+    mock_api_status.assert_called_with("Starting...")
+@patch("viewport.args_handler", return_value="continue")
+@patch("viewport.process_handler")
+@patch("viewport.api_handler")
+@patch("viewport.api_status")
+@patch("viewport.chrome_handler")
+@patch("builtins.open", new_callable=mock_open)
+@patch("viewport.threading.Thread")
+def test_main_continue_sst_exists(
+    mock_thread,
+    mock_open_file,
+    mock_chrome,
+    mock_api_status,
+    mock_api_handler,
+    mock_process,
+    mock_args
+):
+    # Arrange
+    viewport.API = False
+    # simulate missing or empty sst_file
+    fake_sst = MagicMock()
+    fake_sst.exists.return_value = True
+    fake_sst.stat.st_size = 1
+    viewport.sst_file = fake_sst
+
+    dummy_driver = object()
+    mock_chrome.return_value = dummy_driver
+    # Act
+    viewport.main()
+    # Assert args_handler was called
+    mock_args.assert_called_once_with(viewport.args)
+    # Should kill old viewport instance
+    mock_process.assert_called_once_with('viewport.py', action="kill")
+    # Because sst_file.exists() is True, we shouldn't open it
+    mock_open_file.assert_not_called()
+    # Should launch chrome_handler
+    mock_chrome.assert_called_once_with(viewport.url)
+    # Should spawn a thread to run handle_view(driver, url)
+    mock_thread.assert_called_once_with(
+        target=viewport.handle_view,
+        args=(dummy_driver, viewport.url)
+    )
+    mock_thread.return_value.start.assert_called_once()
+    # api_handler() should NOT have been called (API=False)
+    mock_api_handler.assert_not_called()
+    # api_status("Starting...") should have been called
     mock_api_status.assert_called_with("Starting...")
 
 @patch("viewport.args_handler", return_value="something_else")

@@ -41,34 +41,65 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
 # Test for Status Handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize(
-    "missing_file, expected_log_error, process_names, expect_in_output",
+    "sst_exists, status_exists, log_content, process_names, expected_error, expected_output_snippets",
     [
-        # happy path: all files present, check for key output lines
-        (None, None, ["viewport.py"], [
-            "Fake Viewport 1.2.3",
-            "Script Uptime",
-            "Monitoring API",
-            "Usage:",
-            "Next Health Check:",
-            "Last Status Update",
-            "Last Log Entry",
-        ]),
-        # missing uptime file triggers only log_error
-        ("sst", "Uptime File not found", ["viewport.py"], None),
-        # missing status file
-        ("status", "Status File not found", ["viewport.py", "monitoring.py"], None),
-        # missing log file
-        ("log", "Log File not found", ["viewport.py", "monitoring.py"], None),
+        # 1) All present → full status block, no errors
+        (
+            True, True, "[INFO] All good", ["viewport.py"],
+            None,
+            [
+                "Fake Viewport 1.2.3",
+                "Script Uptime:",
+                "Monitoring API:",
+                "Usage:",
+                "Next Health Check:",
+                "Last Status Update:",
+                "Last Log Entry:",
+            ],
+        ),
+        # 2) Missing sst.txt → fallback to now, still prints uptime, no error
+        (
+            False, True, "[INFO] OK", ["viewport.py"],
+            None,
+            [
+                "Script Uptime:",
+                "Monitoring API:",
+            ],
+        ),
+        # 3) Missing status.txt → prints “Status file not found.” + logs error
+        (
+            True, False, "[INFO] OK", ["viewport.py"],
+            "Status File not found",
+            ["Status file not found."],
+        ),
+        # 4) Missing log file → prints “Log file not found.” + logs error
+        (
+            True, True, None, ["viewport.py"],
+            "Log File not found",
+            ["Log file not found."],
+        ),
+        # 5) Empty log file → prints “No log entries yet.”, no error
+        (
+            True, True, "", ["viewport.py"],
+            None,
+            ["Last Log Entry:", "No log entries yet."],
+        ),
+        # 6) Script not running → uptime shows “Not Running”
+        (
+            True, True, "[INFO] OK", [], 
+            None,
+            ["Script Uptime:", "Not Running"],
+        ),
     ]
 )
-@patch("viewport.time.time", return_value=0)                         # freeze time.time()
-@patch("viewport.check_next_interval", return_value=60)              # fixed next-interval
-@patch("viewport.psutil.virtual_memory")                             # stub RAM
-@patch("viewport.psutil.process_iter", return_value=[])              # no real processes
-@patch("viewport.process_handler")                                   # control running-process flags
-@patch("builtins.open")                                              # intercept file IO
-@patch("viewport.log_error")                                         # spy on errors
-def test_status_handler(
+@patch("viewport.time.time", return_value=0)
+@patch("viewport.check_next_interval", return_value=60)
+@patch("viewport.psutil.virtual_memory")
+@patch("viewport.psutil.process_iter", return_value=[])
+@patch("viewport.process_handler")
+@patch("builtins.open")
+@patch("viewport.log_error")
+def test_status_handler_various(
     mock_log_error,
     mock_open,
     mock_process_handler,
@@ -76,60 +107,62 @@ def test_status_handler(
     mock_virtual_memory,
     mock_check_next_interval,
     mock_time_time,
-    missing_file,
-    expected_log_error,
+    sst_exists,
+    status_exists,
+    log_content,
     process_names,
-    expect_in_output,
+    expected_error,
+    expected_output_snippets,
     capsys
 ):
-    # set a predictable total RAM in GB
+    # Stub total RAM to 1 GB
     mock_virtual_memory.return_value = MagicMock(total=1024**3)
 
-    # override module globals to simple strings/numbers
-    viewport.sst_file = "sst.txt"
-    viewport.status_file = "status.txt"
-    viewport.log_file = "viewport.log"
+    # Point viewport at simple filenames and fixed config
+    viewport.sst_file       = "sst.txt"
+    viewport.status_file    = "status.txt"
+    viewport.log_file       = "viewport.log"
     viewport.viewport_version = "1.2.3"
-    viewport.SLEEP_TIME = 60
-    viewport.LOG_INTERVAL = 10
+    viewport.SLEEP_TIME     = 60
+    viewport.LOG_INTERVAL   = 10
 
-    # prepare in-memory file contents
-    start = datetime(2024, 4, 25, 12, 0, 0)
-    sst_data    = StringIO(start.strftime('%Y-%m-%d %H:%M:%S.%f'))
-    status_data = StringIO("Feed Healthy")
-    log_data    = StringIO("[INFO] Viewport check successful.")
+    # Prepare our fake file‐handles
+    sst_data = StringIO(
+        datetime(2024, 4, 25, 12, 0, 0).strftime("%Y-%m-%d %H:%M:%S.%f")
+    ) if sst_exists else None
+    status_data = StringIO("Feed Healthy") if status_exists else None
 
-    # simulate FileNotFound at different stages
     def open_side_effect(path, *args, **kwargs):
         p = str(path)
-        if "sst"    in p:
-            if missing_file == "sst":    raise FileNotFoundError
-            return sst_data
-        if "status" in p:
-            if missing_file == "status": raise FileNotFoundError
-            return status_data
-        if "log"    in p:
-            if missing_file == "log":    raise FileNotFoundError
-            return log_data
+        if p == viewport.sst_file:
+            if not sst_exists:
+                raise FileNotFoundError
+            return StringIO(sst_data.getvalue())
+        if p == viewport.status_file:
+            if not status_exists:
+                raise FileNotFoundError
+            return StringIO(status_data.getvalue())
+        if p == viewport.log_file:
+            if log_content is None:
+                raise FileNotFoundError
+            return StringIO(log_content)
         raise FileNotFoundError
 
     mock_open.side_effect = open_side_effect
-
-    # control which processes appear 'running'
     mock_process_handler.side_effect = lambda name, action="check": name in process_names
 
-    # run the handler
+    # Run the handler
     viewport.status_handler()
+    out = capsys.readouterr().out
 
-    # assertions
-    if expected_log_error:
+    if expected_error:
         mock_log_error.assert_called_once()
-        assert expected_log_error in mock_log_error.call_args[0][0]
+        assert expected_error in mock_log_error.call_args[0][0]
     else:
-        out = capsys.readouterr().out
-        for snippet in expect_in_output:
-            assert snippet in out
         mock_log_error.assert_not_called()
+
+    for snippet in expected_output_snippets:
+        assert snippet in out
 # -------------------------------------------------------------------------
 # Test for Process Handler
 # -------------------------------------------------------------------------

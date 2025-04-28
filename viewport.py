@@ -157,6 +157,7 @@ def args_handler(args):
         logging.info("Stopping the Fake Viewport script...")
         process_handler("viewport.py", action="kill")
         process_handler(BROWSER, action="kill")
+        clear_sst()
         sys.exit(0)
     if args.api:
         if process_handler('monitoring.py', action="check"):
@@ -327,6 +328,13 @@ if LOG_CONSOLE:
 # -------------------------------------------------------------------
 # API setup
 # -------------------------------------------------------------------
+def clear_sst():
+    # Clear the SST file to reset uptime data on script exit or failure
+    try:
+        # Opening with 'w' and immediately closing truncates the file to zero length
+        open(sst_file, 'w').close()
+    except Exception as e:
+        log_error("Error clearing SST file:", e)
 def api_status(msg):
     # Although this function is named api_status, it is not exclusively an API function.
     # It is used to update the status of the script in a file, which is also used by the --status argument.
@@ -358,6 +366,7 @@ def signal_handler(signum, frame, driver=None):
         driver.quit()
     api_status("Stopped ")
     logging.info("Gracefully shutting down script instance.")
+    clear_sst()
     sys.exit(0)
 signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, driver))
 signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
@@ -418,8 +427,20 @@ def status_handler():
     # Displays the status of the script.
     # Script Version, Uptime, Status of API, config values for SLEEP and INTERVAL, and last log message
     try:
-        with open(sst_file, 'r') as f:
-            script_start_time = datetime.strptime(f.read(), '%Y-%m-%d %H:%M:%S.%f')
+        try:
+            with open(sst_file, 'r') as f:
+                content = f.read().strip()
+        except FileNotFoundError:
+            content = ''
+        if content:
+            try:
+                script_start_time = datetime.strptime(content, '%Y-%m-%d %H:%M:%S.%f')
+            except ValueError:
+                # malformed timestamp ⇒ treat like new
+                script_start_time = datetime.now()
+        else:
+            # empty file ⇒ generic timestamp
+            script_start_time = datetime.now()
         script_uptime = datetime.now() - script_start_time
         uptime_seconds = script_uptime.total_seconds()
 
@@ -537,8 +558,12 @@ def status_handler():
             log_error("Status File not found")
         try:
             with open(log_file, "r") as f:
-                # Read the last line from the log file
-                log_line = f.readlines()[-1].strip()
+                lines = f.readlines()
+            if not lines:
+                # No entries yet in the log
+                colored_log_line = (f"{RED}No log entries yet.{NC}")
+            else:
+                log_line = lines[-1].strip()
                 # Conditionally color the log line based on its content
                 if "[ERROR]" in log_line:
                     colored_log_line = f"{RED}{log_line}{NC}"
@@ -548,8 +573,9 @@ def status_handler():
                     colored_log_line = f"{GREEN}{log_line}{NC}"
                 else:
                     colored_log_line = f"{RED}{log_line}{NC}"
-                print(f"{CYAN}Last Log Entry:{NC} {colored_log_line}")
+            print(f"{CYAN}Last Log Entry:{NC} {colored_log_line}")
         except FileNotFoundError:
+            # Log file does not exist
             print(f"{RED}Log file not found.{NC}")
             log_error("Log File not found")
     except FileNotFoundError:
@@ -706,6 +732,7 @@ def restart_handler(driver):
     except Exception as e:
         log_error("Error during restart process:", e)
         api_status("Error Restarting, exiting...")
+        clear_sst()
         sys.exit(1)
 # -------------------------------------------------------------------
 # Helper Functions for main script
@@ -1063,7 +1090,9 @@ def main():
         # Check and kill any existing instance of viewport.py
         process_handler('viewport.py', action="kill")
         # Write the start time to the SST file
-        with open(sst_file, 'w') as f: f.write(str(datetime.now()))
+        if not sst_file.exists() or sst_file.stat().st_size == 0:
+            with open(sst_file, 'w') as f:
+                f.write(str(datetime.now()))
         driver = chrome_handler(url)
         # Start the handle_view function in a separate thread
         threading.Thread(target=handle_view, args=(driver, url)).start()
