@@ -169,7 +169,7 @@ def args_handler(args):
     if args.restart:
         logging.info("Restarting the Fake Viewport script in the background")
         restart_handler(driver=None)
-    return "continue"
+    else: return "continue"
 def args_child_handler(args, *, drop_flags=(), add_flags=None):
     # Returns a list of flags for a child invocation.
     # If we're dropping 'restart', force-add '--background'.

@@ -87,7 +87,7 @@ def test_restart_flag(mock_log, mock_restart_handler):
         "quit": False, "api": False, "restart": True
     })()
     result = viewport.args_handler(mock_args)
-    mock_log.assert_called_once_with("Restarting the Fake Viewport script...")
+    mock_log.assert_called_once_with("Restarting the Fake Viewport script in the background")
     mock_restart_handler.assert_called_once_with(driver=None)
     assert result is None  # Because it does not hit the `return "continue"`
 

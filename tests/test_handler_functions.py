@@ -13,7 +13,7 @@ from datetime import datetime
 from webdriver_manager.core.os_manager import ChromeType
 import viewport
 import signal
-
+import subprocess
 # helper to build a fake psutil.Process‐like object
 def _make_proc(pid, cmdline):
     proc = MagicMock()
@@ -227,28 +227,28 @@ def test_status_handler_various(
             [_make_proc(2, ["chrome"]),
              _make_proc(3, ["chrome"])], 
             999, "chrome", "kill", False,
-            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'chrome'"], ["Killed process 'chrome' with PIDs: 2, 3"]
+            [(2, signal.SIGKILL), (3, signal.SIGKILL)], ["Killed process 'chrome'"], ["Killed process 'chrome' with PIDs: 2, 3"]
         ),
 
         # Chromium Process (2, 3) running in backgrond
         # 'chromium', 'kill', If killed should return False
-        # Process 2 and 3 get SIGTERM, API Call should be:
+        # Process 2 and 3 get SIGKILL, API Call should be:
         (
             [_make_proc(2, ["chromium"]),
              _make_proc(3, ["chromium"])], 
             999, "chromium", "kill", False,
-            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'chromium'"], ["Killed process 'chromium' with PIDs: 2, 3"]
+            [(2, signal.SIGKILL), (3, signal.SIGKILL)], ["Killed process 'chromium'"], ["Killed process 'chromium' with PIDs: 2, 3"]
         ),
 
         # Multiple viewport instances running in background, separate from current instance
         # 'viewport', 'kill', If killed should return False
-        # Process 2 and 3 get SIGTERM, API Call should be:
+        # Process 2 and 3 get SIGKILL, API Call should be:
         (   
             [_make_proc(2, ["viewport.py"]),
              _make_proc(3, ["viewport.py"]),
              _make_proc(4, ["other"])], 
             999, "viewport.py", "kill", False,
-            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2, 3"]
+            [(2, signal.SIGKILL), (3, signal.SIGKILL)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2, 3"]
         ),
         # One other viewport instance running in background
         # 'viewport', 'kill', If killed should return False
@@ -257,7 +257,7 @@ def test_status_handler_various(
             [_make_proc(2, ["viewport.py"]),
              _make_proc(3, ["other"])], 
             999, "viewport.py", "kill", False,
-            [(2, signal.SIGTERM)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2"]
+            [(2, signal.SIGKILL)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2"]
         ),
     ]
 )
@@ -552,55 +552,60 @@ def test_chrome_restart_handler(
 # Tests for restart_handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize("initial_argv, driver_present, expected_flags", [
-    # No flags → no extra flags
-    (["viewport.py"],                        False, []),
-    # Short background → background preserved
-    (["viewport.py", "-b"],                  False, ["--background"]),
-    # Long background → background preserved
-    (["viewport.py", "--background"],        False, ["--background"]),
-    # Incomplete background → background preserved
-    (["viewport.py", "--backg"],             False, ["--background"]),
-    # Short restart → replaced by background
-    (["viewport.py", "-r"],                  False, ["--background"]),
-    # Long restart → replaced by background
-    (["viewport.py", "--restart"],           False, ["--background"]),
-    # Incomplete restart → replaced by background
-    (["viewport.py", "--rest"],              False, ["--background"]),
-    # Driver present + restart → driver.quit() + background
-    (["viewport.py", "--restart"],           True, ["--background"]),
+    # No flags          ⇒ no extra flags
+    (["viewport.py"],                         False, []),
+    # background flags  ⇒ preserved
+    (["viewport.py", "-b"],                   False, ["--background"]),
+    (["viewport.py", "--background"],         False, ["--background"]),
+    (["viewport.py", "--backg"],              False, ["--background"]),
+    # restart flags     ⇒ removed
+    (["viewport.py", "-r"],                   False, []),
+    (["viewport.py", "--restart"],            False, []),
+    (["viewport.py", "--rest"],               False, []),
+    # driver present    ⇒ quit()
+    (["viewport.py", "--restart"],            True,  []),
 ])
 @patch("viewport.sys.exit")
-@patch("viewport.os.execv")
+@patch("viewport.subprocess.Popen")
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.api_status")
-def test_restart_handler(
+def test_restart_handler_new(
     mock_api_status,
     mock_sleep,
-    mock_execv,
+    mock_popen,
     mock_exit,
     initial_argv,
     driver_present,
-    expected_flags,
+    expected_flags
 ):
-    # Arrange: set sys.argv and optional driver
+    # Arrange: set up sys.argv and optional driver
     viewport.sys.argv = list(initial_argv)
     driver = MagicMock() if driver_present else None
 
     # Act
     viewport.restart_handler(driver)
 
-    # Assert: api_status and sleep always happen first
+    # Assert: status update and sleep
     mock_api_status.assert_called_once_with("Restarting script...")
     mock_sleep.assert_called_once_with(2)
 
-    # Assert: driver.quit() only if driver was passed in
+    # Assert: driver.quit() only if driver was passed
     if driver_present:
         driver.quit.assert_called_once()
-    # (if driver is None we simply don't check .quit())
+    else:
+        # ensure we didn't mistakenly call .quit()
+        assert not getattr(driver, "quit", MagicMock()).called
 
-    # Assert: os.execv() called exactly once with correct args
-    expected_argv = [sys.executable, viewport.sys.argv[0]] + expected_flags
-    mock_execv.assert_called_once_with(sys.executable, expected_argv)
+    # Assert: Popen called exactly once with correct args
+    expected_cmd = [sys.executable, viewport.__file__] + expected_flags
+    mock_popen.assert_called_once_with(
+        expected_cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+        start_new_session=True,
+    )
 
-    # No errors or exit() on normal path
-    mock_exit.assert_not_called()
+    # Assert: parent exits with code 0
+    mock_exit.assert_called_once_with(0)
