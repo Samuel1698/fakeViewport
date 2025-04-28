@@ -167,10 +167,9 @@ def args_handler(args):
         else: logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
         sys.exit(0)
     if args.restart:
-        logging.info("Restarting the Fake Viewport script...")
+        logging.info("Restarting the Fake Viewport script in the background")
         restart_handler(driver=None)
-    else:
-        return "continue"
+    return "continue"
 def args_child_handler(args, *, drop_flags=(), add_flags=None):
     # Returns a list of flags for a child invocation.
     # If we're dropping 'restart', force-add '--background'.
@@ -185,10 +184,6 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
         add = dict(add_flags)
     else:
         add = {name: None for name in add_flags}
-    # If we're dropping 'restart' *and* the original invocation actually had restart=True,
-    # then force-add the background flag
-    if "restart" in drop and getattr(args, "restart", False):
-        add.setdefault("background", None)
     # Canonical mapping of each dest to its CLI tokens
     mapping = {
         "status":     ["--status"],
@@ -623,7 +618,7 @@ def process_handler(name, action="check"):
         if action == "kill" and matches:
             for pid in matches:
                 try:
-                    os.kill(pid, signal.SIGTERM)
+                    os.kill(pid, signal.SIGKILL)
                 except ProcessLookupError:
                     log_error(f"Process {pid} already gone")
                     api_status(f"Process {pid} already gone")
@@ -727,13 +722,19 @@ def restart_handler(driver):
         if driver is not None:
             driver.quit()
         time.sleep(2)
-
-        # 2) build the new flags: drop --restart, force --background only if the --restart flag was passed:
         child_argv = args_child_handler(
             args,
-            drop_flags={"restart"}
+            drop_flags={"restart"},  # don’t re-daemonize when the child starts
         )
-        os.execv(sys.executable, [sys.executable, sys.argv[0]] + child_argv)
+        subprocess.Popen(
+            [sys.executable, __file__] + child_argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True,
+        )
+        sys.exit(0)
     except Exception as e:
         log_error("Error during restart process:", e)
         api_status("Error Restarting, exiting...")
