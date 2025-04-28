@@ -1,16 +1,24 @@
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+import re
+import signal
 import logging
 import logging.handlers
 # stub out the rotating‐file handler before viewport.py ever sees it
 logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
 
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, mock_open, ANY
 import pytest
 import viewport
-
+@pytest.fixture(autouse=True)
+def disable_external_side_effects(monkeypatch):
+    # never actually sleep
+    monkeypatch.setattr(viewport.time, "sleep", lambda *args, **kwargs: None)
+    # never actually fork a process
+    monkeypatch.setattr(viewport.subprocess, "Popen", lambda *args, **kwargs: None)
 # -----------------------------------------------------------------------------
 # Test main function
 # -----------------------------------------------------------------------------
@@ -145,7 +153,6 @@ def test_api_handler_starts_api(mock_api_status, mock_popen, mock_proc):
     # Should spawn monitoring.py detached
     assert mock_popen.called
     mock_api_status.assert_called_with("Starting API...")
-
 @patch("viewport.process_handler", return_value=False)
 @patch("viewport.subprocess.Popen", side_effect=Exception("fail"))
 @patch("viewport.log_error")
@@ -159,7 +166,6 @@ def test_api_handler_failure(
     viewport.api_handler()
     mock_log_error.assert_called_with("Error starting API: ", ANY)
     mock_api_status.assert_called_with("Error Starting API")
-
 @patch("viewport.process_handler", return_value=True)
 @patch("viewport.subprocess.Popen")
 @patch("viewport.api_status")
@@ -167,3 +173,143 @@ def test_api_handler_already_running(mock_api_status, mock_popen, mock_proc):
     viewport.api_handler()
     mock_popen.assert_not_called()
     mock_api_status.assert_not_called()
+# -------------------------------------------------------------------------
+# Test Script Start Time File
+# -------------------------------------------------------------------------
+
+# -------------------------------------------------------------------------
+# 1) args_handler: background/restart should leave SST alone; quit must clear it
+@pytest.mark.parametrize(
+    "flag, pre, should_clear",
+    [
+        # background variants → no clear
+        ("-b",           "old", False),
+        ("--background", "old", False),
+        ("--backg",      "old", False),
+
+        # restart variants → no clear
+        ("-r",           "old", False),
+        ("--restart",    "old", False),
+        ("--rest",       "old", False),
+
+        # quit variants → clear
+        ("-q",           "old", True),
+        ("--quit",       "old", True),
+    ]
+)
+@patch("viewport.process_handler")
+@patch("viewport.sys.exit")
+def test_args_handler_flag_sst(mock_exit, mock_proc, flag, pre, should_clear, tmp_path):
+    # path for our fake SST file
+    sst = tmp_path / "sst.txt"
+    sst.write_text(pre)
+    viewport.sst_file = sst
+
+    # build a minimal Args object
+    args = SimpleNamespace(
+        status=False,
+        logs=None,
+        background = flag in ("-b", "--background") or flag.startswith("--b"),
+        restart    = flag in ("-r", "--restart")    or flag.startswith("--r"),
+        quit       = flag in ("-q", "--quit"),
+        api=False
+    )
+
+    # invoke
+    viewport.args_handler(args)
+
+    # check file
+    content = sst.read_text()
+    if should_clear:
+        assert content == ""
+    else:
+        assert content == pre
+
+
+# -------------------------------------------------------------------------
+# 2) main(): initial / crash / normal cases for writing SST
+@pytest.mark.parametrize(
+    "pre, other_running, expect_write",
+    [
+        # first-ever run: no file => write
+        ( None,    False,  True),
+        # crash recovery: file exists + no other process => rewrite
+        ("old",    False,  True),
+        # normal restart: file exists + other process => leave untouched
+        ("old",     True,  False),
+    ]
+)
+@patch("viewport.args_handler", return_value="continue")
+@patch("viewport.chrome_handler")
+@patch("viewport.threading.Thread")
+def test_main_sst_write_logic(mock_thread, mock_chrome, mock_args, pre, other_running, expect_write, tmp_path):
+    # set up
+    sst = tmp_path / "sst.txt"
+    viewport.sst_file = sst
+
+    if pre is not None:
+        sst.write_text(pre)
+
+    # stub process_handler for viewport.py check
+    def fake_proc(name, action="check"):
+        return other_running if name=="viewport.py" else None
+    viewport.process_handler = fake_proc
+
+    # run
+    viewport.main()
+
+    # verify
+    if expect_write:
+        assert sst.exists()
+        val = sst.read_text().strip()
+        # should look like a timestamp: YYYY-MM-DD HH:MM:SS.ffffff
+        assert re.match(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+", val), f"bad ts: {val}"
+    else:
+        # untouched
+        assert sst.read_text() == pre
+
+
+# -------------------------------------------------------------------------
+# 3) simulate SIGTERM (signal_handler): clears SST, then main() writes again
+@patch("viewport.sys.exit")
+def test_sigterm_clears_and_next_main_writes(mock_exit, tmp_path, monkeypatch):
+    #  a) prepopulate
+    sst = tmp_path / "sst.txt"
+    viewport.sst_file = sst
+    sst.write_text("old")
+
+    # b) simulate kill by SIGTERM
+    viewport.signal_handler(signum=signal.SIGTERM, frame=None, driver=None)
+    assert sst.read_text() == ""
+
+    # c) stub out everything else so main() will actually write
+    monkeypatch.setattr(viewport, "args_handler", lambda a: "continue")
+    monkeypatch.setattr(viewport, "process_handler", lambda n, action="check": False)
+    monkeypatch.setattr(viewport, "chrome_handler", lambda url: MagicMock())
+    monkeypatch.setattr(viewport, "threading", MagicMock(Thread=lambda target,args: MagicMock(start=lambda: None)))
+
+    # d) call main again
+    viewport.main()
+    assert sst.read_text().strip() != ""
+
+
+# -------------------------------------------------------------------------
+# 4) simulate a true crash (no SIGTERM cleanup): prefilled SST + no process => main rewrites
+def test_crash_recovery_writes(tmp_path, monkeypatch):
+    sst = tmp_path / "sst.txt"
+    viewport.sst_file = sst
+    sst.write_text("2025-04-27 12:00:00.000001")
+
+    # no other viewport.py running → crash condition
+    monkeypatch.setattr(viewport, "process_handler", lambda n,action="check": False)
+
+    # ensure main goes through
+    monkeypatch.setattr(viewport, "args_handler", lambda a: "continue")
+    monkeypatch.setattr(viewport, "chrome_handler", lambda url: MagicMock())
+    monkeypatch.setattr(viewport, "threading", MagicMock(Thread=lambda target,args: MagicMock(start=lambda: None)))
+
+    viewport.main()
+    # new timestamp should differ from old
+    new = sst.read_text().strip()
+    assert new != "2025-04-27 12:00:00.000001"
+    assert re.match(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+", new)

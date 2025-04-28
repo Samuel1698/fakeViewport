@@ -19,6 +19,12 @@ def _make_proc(pid, cmdline):
     proc = MagicMock()
     proc.info = {"pid": pid, "cmdline": cmdline}
     return proc
+@pytest.fixture(autouse=True)
+def isolate_sst(tmp_path, monkeypatch):
+    # redirect every test’s sst_file into tmp_path/…
+    fake = tmp_path / "sst.txt"
+    fake.write_text("2025-01-01 00:00:00.000000")  # or leave empty
+    monkeypatch.setattr(viewport, "sst_file", fake)
 # -------------------------------------------------------------------------
 # Test for Singal Handler
 # -------------------------------------------------------------------------

@@ -8,7 +8,12 @@ logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.Null
 from unittest.mock import patch, mock_open
 import pytest
 import viewport
-
+@pytest.fixture(autouse=True)
+def isolate_sst(tmp_path, monkeypatch):
+    # redirect every test’s sst_file into tmp_path/…
+    fake = tmp_path / "sst.txt"
+    fake.write_text("2025-01-01 00:00:00.000000")  # or leave empty
+    monkeypatch.setattr(viewport, "sst_file", fake)
 @pytest.mark.parametrize("argv_flags", [
     ["--status", "--background"],       # Two arguments
     ["-r", "-l"],                       # Abbreviated version 

@@ -328,7 +328,8 @@ def clear_sst():
     # Clear the SST file to reset uptime data on script exit or failure
     try:
         # Opening with 'w' and immediately closing truncates the file to zero length
-        open(sst_file, 'w').close()
+        if sst_file.exists():
+            open(sst_file, 'w').close()
     except Exception as e:
         log_error("Error clearing SST file:", e)
 def api_status(msg):
@@ -855,7 +856,6 @@ def handle_loading_issue(driver):
                     trouble_loading_start_time = time.time()
                 elif time.time() - trouble_loading_start_time >= 15:  # if loading issue persists for 15 seconds
                     log_error("Video feed trouble persisting for 15 seconds, refreshing the page.")
-                    logging.info("Video feed trouble persisting for 15 seconds, refreshing the page.")
                     api_status("Loading Issue Detected")
                     driver.refresh()
                     time.sleep(5)  # Allow the page to load after refresh
