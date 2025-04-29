@@ -16,7 +16,7 @@ MAX_RETRIES=3
 # Chrome directory found by navigating to chrome://version/ and copying the Profile Path
 # The script will default to the path location in Linux. 
 # Copy profile path of Chromium here if you want to use that browser
-# BROWSER_PROFILE_PATH=/home/your-user/.config/chormium/Default/Default
+# BROWSER_PROFILE_PATH=/home/your-user/.config/chromium/Default/Default
 # BROWSER_PROFILE_PATH=/home/your-user/.config/google-chrome/Default
 
 # Path of your chrome binary. Depends on your OS
