@@ -27,7 +27,7 @@ def configure_logging(
     log_file: bool,
     log_console: bool,
     log_days: int = 7,
-    verbose_logging: bool = False
+    Debug_logging: bool = False
 ) -> logging.Logger:
     """
     Configure the root logger with:
@@ -39,10 +39,10 @@ def configure_logging(
         log_file:         enable file logging
         log_console:      enable console logging
         log_days:         how many days to retain file logs
-        verbose_logging:  if True, set level to DEBUG; else INFO
+        debug_logging:    if True, set level to DEBUG; else INFO
     """
     logger = logging.getLogger()
-    level = logging.DEBUG if verbose_logging else logging.INFO
+    level = logging.DEBUG if Debug_logging else logging.INFO
     logger.setLevel(level)
 
     # Formatter for file handler

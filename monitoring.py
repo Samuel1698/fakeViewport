@@ -23,7 +23,7 @@ def create_app(config_path=None):
     config.read(config_path or 'config.ini')
     LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
     LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
-    VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
+    DEBUG_LOGGING = config.getboolean('Logging', 'DEBUG_LOGGING', fallback=False)
     LOG_DAYS = config.getint('Logging', 'LOG_DAYS', fallback=7)
     # Health check interval (seconds)
     SLEEP_TIME = config.getint('General', 'SLEEP_TIME', fallback=300)
@@ -33,6 +33,8 @@ def create_app(config_path=None):
     # -----------------------------
     # Prepare API directory and files
     # -----------------------------
+    script_dir = Path(__file__).resolve().parent
+    api_root = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
     script_dir = Path(__file__).resolve().parent
     api_root = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
     api_dir = Path(api_root)
@@ -48,7 +50,7 @@ def create_app(config_path=None):
         log_file=LOG_FILE,
         log_console=LOG_CONSOLE,
         log_days=LOG_DAYS,
-        verbose_logging=VERBOSE_LOGGING
+        Debug_logging=DEBUG_LOGGING
     )
 
     # -----------------------------

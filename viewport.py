@@ -230,7 +230,8 @@ HEADLESS = config.getboolean('Chrome', 'HEADLESS', fallback=False)
 SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
-VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
+DEBUG_LOGGING = config.getboolean('Logging', 'DEBUG_LOGGING', fallback=False)
+ERROR_LOGGING = config.getboolean('Logging', 'ERROR_LOGGING', fallback=False)
 LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
 LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
 API = config.getboolean('API', 'USE_API', fallback=False)
@@ -285,10 +286,10 @@ configure_logging(
     log_file=LOG_FILE,
     log_console=LOG_CONSOLE,
     log_days=LOG_DAYS,
-    verbose_logging=VERBOSE_LOGGING
+    Debug_logging=DEBUG_LOGGING
 )
 def log_error(message, exception=None):
-    if VERBOSE_LOGGING and exception:
+    if ERROR_LOGGING and exception:
         logging.exception(message)  # Logs the message with the stacktrace
     else:
         logging.error(message)  # Logs the message without any exception

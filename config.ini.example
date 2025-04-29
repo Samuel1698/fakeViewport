@@ -31,7 +31,10 @@ BROWSER_BINARY=/usr/bin/google-chrome-stable
 # By default, it will log in the console and a logfile, but you can toggle it off
 LOG_FILE=True
 LOG_CONSOLE=True
-VERBOSE_LOGGING=False
+# Sets the logger level to DEBUG instead of INFO. Recommend leaving False unless troubleshooting
+DEBUG_LOGGING=False
+# If True, errors will raise an Exception instead of an Error which makes them more verbose and traceable.
+ERROR_LOGGING=False
 # How many log files to keeps. It will keep the last 7 days of logs by default.
 LOG_DAYS=7
 # Interval of how often the script will log the status of the cameras, in minutes. 
