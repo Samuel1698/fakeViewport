@@ -6,6 +6,16 @@ NC='\e[0m'
 SCRIPT_PATH="$(pwd)/viewport.py"
 VENV_PYTHON="$(pwd)/venv/bin/python3"
 echo -e "${YELLOW}===== FakeViewport Setup =====${NC}"
+
+# -----------------------------------------------------------------------------
+# Helper: move $1 → $2 only if $2 doesn’t already exist (analogous to mv -n)
+# -----------------------------------------------------------------------------
+ss_mv_if_not_exists() {
+    # ensure target directory exists
+    command mkdir -p "$(dirname "$2")"
+    # if target is missing, do the move
+    command test ! -e "$2" && command mv "$1" "$2"
+}
 # -------------------------------------------------------------------
 # 1. Verify Python 3 is installed
 # -------------------------------------------------------------------
@@ -107,7 +117,7 @@ if [ -f ".env.example" ]; then
         echo -e "${GREEN}✓ .env already exists. Skipping...${NC}"
     else
         echo -e "${YELLOW}Renaming .env.example to .env...${NC}"
-        if mv  --update=none .env.example .env; then
+        if ss_mv_if_not_exists .env.example .env; then
             echo -e "${GREEN}✓ Configuration file prepared${NC}"
             echo -e "${YELLOW}  Please edit .env to set your UniFi Protect credentials.${NC}"
             echo -e "${YELLOW}  You can do so with the command: nano .env\n${NC}"
@@ -129,7 +139,7 @@ if [ -f "config.ini.example" ]; then
         echo -e "${GREEN}✓ config.ini already exists. Skipping...${NC}"
     else
         echo -e "${YELLOW}Renaming config.ini.example to config.ini...${NC}"
-        if cp --update=none config.ini.example config.ini; then
+        if ss_mv_if_not_exists config.ini.example config.ini; then
             echo -e "${GREEN}✓ Configuration file prepared${NC}"
         else
             echo -e "${RED}Failed to rename configuration file!${NC}"
