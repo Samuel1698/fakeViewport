@@ -716,14 +716,18 @@ def restart_handler(driver):
 # Helper Functions for main script
 # These functions return true or false but don't interact directly with the webpage
 # -------------------------------------------------------------------
+def check_crash(driver):
+    # Explicitly checks for the message in page that come from a crashed tab
+    # Would only get called if for some reason the tab crashed but driver is still responsive
+    return "Aw, Snap!" in driver.page_source or "Tab Crashed" in driver.page_source
 def check_driver(driver):
     # Checks if WebDriver is still alive
     # Returns True if driver is responsive, False otherwise
     try:
         driver.title  # Accessing the title will raise an exception if the driver is not alive
         return True
-    except (WebDriverException, Exception):
-        return False
+    except (WebDriverException, InvalidSessionIdException, Exception):
+        raise
 def check_next_interval(interval_seconds, now=None):
     # Calculates the next whole interval based on the current time
     # Seconds until next interval would for a time of 10:51 and interval of 5 minutes, calculate
@@ -1013,6 +1017,11 @@ def handle_view(driver, url):
                     time.sleep(SLEEP_TIME)  # Wait before retrying
                     retry_count += 1
                     handle_retry(driver, url, retry_count, max_retries)
+                if check_crash(driver):
+                    log_error(f"Tab Crashed. Restarting {BROWSER}...", e)
+                    api_status("Tab Crashed")
+                    driver = chrome_restart_handler(url)
+                    continue
                 WebDriverWait(driver, WAIT_TIME).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
                 )
