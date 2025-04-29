@@ -114,18 +114,26 @@ kill <pid>
 ```
 
 ### API Integration (Optional)
-The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, restart the script so you can access the script's status remotely (with appropriate network permissions) by navigating to the Thin Client's IP address in your browser. For example: `http://[machine's IP]:5000/admin.`
+The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, restart the script so you can access the script's status remotely (with appropriate network permissions) by navigating to the Thin Client's IP address in your browser. For example: `http://[machine's IP]:5000/api`
 
 Specific routes:
 ```
-/admin
-   - Combines all of the routes into one
-/get_script_uptime
-   - Difference between the timestamp of when the script started and time.now
-/check_view
-   - Displays the status of the script as it self-reports throughout it's functions
-/get_system_uptime
-   - Displays the system uptime
+/api
+   - Displays a list of all the urls
+/health_interval
+   - Number of seconds between each 'health' check. Corresponds to SLEEP_TIME in config.ini
+/log_entry
+   - Displays the last line logged into the log file
+/log_interval
+   - Number of minutes between each 'log' entry into log file. Corresponds to LOG_INTERVAL in config.ini
+/ram
+   - Ram Total/Used
+/script_uptime
+   - Timestamp of when the script started running
+/status
+   - Self-Reported status of the script's health
+/system_uptime
+   - Timestamp of when the system was turned on
 ```
 
 ---
