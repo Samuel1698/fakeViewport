@@ -13,8 +13,11 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 - Detects if the console or application are offline and waits before reloading.
 - Detects if chrome is running too slow and restarts it.
 - Automatically clicks the full screen button and hides the cursor and controls from the cameras.
+- Very robust error handling and failsafes.
+- Customizable by changing the `config.ini` file.
 - Easy to set up by running the `setup.sh` bash script.
 - Most uptime I've seen is 6 months uninterrupted (v1.0.0). 
+- Compatible with Chromium 
 - Logs output of the terminal to logs/viewport.log for troubleshooting or checking status remotely.
 - Optional API integration for remote monitoring (e.g., with [Rainmeter](https://www.rainmeter.net/)).
 
@@ -26,7 +29,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 - A **Dell Wyse Thin Client** or similar device.
 - Tested on:
   - Dell Wyse 5070 with Linux Mint. 
-  - Dell Wyse Dx0Q with antiX Linux.
+  - Dell Wyse Dx0Q with antiX Linux. (CPU Might be too weak for unifi.ui.com - Remains untested in local access)
 
 ### Software
 - A lightweight Linux distribution of your choice (Preferably Debian based).

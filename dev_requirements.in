@@ -3,7 +3,8 @@ selenium
 webdriver-manager
 psutil
 uptime
-Flask
+flask
+flask-cors
 pytest
 pytest-mock
 pip-tools

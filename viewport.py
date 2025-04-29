@@ -9,7 +9,9 @@ import configparser
 import getpass
 import logging
 import subprocess
+import math
 from logging.handlers import TimedRotatingFileHandler
+from logging_config import configure_logging
 from pathlib import Path
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -18,12 +20,15 @@ from dotenv import load_dotenv
 # -------------------------------------------------------------------
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
-viewport_version = "2.1.3"
+viewport_version = "2.1.4"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 # Directory and file paths
 script_dir = Path(__file__).resolve().parent
-logs_dir = script_dir / 'logs'
+config_file = Path.cwd() / 'config.ini'
+if not config_file.exists():
+    config_file = script_dir / 'config.ini'
 env_dir = script_dir / '.env'
+logs_dir = script_dir / 'logs'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file = logs_dir / 'viewport.log'
@@ -153,19 +158,19 @@ def args_handler(args):
         logging.info("Stopping the Fake Viewport script...")
         process_handler("viewport.py", action="kill")
         process_handler(BROWSER, action="kill")
+        clear_sst()
         sys.exit(0)
     if args.api:
-        if process_handler('monitoring.py', action="check"):
+        if process_handler("monitoring.py", action="check"):
             logging.info("Stopping the API...")
             process_handler('monitoring.py', action="kill")
         elif API: api_handler()
         else: logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
         sys.exit(0)
     if args.restart:
-        logging.info("Restarting the Fake Viewport script...")
+        logging.info("Restarting the Fake Viewport script in the background")
         restart_handler(driver=None)
-    else:
-        return "continue"
+    else: return "continue"
 def args_child_handler(args, *, drop_flags=(), add_flags=None):
     # Returns a list of flags for a child invocation.
     # If we're dropping 'restart', force-add '--background'.
@@ -180,10 +185,6 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
         add = dict(add_flags)
     else:
         add = {name: None for name in add_flags}
-    # If we're dropping 'restart' *and* the original invocation actually had restart=True,
-    # then force-add the background flag
-    if "restart" in drop and getattr(args, "restart", False):
-        add.setdefault("background", None)
     # Canonical mapping of each dest to its CLI tokens
     mapping = {
         "status":     ["--status"],
@@ -217,7 +218,7 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
 # Config file initialization
 # -------------------------------------------------------------------
 config = configparser.ConfigParser()
-config.read('config.ini')
+config.read(config_file)
 user = getpass.getuser()
 default_profile_path = f"/home/{user}/.config/google-chrome/Default"
 BROWSER_PROFILE_PATH = config.get('Chrome', 'BROWSER_PROFILE_PATH', fallback=default_profile_path).strip()
@@ -225,6 +226,7 @@ WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
 MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
 BROWSER_BINARY = config.get('Chrome', 'BROWSER_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
 BROWSER = "chromium" if "chromium" in BROWSER_BINARY.lower() else "chrome"
+HEADLESS = config.getboolean('Chrome', 'HEADLESS', fallback=False)
 SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
@@ -278,51 +280,28 @@ if not url:
 # -------------------------------------------------------------------
 # Logging setup
 # -------------------------------------------------------------------
-class ColoredFormatter(logging.Formatter):
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    CYAN = "\033[36m"
-    NC='\033[0m'
-    def format(self, record):
-        # Add colors based on the log level
-        if record.levelno == logging.ERROR:
-            color = self.RED
-        elif record.levelno == logging.WARNING:
-            color = self.YELLOW
-        elif record.levelno == logging.INFO:
-            color = self.GREEN
-        else:
-            color = self.CYAN  # Default color for other levels (e.g., DEBUG)
-        # Format the message with the color
-        record.msg = f"{color}{record.msg}{self.NC}"
-        return super().format(record)
-logger = logging.getLogger()
-formatter = logging.Formatter(f'[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-logger.setLevel(logging.INFO)
+configure_logging(
+    log_file_path=str(log_file),
+    log_file=LOG_FILE,
+    log_console=LOG_CONSOLE,
+    log_days=LOG_DAYS,
+    verbose_logging=VERBOSE_LOGGING
+)
 def log_error(message, exception=None):
     if VERBOSE_LOGGING and exception:
         logging.exception(message)  # Logs the message with the stacktrace
     else:
         logging.error(message)  # Logs the message without any exception
-if LOG_FILE:
-    #  Define a handler for the file
-    file_handler = TimedRotatingFileHandler(log_file, when="D", interval=1, backupCount=LOG_DAYS)
-    file_handler.setLevel(logging.INFO)
-    # Set the formatter for the handler
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-if LOG_CONSOLE:
-    # Define a handler for the console
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    # Set the formatter for the handler
-    console_formatter = ColoredFormatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    console_handler.setFormatter(console_formatter)
-    logger.addHandler(console_handler)
 # -------------------------------------------------------------------
 # API setup
 # -------------------------------------------------------------------
+def clear_sst():
+    # Clear the SST file to reset uptime data on script exit or failure
+    try:
+        # Opening with 'w' and immediately closing truncates the file to zero length
+        if sst_file.exists(): open(sst_file, 'w').close()
+    except Exception as e:
+        log_error("Error clearing SST file:", e)
 def api_status(msg):
     # Although this function is named api_status, it is not exclusively an API function.
     # It is used to update the status of the script in a file, which is also used by the --status argument.
@@ -354,6 +333,7 @@ def signal_handler(signum, frame, driver=None):
         driver.quit()
     api_status("Stopped ")
     logging.info("Gracefully shutting down script instance.")
+    clear_sst()
     sys.exit(0)
 signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, driver))
 signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
@@ -414,14 +394,26 @@ def status_handler():
     # Displays the status of the script.
     # Script Version, Uptime, Status of API, config values for SLEEP and INTERVAL, and last log message
     try:
-        with open(sst_file, 'r') as f:
-            script_start_time = datetime.strptime(f.read(), '%Y-%m-%d %H:%M:%S.%f')
+        try:
+            with open(sst_file, 'r') as f:
+                content = f.read().strip()
+        except FileNotFoundError:
+            content = ''
+        if content:
+            try:
+                script_start_time = datetime.strptime(content, '%Y-%m-%d %H:%M:%S.%f')
+            except ValueError:
+                # malformed timestamp ⇒ treat like new
+                script_start_time = datetime.now()
+        else:
+            # empty file ⇒ generic timestamp
+            script_start_time = datetime.now()
         script_uptime = datetime.now() - script_start_time
         uptime_seconds = script_uptime.total_seconds()
 
         # Check if viewport and api are running
-        uptime = process_handler('viewport.py', action="check")
-        monitoring = process_handler('monitoring.py', action="check")
+        uptime = process_handler("viewport.py", action="check")
+        monitoring = process_handler("monitoring.py", action="check")
         # Convert uptime_seconds to months, days, hours, minutes, and seconds
         uptime_months = int(uptime_seconds // 2592000)
         uptime_days = int(uptime_seconds // 86400)
@@ -448,8 +440,8 @@ def status_handler():
         sleep_str = f"{GREEN}{' '.join(sleep_parts)}{NC}"
         # CPU & Memory usage
         # gather raw sums (each sum can exceed 100%)
-        cpu_vp, mem_vp = usage_handler('viewport.py')
-        cpu_mon, mem_mon = usage_handler('monitoring.py')
+        cpu_vp, mem_vp = usage_handler("viewport.py")
+        cpu_mon, mem_mon = usage_handler("monitoring.py")
         cpu_ch,  mem_ch  = usage_handler(BROWSER)
 
         # normalize across all logical cores (so 0–100%)
@@ -480,7 +472,7 @@ def status_handler():
             next = f"{GREEN}{mins}m {sc}s{NC}"
         else:
             next = f"{GREEN}{sc}s{NC}"
-        next_str = next if monitoring else f"{RED}Not Running{NC}"
+        next_str = next if uptime else f"{RED}Not Running{NC}"
         # Printing
         print(f"{YELLOW}======= Fake Viewport {viewport_version} ========{NC}")
         print(f"{CYAN}Script Uptime:{NC}      {uptime_str}")
@@ -533,8 +525,12 @@ def status_handler():
             log_error("Status File not found")
         try:
             with open(log_file, "r") as f:
-                # Read the last line from the log file
-                log_line = f.readlines()[-1].strip()
+                lines = f.readlines()
+            if not lines:
+                # No entries yet in the log
+                colored_log_line = (f"{RED}No log entries yet.{NC}")
+            else:
+                log_line = lines[-1].strip()
                 # Conditionally color the log line based on its content
                 if "[ERROR]" in log_line:
                     colored_log_line = f"{RED}{log_line}{NC}"
@@ -544,8 +540,9 @@ def status_handler():
                     colored_log_line = f"{GREEN}{log_line}{NC}"
                 else:
                     colored_log_line = f"{RED}{log_line}{NC}"
-                print(f"{CYAN}Last Log Entry:{NC} {colored_log_line}")
+            print(f"{CYAN}Last Log Entry:{NC} {colored_log_line}")
         except FileNotFoundError:
+            # Log file does not exist
             print(f"{RED}Log file not found.{NC}")
             log_error("Log File not found")
     except FileNotFoundError:
@@ -592,7 +589,7 @@ def process_handler(name, action="check"):
         if action == "kill" and matches:
             for pid in matches:
                 try:
-                    os.kill(pid, signal.SIGTERM)
+                    os.kill(pid, signal.SIGKILL)
                 except ProcessLookupError:
                     log_error(f"Process {pid} already gone")
                     api_status(f"Process {pid} already gone")
@@ -631,6 +628,10 @@ def chrome_handler(url):
     while retry_count < max_retries:
         try:
             chrome_options = Options()
+            if HEADLESS:
+                chrome_options.add_argument("--headless")
+                chrome_options.add_argument("--disable-gpu")
+                chrome_options.add_argument("--window-size=1920,1080")
             chrome_options.add_argument("--start-maximized")
             chrome_options.add_argument("--disable-infobars")
             chrome_options.add_argument("--disable-translate")
@@ -692,16 +693,23 @@ def restart_handler(driver):
         if driver is not None:
             driver.quit()
         time.sleep(2)
-
-        # 2) build the new flags: drop --restart, force --background only if the --restart flag was passed:
         child_argv = args_child_handler(
             args,
-            drop_flags={"restart"}
+            drop_flags={"restart"},  # don’t re-daemonize when the child starts
         )
-        os.execv(sys.executable, [sys.executable, sys.argv[0]] + child_argv)
+        subprocess.Popen(
+            [sys.executable, __file__] + child_argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True,
+        )
+        sys.exit(0)
     except Exception as e:
         log_error("Error during restart process:", e)
         api_status("Error Restarting, exiting...")
+        clear_sst()
         sys.exit(1)
 # -------------------------------------------------------------------
 # Helper Functions for main script
@@ -808,30 +816,39 @@ def handle_loading_issue(driver):
     # If the loading issue persists for 15 seconds, it refreshes the page and waits for it to load.
     # If the page loads successfully, it returns. Otherwise, it waits SLEEP_TIME and returns.
     trouble_loading_start_time = None
-    for _ in range(30):  # Check every second for 30 seconds
+    # Do 30 “instant” checks, once per second
+    for _ in range(30):
         try:
-            trouble_loading = WebDriverWait(driver, 1).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LOADING_DOTS))
-            )
-            if trouble_loading:
-                if trouble_loading_start_time is None:
-                    trouble_loading_start_time = time.time()
-                elif time.time() - trouble_loading_start_time >= 15:  # if loading issue persists for 15 seconds
-                    log_error("Video feed trouble persisting for 15 seconds, refreshing the page.")
-                    logging.info("Video feed trouble persisting for 15 seconds, refreshing the page.")
-                    api_status("Loading Issue Detected")
-                    driver.refresh()
-                    time.sleep(5)  # Allow the page to load after refresh
-                    
-                    # Validate the page after refresh
-                    if not handle_page(driver):
-                        log_error("Unexpected page loaded after refresh. Waiting before retrying...")
-                        api_status("Error Reloading")
-                        time.sleep(SLEEP_TIME)
-                        return  # Exit the function to allow retry logic in the caller
-                    return  # Exit the function if the page is valid
-        except TimeoutException:
-            trouble_loading_start_time = None  # Reset the timer if the issue resolved
+            # Instant check for the loading-dots element (no blocking wait)
+            loading_elems = driver.find_elements(By.CSS_SELECTOR, CSS_LOADING_DOTS)
+            has_loading = bool(loading_elems)
+        except Exception as e:
+            # If something goes wrong inspecting the page, treat as “no loading” 
+            log_error("Error checking loading dots: ", e)
+            has_loading = False
+
+        if has_loading:
+            # First time we see trouble, record the time
+            if trouble_loading_start_time is None:
+                trouble_loading_start_time = time.time()
+            # If it’s been persisting 15 s or more, handle refresh
+            elif time.time() - trouble_loading_start_time >= 15:
+                log_error("Video feed trouble persisting for 15 seconds, refreshing the page.")
+                api_status("Loading Issue Detected")
+                driver.refresh()
+                time.sleep(5)  # let it load
+
+                # Validate after refresh
+                if not handle_page(driver):
+                    log_error("Unexpected page loaded after refresh. Waiting before retrying...")
+                    api_status("Error Reloading")
+                    time.sleep(SLEEP_TIME)
+                    return
+                return
+        else:
+            # If it cleared up, reset the timer
+            trouble_loading_start_time = None
+        # Wait exactly 1 second before next instant check
         time.sleep(1)
 def handle_fullscreen_button(driver):
     # Clicks the fullscreen button in the live view. If it fails, it will log the error and return false.
@@ -854,10 +871,6 @@ def handle_fullscreen_button(driver):
         logging.info("Fullscreen activated")
         api_status("Fullscreen Activated")
         return True
-    except WebDriverException:
-        log_error(f"Tab Crashed. Restarting {BROWSER}...")
-        api_status("Tab Crashed")
-        driver = chrome_restart_handler(url)
     except Exception as e:
         log_error("Error while clicking the fullscreen button: ", e)
         api_status("Error Clicking Fullscreen")
@@ -888,10 +901,6 @@ def handle_login(driver):
         submit_button.click()
         # Verify successful login
         return check_for_title(driver, "Dashboard")
-    except WebDriverException:
-        log_error(f"Tab Crashed. Restarting {BROWSER}...")
-        api_status("Tab Crashed")
-        driver = chrome_restart_handler(url)
     except Exception as e: 
         log_error("Error during login: ", e)
         api_status("Error Logging In")
@@ -943,12 +952,12 @@ def handle_retry(driver, url, attempt, max_retries):
                     if not handle_fullscreen_button(driver):
                         logging.warning("Failed to activate fullscreen, but continuing anyway.")
                 api_status("Feed Healthy")
-        except InvalidSessionIdException:
-            log_error(f"{BROWSER} session is invalid. Restarting the program.")
+        except InvalidSessionIdException as e:
+            log_error(f"{BROWSER} session is invalid. Restarting the program.", e)
             api_status("Restarting Program")
             restart_handler(driver)
-        except WebDriverException:
-            log_error(f"Tab Crashed. Restarting {BROWSER}...")
+        except WebDriverException as e:
+            log_error(f"Tab Crashed. Restarting {BROWSER}...", e)
             api_status("Tab Crashed")
             driver = chrome_restart_handler(url)
         except Exception as e:
@@ -968,9 +977,20 @@ def handle_view(driver, url):
     # While on the main loop, it calls the handle_retry, handle_fullscreen_button, check_unable_to_stream handle_loading_issue, and handle_elements functions.
     retry_count = 0
     max_retries = MAX_RETRIES
-    # Calculate how many iterations correspond to one LOG_INTERVAL
-    log_interval_iterations = max(1, round((LOG_INTERVAL * 60) / SLEEP_TIME))
-    iteration_counter = 0
+    # how many loops between regular logs
+    log_interval_iterations = round(max(LOG_INTERVAL * 60, SLEEP_TIME) / SLEEP_TIME)
+    # Align the first log to the next "even" boundary:
+    #   e.g. if LOG_INTERVAL=10 (minutes), we want the first
+    #   log at the next multiple of 10 past the hour.
+    now = datetime.now()
+    interval_secs = LOG_INTERVAL * 60
+    secs_since_hour = now.minute * 60 + now.second
+    # seconds until the next multiple of interval_secs
+    secs_to_boundary = (interval_secs - (secs_since_hour % interval_secs)) % interval_secs
+    # how many sleep‐cycles that is
+    boundary_loops = math.ceil(secs_to_boundary / SLEEP_TIME) if secs_to_boundary > 0 else 0
+    # set iteration_counter so that after `boundary_loops` loops we hit the log
+    iteration_counter = log_interval_iterations - boundary_loops
     if handle_page(driver):
         logging.info(f"Checking health of page every {SLEEP_TIME} seconds...")
     else:
@@ -1017,26 +1037,26 @@ def handle_view(driver, url):
                 sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
                 time.sleep(sleep_duration)
                 iteration_counter += 1
-        except InvalidSessionIdException:
-            log_error(f"{BROWSER} session is invalid. Restarting the program.")
+        except InvalidSessionIdException as e:
+            log_error(f"{BROWSER} session is invalid. Restarting the program.", e)
             api_status("Restarting Program")
             restart_handler(driver)
-        except (TimeoutException, NoSuchElementException):
-            log_error("Video feeds not found or page timed out.")
+        except (TimeoutException, NoSuchElementException) as e:
+            log_error("Video feeds not found or page timed out.", e)
             api_status("Video Feeds Not Found")
             time.sleep(WAIT_TIME)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
-        except NewConnectionError:
-            log_error("Connection error occurred. Retrying...")
+        except NewConnectionError as e:
+            log_error("Connection error occurred. Retrying...", e)
             api_status("Connection Error")
             time.sleep(SLEEP_TIME/2)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
-        except WebDriverException:
-            log_error(f"Tab Crashed. Restarting {BROWSER}...")
+        except WebDriverException as e:
+            log_error(f"Tab Crashed. Restarting {BROWSER}...", e)
             api_status("Tab Crashed")
             driver = chrome_restart_handler(url)
         except Exception as e:
@@ -1049,16 +1069,28 @@ def handle_view(driver, url):
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():
-    if args_handler(args) == "continue":
-        logging.info(f"===== Fake Viewport {viewport_version} =====")
-        if API: api_handler()
-        api_status("Starting...")
-        # Check and kill any existing instance of viewport.py
-        process_handler('viewport.py', action="kill")
-        # Write the start time to the SST file
-        with open(sst_file, 'w') as f: f.write(str(datetime.now()))
-        driver = chrome_handler(url)
-        # Start the handle_view function in a separate thread
-        threading.Thread(target=handle_view, args=(driver, url)).start()
+    if args_handler(args) != "continue":
+        return
+    logging.info(f"===== Fake Viewport {viewport_version} =====")
+    if API: api_handler()
+    api_status("Starting...")
+    # Inspect SST File
+    sst_exists = sst_file.exists()
+    sst_size   = sst_file.stat().st_size if sst_exists else 0
+    sst_non_empty = sst_size > 0
+    # Check existence of another running instance of viewport.py
+    # Used to determine if the previous process likely crashed based on sst file content
+    other_running = process_handler("viewport.py", action="check")
+    crashed = (not other_running) and sst_non_empty
+    # Check and kill any existing instance of viewport.py
+    if other_running: process_handler("viewport.py", action="kill")
+    # Write the start time to the SST file
+    # Only if it's empty or if a crash likely happened
+    if sst_size == 0 or crashed:
+        with open(sst_file, 'w') as f:
+            f.write(str(datetime.now()))
+    driver = chrome_handler(url)
+    # Start the handle_view function in a separate thread
+    threading.Thread(target=handle_view, args=(driver, url)).start()
 if __name__ == "__main__":
     main()

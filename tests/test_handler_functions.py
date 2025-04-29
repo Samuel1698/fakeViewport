@@ -13,12 +13,18 @@ from datetime import datetime
 from webdriver_manager.core.os_manager import ChromeType
 import viewport
 import signal
-
+import subprocess
 # helper to build a fake psutil.Process‐like object
 def _make_proc(pid, cmdline):
     proc = MagicMock()
     proc.info = {"pid": pid, "cmdline": cmdline}
     return proc
+@pytest.fixture(autouse=True)
+def isolate_sst(tmp_path, monkeypatch):
+    # redirect every test’s sst_file into tmp_path/…
+    fake = tmp_path / "sst.txt"
+    fake.write_text("2025-01-01 00:00:00.000000")  # or leave empty
+    monkeypatch.setattr(viewport, "sst_file", fake)
 # -------------------------------------------------------------------------
 # Test for Singal Handler
 # -------------------------------------------------------------------------
@@ -41,34 +47,65 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
 # Test for Status Handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize(
-    "missing_file, expected_log_error, process_names, expect_in_output",
+    "sst_exists, status_exists, log_content, process_names, expected_error, expected_output_snippets",
     [
-        # happy path: all files present, check for key output lines
-        (None, None, ["viewport.py"], [
-            "Fake Viewport 1.2.3",
-            "Script Uptime",
-            "Monitoring API",
-            "Usage:",
-            "Next Health Check:",
-            "Last Status Update",
-            "Last Log Entry",
-        ]),
-        # missing uptime file triggers only log_error
-        ("sst", "Uptime File not found", ["viewport.py"], None),
-        # missing status file
-        ("status", "Status File not found", ["viewport.py", "monitoring.py"], None),
-        # missing log file
-        ("log", "Log File not found", ["viewport.py", "monitoring.py"], None),
+        # 1) All present → full status block, no errors
+        (
+            True, True, "[INFO] All good", ["viewport.py"],
+            None,
+            [
+                "Fake Viewport 1.2.3",
+                "Script Uptime:",
+                "Monitoring API:",
+                "Usage:",
+                "Next Health Check:",
+                "Last Status Update:",
+                "Last Log Entry:",
+            ],
+        ),
+        # 2) Missing sst.txt → fallback to now, still prints uptime, no error
+        (
+            False, True, "[INFO] OK", ["viewport.py"],
+            None,
+            [
+                "Script Uptime:",
+                "Monitoring API:",
+            ],
+        ),
+        # 3) Missing status.txt → prints “Status file not found.” + logs error
+        (
+            True, False, "[INFO] OK", ["viewport.py"],
+            "Status File not found",
+            ["Status file not found."],
+        ),
+        # 4) Missing log file → prints “Log file not found.” + logs error
+        (
+            True, True, None, ["viewport.py"],
+            "Log File not found",
+            ["Log file not found."],
+        ),
+        # 5) Empty log file → prints “No log entries yet.”, no error
+        (
+            True, True, "", ["viewport.py"],
+            None,
+            ["Last Log Entry:", "No log entries yet."],
+        ),
+        # 6) Script not running → uptime shows “Not Running”
+        (
+            True, True, "[INFO] OK", [], 
+            None,
+            ["Script Uptime:", "Not Running"],
+        ),
     ]
 )
-@patch("viewport.time.time", return_value=0)                         # freeze time.time()
-@patch("viewport.check_next_interval", return_value=60)              # fixed next-interval
-@patch("viewport.psutil.virtual_memory")                             # stub RAM
-@patch("viewport.psutil.process_iter", return_value=[])              # no real processes
-@patch("viewport.process_handler")                                   # control running-process flags
-@patch("builtins.open")                                              # intercept file IO
-@patch("viewport.log_error")                                         # spy on errors
-def test_status_handler(
+@patch("viewport.time.time", return_value=0)
+@patch("viewport.check_next_interval", return_value=60)
+@patch("viewport.psutil.virtual_memory")
+@patch("viewport.psutil.process_iter", return_value=[])
+@patch("viewport.process_handler")
+@patch("builtins.open")
+@patch("viewport.log_error")
+def test_status_handler_various(
     mock_log_error,
     mock_open,
     mock_process_handler,
@@ -76,60 +113,62 @@ def test_status_handler(
     mock_virtual_memory,
     mock_check_next_interval,
     mock_time_time,
-    missing_file,
-    expected_log_error,
+    sst_exists,
+    status_exists,
+    log_content,
     process_names,
-    expect_in_output,
+    expected_error,
+    expected_output_snippets,
     capsys
 ):
-    # set a predictable total RAM in GB
+    # Stub total RAM to 1 GB
     mock_virtual_memory.return_value = MagicMock(total=1024**3)
 
-    # override module globals to simple strings/numbers
-    viewport.sst_file = "sst.txt"
-    viewport.status_file = "status.txt"
-    viewport.log_file = "viewport.log"
+    # Point viewport at simple filenames and fixed config
+    viewport.sst_file       = "sst.txt"
+    viewport.status_file    = "status.txt"
+    viewport.log_file       = "viewport.log"
     viewport.viewport_version = "1.2.3"
-    viewport.SLEEP_TIME = 60
-    viewport.LOG_INTERVAL = 10
+    viewport.SLEEP_TIME     = 60
+    viewport.LOG_INTERVAL   = 10
 
-    # prepare in-memory file contents
-    start = datetime(2024, 4, 25, 12, 0, 0)
-    sst_data    = StringIO(start.strftime('%Y-%m-%d %H:%M:%S.%f'))
-    status_data = StringIO("Feed Healthy")
-    log_data    = StringIO("[INFO] Viewport check successful.")
+    # Prepare our fake file‐handles
+    sst_data = StringIO(
+        datetime(2024, 4, 25, 12, 0, 0).strftime("%Y-%m-%d %H:%M:%S.%f")
+    ) if sst_exists else None
+    status_data = StringIO("Feed Healthy") if status_exists else None
 
-    # simulate FileNotFound at different stages
     def open_side_effect(path, *args, **kwargs):
         p = str(path)
-        if "sst"    in p:
-            if missing_file == "sst":    raise FileNotFoundError
-            return sst_data
-        if "status" in p:
-            if missing_file == "status": raise FileNotFoundError
-            return status_data
-        if "log"    in p:
-            if missing_file == "log":    raise FileNotFoundError
-            return log_data
+        if p == viewport.sst_file:
+            if not sst_exists:
+                raise FileNotFoundError
+            return StringIO(sst_data.getvalue())
+        if p == viewport.status_file:
+            if not status_exists:
+                raise FileNotFoundError
+            return StringIO(status_data.getvalue())
+        if p == viewport.log_file:
+            if log_content is None:
+                raise FileNotFoundError
+            return StringIO(log_content)
         raise FileNotFoundError
 
     mock_open.side_effect = open_side_effect
-
-    # control which processes appear 'running'
     mock_process_handler.side_effect = lambda name, action="check": name in process_names
 
-    # run the handler
+    # Run the handler
     viewport.status_handler()
+    out = capsys.readouterr().out
 
-    # assertions
-    if expected_log_error:
+    if expected_error:
         mock_log_error.assert_called_once()
-        assert expected_log_error in mock_log_error.call_args[0][0]
+        assert expected_error in mock_log_error.call_args[0][0]
     else:
-        out = capsys.readouterr().out
-        for snippet in expect_in_output:
-            assert snippet in out
         mock_log_error.assert_not_called()
+
+    for snippet in expected_output_snippets:
+        assert snippet in out
 # -------------------------------------------------------------------------
 # Test for Process Handler
 # -------------------------------------------------------------------------
@@ -194,28 +233,28 @@ def test_status_handler(
             [_make_proc(2, ["chrome"]),
              _make_proc(3, ["chrome"])], 
             999, "chrome", "kill", False,
-            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'chrome'"], ["Killed process 'chrome' with PIDs: 2, 3"]
+            [(2, signal.SIGKILL), (3, signal.SIGKILL)], ["Killed process 'chrome'"], ["Killed process 'chrome' with PIDs: 2, 3"]
         ),
 
         # Chromium Process (2, 3) running in backgrond
         # 'chromium', 'kill', If killed should return False
-        # Process 2 and 3 get SIGTERM, API Call should be:
+        # Process 2 and 3 get SIGKILL, API Call should be:
         (
             [_make_proc(2, ["chromium"]),
              _make_proc(3, ["chromium"])], 
             999, "chromium", "kill", False,
-            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'chromium'"], ["Killed process 'chromium' with PIDs: 2, 3"]
+            [(2, signal.SIGKILL), (3, signal.SIGKILL)], ["Killed process 'chromium'"], ["Killed process 'chromium' with PIDs: 2, 3"]
         ),
 
         # Multiple viewport instances running in background, separate from current instance
         # 'viewport', 'kill', If killed should return False
-        # Process 2 and 3 get SIGTERM, API Call should be:
+        # Process 2 and 3 get SIGKILL, API Call should be:
         (   
             [_make_proc(2, ["viewport.py"]),
              _make_proc(3, ["viewport.py"]),
              _make_proc(4, ["other"])], 
             999, "viewport.py", "kill", False,
-            [(2, signal.SIGTERM), (3, signal.SIGTERM)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2, 3"]
+            [(2, signal.SIGKILL), (3, signal.SIGKILL)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2, 3"]
         ),
         # One other viewport instance running in background
         # 'viewport', 'kill', If killed should return False
@@ -224,7 +263,7 @@ def test_status_handler(
             [_make_proc(2, ["viewport.py"]),
              _make_proc(3, ["other"])], 
             999, "viewport.py", "kill", False,
-            [(2, signal.SIGTERM)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2"]
+            [(2, signal.SIGKILL)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2"]
         ),
     ]
 )
@@ -519,55 +558,60 @@ def test_chrome_restart_handler(
 # Tests for restart_handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize("initial_argv, driver_present, expected_flags", [
-    # No flags → no extra flags
-    (["viewport.py"],                        False, []),
-    # Short background → background preserved
-    (["viewport.py", "-b"],                  False, ["--background"]),
-    # Long background → background preserved
-    (["viewport.py", "--background"],        False, ["--background"]),
-    # Incomplete background → background preserved
-    (["viewport.py", "--backg"],             False, ["--background"]),
-    # Short restart → replaced by background
-    (["viewport.py", "-r"],                  False, ["--background"]),
-    # Long restart → replaced by background
-    (["viewport.py", "--restart"],           False, ["--background"]),
-    # Incomplete restart → replaced by background
-    (["viewport.py", "--rest"],              False, ["--background"]),
-    # Driver present + restart → driver.quit() + background
-    (["viewport.py", "--restart"],           True, ["--background"]),
+    # No flags          ⇒ no extra flags
+    (["viewport.py"],                         False, []),
+    # background flags  ⇒ preserved
+    (["viewport.py", "-b"],                   False, ["--background"]),
+    (["viewport.py", "--background"],         False, ["--background"]),
+    (["viewport.py", "--backg"],              False, ["--background"]),
+    # restart flags     ⇒ removed
+    (["viewport.py", "-r"],                   False, []),
+    (["viewport.py", "--restart"],            False, []),
+    (["viewport.py", "--rest"],               False, []),
+    # driver present    ⇒ quit()
+    (["viewport.py", "--restart"],            True,  []),
 ])
 @patch("viewport.sys.exit")
-@patch("viewport.os.execv")
+@patch("viewport.subprocess.Popen")
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.api_status")
-def test_restart_handler(
+def test_restart_handler_new(
     mock_api_status,
     mock_sleep,
-    mock_execv,
+    mock_popen,
     mock_exit,
     initial_argv,
     driver_present,
-    expected_flags,
+    expected_flags
 ):
-    # Arrange: set sys.argv and optional driver
+    # Arrange: set up sys.argv and optional driver
     viewport.sys.argv = list(initial_argv)
     driver = MagicMock() if driver_present else None
 
     # Act
     viewport.restart_handler(driver)
 
-    # Assert: api_status and sleep always happen first
+    # Assert: status update and sleep
     mock_api_status.assert_called_once_with("Restarting script...")
     mock_sleep.assert_called_once_with(2)
 
-    # Assert: driver.quit() only if driver was passed in
+    # Assert: driver.quit() only if driver was passed
     if driver_present:
         driver.quit.assert_called_once()
-    # (if driver is None we simply don't check .quit())
+    else:
+        # ensure we didn't mistakenly call .quit()
+        assert not getattr(driver, "quit", MagicMock()).called
 
-    # Assert: os.execv() called exactly once with correct args
-    expected_argv = [sys.executable, viewport.sys.argv[0]] + expected_flags
-    mock_execv.assert_called_once_with(sys.executable, expected_argv)
+    # Assert: Popen called exactly once with correct args
+    expected_cmd = [sys.executable, viewport.__file__] + expected_flags
+    mock_popen.assert_called_once_with(
+        expected_cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+        start_new_session=True,
+    )
 
-    # No errors or exit() on normal path
-    mock_exit.assert_not_called()
+    # Assert: parent exits with code 0
+    mock_exit.assert_called_once_with(0)

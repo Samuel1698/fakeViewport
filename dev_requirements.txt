@@ -23,6 +23,10 @@ click==8.1.8
     #   flask
     #   pip-tools
 flask==3.1.0
+    # via
+    #   -r dev_requirements.in
+    #   flask-cors
+flask-cors==5.0.1
     # via -r dev_requirements.in
 h11==0.16.0
     # via wsproto
@@ -98,7 +102,9 @@ webdriver-manager==4.0.2
 websocket-client==1.8.0
     # via selenium
 werkzeug==3.1.3
-    # via flask
+    # via
+    #   flask
+    #   flask-cors
 wheel==0.45.1
     # via pip-tools
 wsproto==1.2.0

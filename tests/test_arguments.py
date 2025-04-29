@@ -8,7 +8,12 @@ logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.Null
 from unittest.mock import patch, mock_open
 import pytest
 import viewport
-
+@pytest.fixture(autouse=True)
+def isolate_sst(tmp_path, monkeypatch):
+    # redirect every test’s sst_file into tmp_path/…
+    fake = tmp_path / "sst.txt"
+    fake.write_text("2025-01-01 00:00:00.000000")  # or leave empty
+    monkeypatch.setattr(viewport, "sst_file", fake)
 @pytest.mark.parametrize("argv_flags", [
     ["--status", "--background"],       # Two arguments
     ["-r", "-l"],                       # Abbreviated version 
@@ -87,7 +92,7 @@ def test_restart_flag(mock_log, mock_restart_handler):
         "quit": False, "api": False, "restart": True
     })()
     result = viewport.args_handler(mock_args)
-    mock_log.assert_called_once_with("Restarting the Fake Viewport script...")
+    mock_log.assert_called_once_with("Restarting the Fake Viewport script in the background")
     mock_restart_handler.assert_called_once_with(driver=None)
     assert result is None  # Because it does not hit the `return "continue"`
 
