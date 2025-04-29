@@ -539,12 +539,14 @@ def status_handler():
                 # Conditionally color the log line based on its content
                 if "[ERROR]" in log_line:
                     colored_log_line = f"{RED}{log_line}{NC}"
+                elif "[DEBUG]" in log_line:
+                    colored_log_line = f"{CYAN}{log_line}{NC}"
                 elif "[WARNING]" in log_line:
                     colored_log_line = f"{YELLOW}{log_line}{NC}"
                 elif "[INFO]" in log_line:
                     colored_log_line = f"{GREEN}{log_line}{NC}"
                 else:
-                    colored_log_line = f"{RED}{log_line}{NC}"
+                    colored_log_line = f"{NC}{log_line}{NC}"
             print(f"{CYAN}Last Log Entry:{NC} {colored_log_line}")
         except FileNotFoundError:
             # Log file does not exist
