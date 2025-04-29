@@ -4,3 +4,4 @@ webdriver-manager
 psutil
 uptime
 Flask
+flask-cors

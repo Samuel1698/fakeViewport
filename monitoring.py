@@ -1,64 +1,121 @@
-#!/usr/bin/venv python3
+#!/usr/bin/env python3
 import os
-import logging
+import time
 import configparser
-import uptime
+import psutil  # replace external uptime dependency
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, jsonify
+from flask_cors import CORS
+from logging_config import configure_logging
 
-config = configparser.ConfigParser()
-config.read('config.ini')
-script_dir = Path(__file__).resolve().parent
-API_PATH = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api'))
+def create_app(config_path=None):
+    # Application factory for the monitoring API
+    app = Flask(__name__)
 
-# Check if API_PATH exists; if not, create an 'api' folder in the current directory
-api_dir = Path(API_PATH)
-if not api_dir.exists():
+    # Load configuration
+    config = configparser.ConfigParser()
+    config.read(config_path or 'config.ini')
+    LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
+    LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
+    VERBOSE_LOGGING = config.getboolean('Logging', 'VERBOSE_LOGGING', fallback=False)
+    LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
+    # Determine API directory and files
+    script_dir = Path(__file__).resolve().parent
+    api_root = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
+    api_dir = Path(api_root)
     api_dir.mkdir(parents=True, exist_ok=True)
-sst_file = api_dir / 'sst.txt'
-status_file = api_dir / 'status.txt'
+    sst_file = api_dir / 'sst.txt'
+    status_file = api_dir / 'status.txt'
 
-app = Flask(__name__)
-
-# Set log level to Warning
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.WARNING)
-
-@app.route('/check_view')
-def api_check_view():
-    if not os.path.exists(status_file):
-        return jsonify(view_status="File not found"), 404
-    with open(status_file, 'r') as f:
-        result = f.read()
-    return jsonify(view_status=result)
-
-@app.route('/get_system_uptime')
-def get_system_uptime():
-    # Get the uptime in seconds
-    uptime_seconds = uptime.uptime()
-    return jsonify(system_uptime=uptime_seconds)
-
-@app.route('/get_script_uptime')
-def api_get_script_uptime():
-    if not os.path.exists(sst_file):
-        return jsonify(script_uptime="File not found"), 404
-    with open(sst_file, 'r') as f:
-        script_start_time = datetime.strptime(f.read(), '%Y-%m-%d %H:%M:%S.%f')
-    script_uptime = datetime.now() - script_start_time
-    uptime_seconds = script_uptime.total_seconds()
-    return jsonify(script_uptime=uptime_seconds)
-
-@app.route('/admin')
-def admin():
-    view_status = api_check_view().json.get('view_status', "File not found")
-    script_uptime = api_get_script_uptime().json.get('script_uptime', "File not found")
-    system_uptime = get_system_uptime().json['system_uptime']
-    return jsonify(
-        view_status=view_status,
-        script_uptime=script_uptime,
-        system_uptime=system_uptime
+    # Set up Logging
+    configure_logging(
+        log_file_path=str(script_dir / 'logs' / 'monitoring.log'),
+        log_file=LOG_FILE,
+        log_console=LOG_CONSOLE,
+        log_days=LOG_DAYS,
+        verbose_logging=VERBOSE_LOGGING
     )
+    # Enable CORS for all routes
+    CORS(app)
 
+    def _read_api_file(path, parser_fn=lambda x: x):
+        # Centralized file-read logic with error handling
+        if not path.exists():
+            return None
+        try:
+            raw = path.read_text().strip()
+            return parser_fn(raw)
+        except Exception as e:
+            app.logger.error(f"Error reading {path}: {e}")
+            return None
+
+    @app.route('/api/check_view')
+    def api_check_view():
+        # Returns the latest status from the status file
+        status = _read_api_file(status_file)
+        if status is None:
+            return jsonify(status='error', message='Status file not found'), 404
+        return jsonify(status='ok', data={'view_status': status})
+
+    @app.route('/api/get_system_uptime')
+    def api_get_system_uptime():
+        # Returns system uptime based on psutil.boot_time()
+        try:
+            uptime_seconds = time.time() - psutil.boot_time()
+            return jsonify(status='ok', data={'system_uptime': uptime_seconds})
+        except Exception as e:
+            app.logger.error(f"Error getting system uptime: {e}")
+            return jsonify(status='error', message='Could not determine system uptime'), 500
+
+    @app.route('/api/get_script_uptime')
+    def api_get_script_uptime():
+        # Returns how long the script has been running
+        raw = _read_api_file(sst_file)
+        if raw is None:
+            return jsonify(status='error', message='Script SST file not found'), 404
+        try:
+            start = datetime.strptime(raw, '%Y-%m-%d %H:%M:%S.%f')
+            uptime_seconds = (datetime.now() - start).total_seconds()
+            return jsonify(status='ok', data={'script_uptime': uptime_seconds})
+        except ValueError:
+            return jsonify(status='error', message='Malformed timestamp in SST file'), 400
+
+    @app.route('/api/admin')
+    def api_admin():
+        # Aggregated status endpoint
+        view = _read_api_file(status_file) or 'File not found'
+        # Script uptime computation
+        raw = _read_api_file(sst_file)
+        if raw:
+            try:
+                start = datetime.strptime(raw, '%Y-%m-%d %H:%M:%S.%f')
+                script_uptime = (datetime.now() - start).total_seconds()
+            except ValueError:
+                script_uptime = 'Malformed timestamp'
+        else:
+            script_uptime = 'File not found'
+        # System uptime computation
+        try:
+            system_uptime = time.time() - psutil.boot_time()
+        except Exception:
+            system_uptime = 'Error'
+
+        return jsonify(
+            status='ok',
+            data={
+                'view_status': view,
+                'script_uptime': script_uptime,
+                'system_uptime': system_uptime
+            }
+        )
+
+    return app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    # Allow host/port configuration via environment
+    host = os.getenv('FLASK_RUN_HOST', '0.0.0.0')
+    port = int(os.getenv('FLASK_RUN_PORT', 5000))
+    create_app().run(
+        host=host,
+        port=port,
+    )
