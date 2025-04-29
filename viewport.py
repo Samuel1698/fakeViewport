@@ -11,6 +11,7 @@ import logging
 import subprocess
 import math
 from logging.handlers import TimedRotatingFileHandler
+from logging_config import configure_logging
 from pathlib import Path
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -279,48 +280,18 @@ if not url:
 # -------------------------------------------------------------------
 # Logging setup
 # -------------------------------------------------------------------
-class ColoredFormatter(logging.Formatter):
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    CYAN = "\033[36m"
-    NC='\033[0m'
-    def format(self, record):
-        # Add colors based on the log level
-        if record.levelno == logging.ERROR:
-            color = self.RED
-        elif record.levelno == logging.WARNING:
-            color = self.YELLOW
-        elif record.levelno == logging.INFO:
-            color = self.GREEN
-        else:
-            color = self.CYAN  # Default color for other levels (e.g., DEBUG)
-        # Format the message with the color
-        record.msg = f"{color}{record.msg}{self.NC}"
-        return super().format(record)
-logger = logging.getLogger()
-formatter = logging.Formatter(f'[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-logger.setLevel(logging.INFO)
+configure_logging(
+    log_file_path=str(log_file),
+    log_file=LOG_FILE,
+    log_console=LOG_CONSOLE,
+    log_days=LOG_DAYS,
+    verbose_logging=VERBOSE_LOGGING
+)
 def log_error(message, exception=None):
     if VERBOSE_LOGGING and exception:
         logging.exception(message)  # Logs the message with the stacktrace
     else:
         logging.error(message)  # Logs the message without any exception
-if LOG_FILE:
-    #  Define a handler for the file
-    file_handler = TimedRotatingFileHandler(log_file, when="D", interval=1, backupCount=LOG_DAYS)
-    file_handler.setLevel(logging.INFO)
-    # Set the formatter for the handler
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-if LOG_CONSOLE:
-    # Define a handler for the console
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    # Set the formatter for the handler
-    console_formatter = ColoredFormatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    console_handler.setFormatter(console_formatter)
-    logger.addHandler(console_handler)
 # -------------------------------------------------------------------
 # API setup
 # -------------------------------------------------------------------
@@ -845,29 +816,39 @@ def handle_loading_issue(driver):
     # If the loading issue persists for 15 seconds, it refreshes the page and waits for it to load.
     # If the page loads successfully, it returns. Otherwise, it waits SLEEP_TIME and returns.
     trouble_loading_start_time = None
-    for _ in range(30):  # Check every second for 30 seconds
+    # Do 30 “instant” checks, once per second
+    for _ in range(30):
         try:
-            trouble_loading = WebDriverWait(driver, 1).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LOADING_DOTS))
-            )
-            if trouble_loading:
-                if trouble_loading_start_time is None:
-                    trouble_loading_start_time = time.time()
-                elif time.time() - trouble_loading_start_time >= 15:  # if loading issue persists for 15 seconds
-                    log_error("Video feed trouble persisting for 15 seconds, refreshing the page.")
-                    api_status("Loading Issue Detected")
-                    driver.refresh()
-                    time.sleep(5)  # Allow the page to load after refresh
-                    
-                    # Validate the page after refresh
-                    if not handle_page(driver):
-                        log_error("Unexpected page loaded after refresh. Waiting before retrying...")
-                        api_status("Error Reloading")
-                        time.sleep(SLEEP_TIME)
-                        return  # Exit the function to allow retry logic in the caller
-                    return  # Exit the function if the page is valid
-        except TimeoutException:
-            trouble_loading_start_time = None  # Reset the timer if the issue resolved
+            # Instant check for the loading-dots element (no blocking wait)
+            loading_elems = driver.find_elements(By.CSS_SELECTOR, CSS_LOADING_DOTS)
+            has_loading = bool(loading_elems)
+        except Exception as e:
+            # If something goes wrong inspecting the page, treat as “no loading” 
+            log_error("Error checking loading dots: ", e)
+            has_loading = False
+
+        if has_loading:
+            # First time we see trouble, record the time
+            if trouble_loading_start_time is None:
+                trouble_loading_start_time = time.time()
+            # If it’s been persisting 15 s or more, handle refresh
+            elif time.time() - trouble_loading_start_time >= 15:
+                log_error("Video feed trouble persisting for 15 seconds, refreshing the page.")
+                api_status("Loading Issue Detected")
+                driver.refresh()
+                time.sleep(5)  # let it load
+
+                # Validate after refresh
+                if not handle_page(driver):
+                    log_error("Unexpected page loaded after refresh. Waiting before retrying...")
+                    api_status("Error Reloading")
+                    time.sleep(SLEEP_TIME)
+                    return
+                return
+        else:
+            # If it cleared up, reset the timer
+            trouble_loading_start_time = None
+        # Wait exactly 1 second before next instant check
         time.sleep(1)
 def handle_fullscreen_button(driver):
     # Clicks the fullscreen button in the live view. If it fails, it will log the error and return false.
