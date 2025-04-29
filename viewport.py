@@ -131,8 +131,12 @@ def args_handler(args):
                         colored_line = f"{GREEN}{line.strip()}{NC}"
                     elif "[WARNING]" in line:
                         colored_line = f"{YELLOW}{line.strip()}{NC}"
-                    else:
+                    elif "[DEBUG]" in line:
+                        colored_line = f"{CYAN}{line.strip()}{NC}"
+                    elif "[ERROR]" in line:
                         colored_line = f"{RED}{line.strip()}{NC}"
+                    else:
+                        colored_line = f"{NC}{line.strip()}{NC}"
                     print(colored_line)  # Print the colored line to the console
         except FileNotFoundError:
             print(f"{RED}Log file not found: {log_file}{NC}")
