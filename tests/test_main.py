@@ -66,7 +66,8 @@ def test_main_various(
     fake_sst.exists.return_value = sst_exists
     fake_sst.stat.return_value = SimpleNamespace(st_size=sst_size)
     viewport.sst_file = fake_sst
-
+    # stub out status file
+    viewport.status_file = MagicMock()
     dummy_driver = object()
     mock_chrome.return_value = dummy_driver
 
@@ -242,14 +243,15 @@ def test_args_handler_flag_sst(mock_exit, mock_proc, flag, pre, should_clear, tm
 @patch("viewport.args_handler", return_value="continue")
 @patch("viewport.chrome_handler")
 @patch("viewport.threading.Thread")
-def test_main_sst_write_logic(mock_thread, mock_chrome, mock_args, pre, other_running, expect_write, tmp_path):
+def test_main_sst_write_logic(mock_thread, mock_chrome, mock_args, pre, other_running, expect_write, tmp_path, monkeypatch):
     # set up
     sst = tmp_path / "sst.txt"
     viewport.sst_file = sst
 
     if pre is not None:
         sst.write_text(pre)
-
+    # stub out status file
+    viewport.status_file = MagicMock()
     # stub process_handler for viewport.py check
     def fake_proc(name, action="check"):
         return other_running if name=="viewport.py" else None
@@ -277,6 +279,7 @@ def test_sigterm_clears_and_next_main_writes(mock_exit, tmp_path, monkeypatch):
     sst = tmp_path / "sst.txt"
     viewport.sst_file = sst
     sst.write_text("old")
+    monkeypatch.setattr(viewport, "status_file", tmp_path / "status.txt")
 
     # b) simulate kill by SIGTERM
     viewport.signal_handler(signum=signal.SIGTERM, frame=None, driver=None)
@@ -299,7 +302,8 @@ def test_crash_recovery_writes(tmp_path, monkeypatch):
     sst = tmp_path / "sst.txt"
     viewport.sst_file = sst
     sst.write_text("2025-04-27 12:00:00.000001")
-
+    # Mock status file
+    monkeypatch.setattr(viewport, "status_file", tmp_path / "status.txt")
     # no other viewport.py running → crash condition
     monkeypatch.setattr(viewport, "process_handler", lambda n,action="check": False)
 

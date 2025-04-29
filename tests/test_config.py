@@ -41,7 +41,7 @@ MAX_RETRIES = {retries}
 [Logging]
 LOG_FILE = true
 LOG_CONSOLE = false
-VERBOSE_LOGGING = false
+ERROR_LOGGING = false
 LOG_DAYS = {log_days}
 LOG_INTERVAL = {log_interval}
 
