@@ -28,7 +28,41 @@ def mock_common(mocker):
         "logging": mocker.patch("viewport.logging"),
     }
     return patches
+# ---------------------------------------------------------------------
+# Test: check_crash
+# ---------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "page_source, expected",
+    [
+        # 1) Page contains the "Aw, Snap!" crash banner
+        ("<html>…Aw, Snap! Something broke…</html>", True),
+        # 2) Page contains "Tab Crashed" text
+        ("<div>Error: Tab Crashed while loading</div>", True),
+        # 3) No crash indicators present
+        ("<html><body>All systems operational.</body></html>", False),
+        # 4) Partial match of "Aw, Snap" without the exclamation
+        ("<p>Aw, Snap this is just text</p>", False),
+        # 5) Partial match of "Crashed" without full phrase
+        ("<span>The process crashed unexpectedly</span>", False),
+    ],
+    ids=[
+        "contains_aw_snap",
+        "contains_tab_crashed",
+        "no_crash",
+        "partial_aw_snap",
+        "partial_crashed",
+    ]
+)
+def test_check_crash(page_source, expected):
+    # Create a dummy driver with a configurable page_source
+    class DummyDriver:
+        pass
 
+    driver = DummyDriver()
+    driver.page_source = page_source
+
+    # Assert that check_crash returns the expected boolean
+    assert viewport.check_crash(driver) is expected
 # ---------------------------------------------------------------------
 # Test: check_driver should return True on success, otherwise raise
 # ---------------------------------------------------------------------
