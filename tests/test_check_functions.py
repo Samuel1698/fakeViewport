@@ -30,14 +30,17 @@ def mock_common(mocker):
     return patches
 
 # ---------------------------------------------------------------------
-# Test: check_driver
+# Test: check_driver should return True on success, otherwise raise
 # ---------------------------------------------------------------------
 @pytest.mark.parametrize(
-    "title_value, side_effect, expected_result",
+    "title_value, side_effect, expected_exception",
     [
-        ("Mock Title", None, True),               # Normal title => success
-        (None, WebDriverException, False),         # WebDriver crash => failure
-        (None, Exception, False),                  # Other exception => failure
+        # 1) Normal title ⇒ returns True
+        ("Mock Title",   None,               None),
+        # 2) Selenium failure ⇒ should propagate WebDriverException
+        (None,           WebDriverException, WebDriverException),
+        # 3) Other error ⇒ should propagate generic Exception
+        (None,           Exception,          Exception),
     ],
     ids=[
         "valid_title",
@@ -45,13 +48,19 @@ def mock_common(mocker):
         "generic_exception",
     ]
 )
-def test_check_driver(mock_driver, title_value, side_effect, expected_result):
+def test_check_driver(mock_driver, title_value, side_effect, expected_exception):
+    # Arrange: either stub driver.title to return a value or raise
     if side_effect:
         type(mock_driver).title = PropertyMock(side_effect=side_effect)
     else:
         mock_driver.title = title_value
 
-    assert viewport.check_driver(mock_driver) is expected_result
+    # Act & Assert
+    if expected_exception:
+        with pytest.raises(expected_exception):
+            viewport.check_driver(mock_driver)
+    else:
+        assert viewport.check_driver(mock_driver) is True
 # ---------------------------------------------------------------------
 # Test: check_next_interval
 # ---------------------------------------------------------------------
