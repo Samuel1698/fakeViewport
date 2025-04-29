@@ -8,6 +8,7 @@ from datetime import datetime
 from flask import Flask, jsonify, url_for, redirect
 from flask_cors import CORS
 from logging_config import configure_logging
+from dotenv import load_dotenv
 
 # -------------------------------------------------------------------
 # Application for the monitoring API
@@ -170,6 +171,7 @@ def create_app(config_path=None):
 # Run server when invoked directly
 # -------------------------------------------------------------------
 if __name__ == '__main__':
+    load_dotenv()
     host = os.getenv('FLASK_RUN_HOST', '0.0.0.0')
     port = int(os.getenv('FLASK_RUN_PORT', 5000))
     create_app().run(host=host, port=port)
