@@ -27,21 +27,23 @@
     <button onclick="control('start')">Start</button>
     <button onclick="control('restart')">Restart</button>
     <button onclick="control('quit')">Quit</button>
+
+    <!-- this is where we’ll show ✓ or ✗ messages -->
+    <div id="statusMessage" style="margin-top:1rem; font-weight:bold;"></div>
   </div>
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // 1) On load, check if we already have a saved key
+      // 1) On load, check for saved key
       const storedKey = localStorage.getItem('viewport_api_key');
       if (storedKey) {
         document.getElementById('login').style.display    = 'none';
         document.getElementById('controls').style.display = 'block';
       }
-  
+
       // 2) Save Key button handler
       document.getElementById('saveKey').addEventListener('click', () => {
-        const keyInput = document.getElementById('apiKeyInput');
-        const key      = keyInput.value.trim();
+        const key = document.getElementById('apiKeyInput').value.trim();
         if (!key) {
           alert('API key cannot be empty');
           return;
@@ -51,35 +53,41 @@
         document.getElementById('controls').style.display = 'block';
       });
     });
-  
-    // 3) The function that actually POSTs to your control endpoint
+
+    // 3) Send control command and update statusMessage
     async function control(action) {
-      console.log('▶ control()', action);
+      const msgEl = document.getElementById('statusMessage');
+      msgEl.textContent = '';  // clear previous
+
       const token = localStorage.getItem('viewport_api_key');
       if (!token) {
-        alert('Missing API key — please save your key first');
+        msgEl.textContent = '✗ No API key saved';
+        msgEl.style.color   = 'red';
         return;
       }
-  
+
       try {
         const res = await fetch(`/api/control/${action}`, {
           method: 'POST',
-          headers: {
-            'X-API-KEY': token,
-            'Content-Type': 'application/json'
-          }
+          headers: { 'X-API-KEY': token }
         });
-  
-        const js = await res.json();       // parse JSON response
-        console.log(res.status, js);       // inspect in console
-        alert(js.status + ': ' + js.message);
+        const js = await res.json();
+
+        if (js.status === 'ok') {
+          // green checkmark on success
+          msgEl.textContent = '✓ ' + js.message;
+          msgEl.style.color = 'green';
+        } else {
+          // red X on any server error
+          msgEl.textContent = '✗ ' + js.message;
+          msgEl.style.color = 'red';
+        }
       } catch (err) {
-        console.error('Control error:', err);
-        alert('Error sending command: ' + err);
+        // network / unexpected error
+        msgEl.textContent = '✗ ' + err;
+        msgEl.style.color = 'red';
       }
     }
   </script>
-  
-
 </body>
 </html>
