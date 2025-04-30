@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 import os
+import sys
 import time
 import configparser
 import psutil
+import subprocess
+from functools import wraps
 from pathlib import Path
 from datetime import datetime
-from flask import Flask, jsonify, url_for, redirect
+from flask import Flask, jsonify, url_for, render_template, request, abort
 from flask_cors import CORS
 from logging_config import configure_logging
 from dotenv import load_dotenv
+load_dotenv()
 
 # -------------------------------------------------------------------
 # Application for the monitoring API
@@ -35,7 +39,9 @@ def create_app(config_path=None):
     # -----------------------------
     script_dir = Path(__file__).resolve().parent
     api_root = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
+    CONTROL_TOKEN = os.getenv("SECRET", "")
     script_dir = Path(__file__).resolve().parent
+    viewport = script_dir / 'viewport.py'
     api_root = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
     api_dir = Path(api_root)
     api_dir.mkdir(parents=True, exist_ok=True)
@@ -69,13 +75,56 @@ def create_app(config_path=None):
         except Exception as e:
             app.logger.error(f"Error reading {path}: {e}")
             return None
+    def require_token(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            token = request.headers.get("X-API-KEY")
+            if not token or token != CONTROL_TOKEN:
+                # return a JSON error instead of an HTML abort page
+                return jsonify(status="error",
+                            message="Invalid or missing API key"), 401
+            return f(*args, **kwargs)
+        return wrapped
     # -----------------------------
-    # 1) Redirect root (‘/’) → ‘/api’
+    # 1) Dashboard
     # -----------------------------
     @app.route('/')
-    def root():
-        # send browsers hitting the bare host straight to your API index
-        return redirect(url_for('api_index'))
+    def dashboard():
+        return render_template('index.html',
+                            control_token=os.getenv('SECRET',''))
+    @app.route('/api/control/<action>', methods=['POST'])
+    @require_token
+    def api_control(action):
+        """
+        POST /api/control/start    → viewport.py --background
+        POST /api/control/restart  → viewport.py --restart
+        POST /api/control/quit     → viewport.py --quit
+        """
+        if action not in ('start','restart','quit'):
+            return jsonify(status='error', message=f'Unknown action "{action}"'), 400
+
+        # map our action to the same flags you already parse in args_helper()
+        flag = {
+        'start':     '--background',
+        'restart':   '--restart',
+        'quit':      '--quit',
+        }[action]
+
+        try:
+            subprocess.Popen(
+                [sys.executable, str(viewport), flag],
+                cwd=str(script_dir),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                start_new_session=True,
+            )
+            return jsonify(status='ok', message=f'{action.title()} command issued'), 202
+
+        except Exception as e:
+            app.logger.exception("Failed to dispatch control command")
+            return jsonify(status='error', message=str(e)), 500
     # -----------------------------
     # Route: api
     # -----------------------------
@@ -173,7 +222,6 @@ def create_app(config_path=None):
 # Run server when invoked directly
 # -------------------------------------------------------------------
 if __name__ == '__main__':
-    load_dotenv()
     host = os.getenv('FLASK_RUN_HOST', '0.0.0.0')
     port = int(os.getenv('FLASK_RUN_PORT', 5000))
     create_app().run(host=host, port=port)

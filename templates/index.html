@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Viewport Control</title>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; }
+    #controls { margin-top: 1rem; }
+    button { margin: 0 .5rem; }
+  </style>
+</head>
+<body>
+
+  <h1>Viewport Control</h1>
+
+  <!-- 1) First, ask for the API key if we don’t already have it stored -->
+  <div id="login">
+    <label>
+      API Key:
+      <input id="apiKeyInput" type="password" placeholder="Paste your token">
+    </label>
+    <button id="saveKey">Save Key</button>
+  </div>
+
+  <!-- 2) Once we have a key, show the real controls -->
+  <div id="controls" style="display:none">
+    <button onclick="control('start')">Start</button>
+    <button onclick="control('restart')">Restart</button>
+    <button onclick="control('quit')">Quit</button>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // 1) On load, check if we already have a saved key
+      const storedKey = localStorage.getItem('viewport_api_key');
+      if (storedKey) {
+        document.getElementById('login').style.display    = 'none';
+        document.getElementById('controls').style.display = 'block';
+      }
+  
+      // 2) Save Key button handler
+      document.getElementById('saveKey').addEventListener('click', () => {
+        const keyInput = document.getElementById('apiKeyInput');
+        const key      = keyInput.value.trim();
+        if (!key) {
+          alert('API key cannot be empty');
+          return;
+        }
+        localStorage.setItem('viewport_api_key', key);
+        document.getElementById('login').style.display    = 'none';
+        document.getElementById('controls').style.display = 'block';
+      });
+    });
+  
+    // 3) The function that actually POSTs to your control endpoint
+    async function control(action) {
+      console.log('▶ control()', action);
+      const token = localStorage.getItem('viewport_api_key');
+      if (!token) {
+        alert('Missing API key — please save your key first');
+        return;
+      }
+  
+      try {
+        const res = await fetch(`/api/control/${action}`, {
+          method: 'POST',
+          headers: {
+            'X-API-KEY': token,
+            'Content-Type': 'application/json'
+          }
+        });
+  
+        const js = await res.json();       // parse JSON response
+        console.log(res.status, js);       // inspect in console
+        alert(js.status + ': ' + js.message);
+      } catch (err) {
+        console.error('Control error:', err);
+        alert('Error sending command: ' + err);
+      }
+    }
+  </script>
+  
+
+</body>
+</html>

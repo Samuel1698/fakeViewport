@@ -118,7 +118,16 @@ kill <pid>
 ### API Integration (Optional)
 The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, restart the script so you can access the script's status remotely (with appropriate network permissions) by navigating to the Thin Client's IP address in your browser. For example: `http://[machine's IP]:5000/api`
 
-Specific routes:
+In v2.1.5 I've included a simple page to control the script from your local network. To run it, generate a secret token with python
+```
+python3 - <<EOF
+import secrets
+print(secrets.token_urlsafe(32))
+EOF
+```
+and paste it in your `.env` file with the name `SECRET=`
+
+Api Endpoints:
 ```
 /api
    - Displays a list of all the urls
