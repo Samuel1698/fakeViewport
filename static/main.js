@@ -105,13 +105,6 @@ async function loadInfo() {
 async function control(action) {
   const msgEl = document.querySelector('#statusMessage span');
   msgEl.textContent = '';
-  const token = localStorage.getItem('viewport_api_key');
-  if (!token) {
-    msgEl.textContent = '✗ No API key saved';
-    msgEl.style.color   = 'red';
-    return;
-  }
-
   try {
     const res = await fetch(`/api/control/${action}`, {method: 'POST'});
     const js = await res.json();

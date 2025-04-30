@@ -17,10 +17,6 @@ from flask_cors import CORS
 from logging_config import configure_logging
 from dotenv import load_dotenv, find_dotenv
 dotenv_file = find_dotenv()
-if not dotenv_file:
-    print("⚠️ no .env found!")
-else:
-    print("🔑 loading env from", dotenv_file)
 load_dotenv(dotenv_file, override=True)
 # -------------------------------------------------------------------
 # Application for the monitoring API
@@ -49,9 +45,6 @@ def create_app(config_path=None):
     # Prepare API directory and files
     # -----------------------------
     script_dir = Path(__file__).resolve().parent
-    api_root = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
-    script_dir = Path(__file__).resolve().parent
-    viewport = script_dir / 'viewport.py'
     api_root = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
     api_dir = Path(api_root)
     api_dir.mkdir(parents=True, exist_ok=True)
