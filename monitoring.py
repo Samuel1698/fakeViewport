@@ -78,11 +78,15 @@ def create_app(config_path=None):
     def require_token(f):
         @wraps(f)
         def wrapped(*args, **kwargs):
-            token = request.headers.get("X-API-KEY")
-            if not token or token != CONTROL_TOKEN:
-                # return a JSON error instead of an HTML abort page
-                return jsonify(status="error",
-                            message="Invalid or missing API key"), 401
+            # if no token configured, skip auth entirely
+            if CONTROL_TOKEN:
+                # otherwise enforce header match
+                token = request.headers.get("X-API-KEY")
+                if token != CONTROL_TOKEN:
+                    return jsonify(
+                        status="error",
+                        message="Invalid or missing API key"
+                    ), 401
             return f(*args, **kwargs)
         return wrapped
     # -----------------------------

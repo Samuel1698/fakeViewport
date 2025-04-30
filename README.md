@@ -118,14 +118,16 @@ kill <pid>
 ### API Integration (Optional)
 The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, restart the script so you can access the script's status remotely (with appropriate network permissions) by navigating to the Thin Client's IP address in your browser. For example: `http://[machine's IP]:5000/api`
 
-In v2.1.5 I've included a simple page to control the script from your local network. To run it, generate a secret token with python
+In v2.1.5 I've included a simple page to control the script from your local network. The purpose is saving the machine's IP address to your phone/computer while on the same network as the machine. Ex: `http://[machine's IP]:5000`. You can change the port and the IP address of the Flask server in the `.env` file.
+
+If you wish to lock it behind a secure token/password, run this:
 ```
 python3 - <<EOF
 import secrets
 print(secrets.token_urlsafe(32))
 EOF
 ```
-and paste it in your `.env` file with the name `SECRET=`
+and paste it in your `.env` file with the name `SECRET=`. This will serve as your password for accessing the website.
 
 Api Endpoints:
 ```

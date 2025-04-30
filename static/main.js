@@ -1,30 +1,35 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // load saved key & toggle UI
-  const key = localStorage.getItem('viewport_api_key');
-  if (key) {
+  if (!CONTROL_TOKEN) {
     document.getElementById('login').style.display    = 'none';
     document.getElementById('controls').style.display = 'block';
     document.getElementById('info').style.display     = 'block';
-    loadInfo();  // initial fetch
+    loadInfo();
+  } else {
+    // load saved key & toggle UI
+    const key = localStorage.getItem('viewport_api_key');
+    if (key) {
+      document.getElementById('login').style.display    = 'none';
+      document.getElementById('controls').style.display = 'block';
+      document.getElementById('info').style.display     = 'block';
+      loadInfo();  // initial fetch
+    }
+    // Save Key button
+    document.getElementById('saveKey').addEventListener('click', () => {
+      const k = document.getElementById('apiKeyInput').value.trim();
+      if (!k) { alert('API key cannot be empty'); return; }
+      localStorage.setItem('viewport_api_key', k);
+      document.getElementById('login').style.display    = 'none';
+      document.getElementById('controls').style.display = 'block';
+      document.getElementById('info').style.display     = 'block';
+      loadInfo();
+    });
   }
-
   // # every 60 000ms (1 minute), refresh the info panel if visible
   setInterval(() => {
     if (document.getElementById('info').style.display === 'block') {
       loadInfo();
     }
   }, 60000);
-
-  // Save Key button
-  document.getElementById('saveKey').addEventListener('click', () => {
-    const k = document.getElementById('apiKeyInput').value.trim();
-    if (!k) { alert('API key cannot be empty'); return; }
-    localStorage.setItem('viewport_api_key', k);
-    document.getElementById('login').style.display    = 'none';
-    document.getElementById('controls').style.display = 'block';
-    document.getElementById('info').style.display     = 'block';
-    loadInfo();
-  });
 });
 
 // format seconds → “Dd Hh Mm Ss”
@@ -89,8 +94,11 @@ async function loadInfo() {
   // intervals
   const hi = await fetchJSON('/api/health_interval');
   if (hi?.data) {
+    // 1) convert seconds → minutes (round to nearest whole minute)
+    const minutes = Math.round(hi.data.health_interval_sec / 60);
+    // 2) render in “X min” format
     document.getElementById('healthInterval')
-            .textContent = `${hi.data.health_interval_sec}s`;
+            .textContent = `${minutes} min`;
   }
   const li = await fetchJSON('/api/log_interval');
   if (li?.data) {
