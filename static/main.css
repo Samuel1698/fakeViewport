@@ -96,6 +96,10 @@ h2 {
   background: #2c3e50;
   color: #fff;
   border: none;
+  min-width: 60%;
+  max-width: 20rem;
+  margin-left: auto;
+  margin-right: auto;
   border-radius: 4px;
   cursor: pointer;
   -webkit-transition: background 0.3s;
@@ -140,12 +144,19 @@ h2 {
     font-size: 2.25rem;
     text-align: left;
   }
-  #login,
   #controls {
-    -webkit-box-orient: vertical;
-    -webkit-box-direction: normal;
-        -ms-flex-direction: column;
-            flex-direction: column;
+    flex-direction: column;
+  }
+  #Login label {
+    display: inline-flex;
+    min-width: 500px;
+    align-items: center;
+  }
+  #Login span {
+    min-width: 4rem;
+  }
+  #login button {
+    min-width: unset;
   }
   #login label,
   #controls label {

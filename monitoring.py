@@ -8,7 +8,11 @@ import subprocess
 from functools import wraps
 from pathlib import Path
 from datetime import datetime
-from flask import Flask, jsonify, url_for, render_template, request, abort
+from flask import (
+    Flask, render_template, request,
+    session, redirect, url_for, flash,
+    jsonify
+)
 from flask_cors import CORS
 from logging_config import configure_logging
 from dotenv import load_dotenv
@@ -40,6 +44,7 @@ def create_app(config_path=None):
     script_dir = Path(__file__).resolve().parent
     api_root = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
     CONTROL_TOKEN = os.getenv("SECRET", "")
+    app.secret_key = CONTROL_TOKEN
     script_dir = Path(__file__).resolve().parent
     viewport = script_dir / 'viewport.py'
     api_root = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
@@ -75,29 +80,45 @@ def create_app(config_path=None):
         except Exception as e:
             app.logger.error(f"Error reading {path}: {e}")
             return None
-    def require_token(f):
+    # ─────────────────────────────────────────────────────
+    # Protect routes if SECRET is set
+    # ─────────────────────────────────────────────────────
+    def login_required(f):
         @wraps(f)
-        def wrapped(*args, **kwargs):
-            # if no token configured, skip auth entirely
-            if CONTROL_TOKEN:
-                # otherwise enforce header match
-                token = request.headers.get("X-API-KEY")
-                if token != CONTROL_TOKEN:
-                    return jsonify(
-                        status="error",
-                        message="Invalid or missing API key"
-                    ), 401
+        def decorated(*args, **kwargs):
+            if CONTROL_TOKEN and not session.get("authenticated"):
+                return redirect(url_for("login", next=request.path))
             return f(*args, **kwargs)
-        return wrapped
+        return decorated
+     # ─────────────────────────────────────────────────────
+    # /login page
+    # ─────────────────────────────────────────────────────
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        # if no SECRET configured, skip login
+        if not CONTROL_TOKEN:
+            return redirect(url_for("dashboard"))
+
+        error = None
+        if request.method == "POST":
+            key = request.form.get("key", "").strip()
+            if key == CONTROL_TOKEN:
+                session["authenticated"] = True
+                next_page = request.args.get("next") or url_for("dashboard")
+                return redirect(next_page)
+            error = "Invalid API key"
+            flash(error, "danger")
+
+        return render_template("login.html", error=error)
     # -----------------------------
     # 1) Dashboard
     # -----------------------------
-    @app.route('/')
+    @app.route("/")
+    @login_required
     def dashboard():
-        return render_template('index.html',
-                            control_token=os.getenv('SECRET',''))
+        return render_template("index.html")
     @app.route('/api/control/<action>', methods=['POST'])
-    @require_token
+    @login_required
     def api_control(action):
         """
         POST /api/control/start    → viewport.py --background

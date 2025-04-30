@@ -15,15 +15,7 @@
     const CONTROL_TOKEN = "{{ control_token }}";
   </script>
   <h1>Viewport Control</h1>
-
-  <div id="login">
-    <label>
-      API Key:
-      <input id="apiKeyInput" type="password" placeholder="Paste your token">
-    </label>
-    <button id="saveKey">Save Key</button>
-  </div>
-  <section id="info" style="display:none; margin:1rem 0; padding:1rem; border:1px solid #ccc;">
+  <section id="info">
     <h2>Status</h2>
     <ul>
       <li>Script Uptime: <span id="scriptUptime">–</span></li>
@@ -35,12 +27,12 @@
       <li>Last Log Entry: <span id="logEntry">–</span></li>
     </ul>
   </section>
-  <div id="controls" style="display:none">
+  <div id="controls">
     <button onclick="control('start')">Start</button>
     <button onclick="control('restart')">Restart</button>
     <button onclick="control('quit')">Quit</button>
 
-    <div id="statusMessage" style="margin-top:1rem; font-weight:bold;"></div>
+    <div id="statusMessage"></div>
   </div>
 
   <script src="{{ url_for('static', filename='main.js') }}" defer></script>

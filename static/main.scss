@@ -111,6 +111,10 @@ h2 {
   button {
     padding: 0.75rem 1rem;
     font-size: 1rem;
+    min-width: 60%;
+    max-width: 20rem;
+    margin-left: auto;
+    margin-right: auto;
     background: $primary-color;
     color: #fff;
     border: none;
@@ -170,11 +174,21 @@ h2 {
     font-size: 2.25rem;
     text-align: left;
   }
-
-  #login,
   #controls {
     flex-direction: column;
-
+  }
+  #Login {
+    label {
+      display: inline-flex;
+      min-width: 500px;
+      align-items: center;
+    }
+    span {
+      min-width: 4rem;
+    }
+  }
+  #Login,
+  #controls {
     label {
       flex: 1;
       margin-right: 1rem;

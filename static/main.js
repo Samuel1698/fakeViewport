@@ -1,58 +1,7 @@
-const show = el => el.classList.remove('hidden');
-const hide = el => el.classList.add('hidden');
-
 document.addEventListener('DOMContentLoaded', () => {
-  // grab all the UI sections
-  const loginSection    = document.getElementById('login');
-  const controlsSection = document.getElementById('controls');
-  const infoSection     = document.getElementById('info');
-  const saveButton      = document.getElementById('saveKey');
-  const apiInput        = document.getElementById('apiKeyInput');
-
-  // start with controls & info hidden, login visible
-  hide(controlsSection);
-  hide(infoSection);
-  show(loginSection);
-
-  // detect an ENV‐injected token (ensure your template renders CONTROL_TOKEN as a string)
-  const hasEnvToken = (
-    typeof CONTROL_TOKEN !== 'undefined' &&
-    CONTROL_TOKEN.trim().length > 0
-  );
-
-  // detect a previously saved key in localStorage
-  const savedKey = localStorage.getItem('viewport_api_key')?.trim().length > 0;
-
-  // if either an env token or saved key exists, skip straight to controls/info
-  if (hasEnvToken || savedKey) {
-    hide(loginSection);
-    show(controlsSection);
-    show(infoSection);
-    loadInfo();  // initial data load
-  }
-
-  // “Save Key” button handler:
-  //  • validate input
-  //  • persist it
-  //  • switch to controls/info
-  saveButton.addEventListener('click', () => {
-    const key = apiInput.value.trim();
-    if (!key) {
-      alert('API key cannot be empty');
-      return;
-    }
-    localStorage.setItem('viewport_api_key', key);
-    hide(loginSection);
-    show(controlsSection);
-    show(infoSection);
-    loadInfo();  // fetch right after saving
-  });
-
   // auto-refresh every minute, but only if info is visible
   setInterval(() => {
-    if (!infoSection.classList.contains('hidden')) {
-      loadInfo();
-    }
+    loadInfo();
   }, 60_000);
 });
 // format seconds → “Dd Hh Mm Ss”
