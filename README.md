@@ -129,6 +129,11 @@ EOF
 ```
 and paste it in your `.env` file with the name `SECRET=`. This will serve as your password for accessing the website.
 
+Here's how the control page looks like:
+
+<img width="554" alt="{3A3F2229-CF42-46D5-A97F-BB1532A9E7BD}" src="https://github.com/user-attachments/assets/db340221-492f-448a-b000-217dc1dea3c0" />
+
+
 Api Endpoints:
 ```
 /api
