@@ -13,7 +13,7 @@ import psutil
 import monitoring
 from monitoring import create_app
 # -------------------------------------------------------------------------
-# Helper to build an app/client with SECRET in the environment
+# Helper to build an app/client
 # -------------------------------------------------------------------------
 @pytest.fixture
 def client(tmp_path, monkeypatch):
@@ -50,6 +50,31 @@ def client(tmp_path, monkeypatch):
     app = create_app(str(cfg_path))
     app.testing = True
     return app.test_client(), tmp_path / 'api'
+# -------------------------------------------------------------------------
+# Helper to build an app/client with SECRET in the environment
+# -------------------------------------------------------------------------
+def _make_auth_client(tmp_path, monkeypatch):
+    # Stub logging and set SECRET before app creation
+    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
+    monkeypatch.setenv("SECRET", "shh")
+    # Minimal config.ini
+    cfg = configparser.ConfigParser()
+    cfg["API"]     = {"API_FILE_PATH": str(tmp_path / "api")}
+    cfg["General"] = {"SLEEP_TIME": "300", "LOG_INTERVAL": "15"}
+    cfg["Logging"] = {
+        "LOG_FILE": "no",
+        "LOG_CONSOLE": "no",
+        "VERBOSE_LOGGING": "no",
+        "LOG_DAYS": "1",
+    }
+    cfg_path = tmp_path / "config.ini"
+    with open(cfg_path, "w") as f:
+        cfg.write(f)
+    # Render templates to a known string
+    monkeypatch.setattr(monitoring, "render_template", lambda tpl, **ctx: f"TEMPLATE({tpl})")
+    app = create_app(str(cfg_path))
+    app.testing = True
+    return app.test_client()
 # -------------------------------------------------------------------------
 # Helper to build an app/client with NO SECRET in the environment
 # -------------------------------------------------------------------------
@@ -121,6 +146,13 @@ def test_api_control_unknown_action(client):
     assert data["status"] == "error"
     assert 'Unknown action "foobar"' in data["message"]
 
+@pytest.mark.parametrize("action", ["start", "restart", "quit"])
+def test_control_requires_login_for_all_actions(tmp_path, monkeypatch, action):
+    client_app = _make_auth_client(tmp_path, monkeypatch)
+    resp = client_app.post(f"/api/control/{action}", follow_redirects=False)
+    assert resp.status_code == 302
+    assert f"/login?next=/api/control/{action}" in resp.headers["Location"]
+    
 @pytest.mark.parametrize("exc_msg", ["boom", "kaboom"])
 def test_api_control_dispatch_failure(client, monkeypatch, exc_msg):
     client_app, api_dir = client
@@ -197,29 +229,6 @@ def test_api_directory_created_by_fixture(client):
 # -------------------------
 # 7. Authentication flows when SECRET is set
 # -------------------------
-def _make_auth_client(tmp_path, monkeypatch):
-    # Stub logging and set SECRET before app creation
-    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
-    monkeypatch.setenv("SECRET", "shh")
-    # Minimal config.ini
-    cfg = configparser.ConfigParser()
-    cfg["API"]     = {"API_FILE_PATH": str(tmp_path / "api")}
-    cfg["General"] = {"SLEEP_TIME": "300", "LOG_INTERVAL": "15"}
-    cfg["Logging"] = {
-        "LOG_FILE": "no",
-        "LOG_CONSOLE": "no",
-        "VERBOSE_LOGGING": "no",
-        "LOG_DAYS": "1",
-    }
-    cfg_path = tmp_path / "config.ini"
-    with open(cfg_path, "w") as f:
-        cfg.write(f)
-    # Render templates to a known string
-    monkeypatch.setattr(monitoring, "render_template", lambda tpl, **ctx: f"TEMPLATE({tpl})")
-    app = create_app(str(cfg_path))
-    app.testing = True
-    return app.test_client()
-
 def test_dashboard_requires_login(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
     # Unauthenticated GET "/" → redirect to login
