@@ -28,16 +28,53 @@ def mock_common(mocker):
         "logging": mocker.patch("viewport.logging"),
     }
     return patches
-
 # ---------------------------------------------------------------------
-# Test: check_driver
+# Test: check_crash
 # ---------------------------------------------------------------------
 @pytest.mark.parametrize(
-    "title_value, side_effect, expected_result",
+    "page_source, expected",
     [
-        ("Mock Title", None, True),               # Normal title => success
-        (None, WebDriverException, False),         # WebDriver crash => failure
-        (None, Exception, False),                  # Other exception => failure
+        # 1) Page contains the "Aw, Snap!" crash banner
+        ("<html>…Aw, Snap! Something broke…</html>", True),
+        # 2) Page contains "Tab Crashed" text
+        ("<div>Error: Tab Crashed while loading</div>", True),
+        # 3) No crash indicators present
+        ("<html><body>All systems operational.</body></html>", False),
+        # 4) Partial match of "Aw, Snap" without the exclamation
+        ("<p>Aw, Snap this is just text</p>", False),
+        # 5) Partial match of "Crashed" without full phrase
+        ("<span>The process crashed unexpectedly</span>", False),
+    ],
+    ids=[
+        "contains_aw_snap",
+        "contains_tab_crashed",
+        "no_crash",
+        "partial_aw_snap",
+        "partial_crashed",
+    ]
+)
+def test_check_crash(page_source, expected):
+    # Create a dummy driver with a configurable page_source
+    class DummyDriver:
+        pass
+
+    driver = DummyDriver()
+    driver.page_source = page_source
+
+    # Assert that check_crash returns the expected boolean
+    assert viewport.check_crash(driver) is expected
+# ---------------------------------------------------------------------
+# Test: check_driver should return True on success, otherwise raise
+# ---------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "title_value, side_effect, expected_exception",
+    [
+        # 1) Normal title ⇒ returns True
+        ("Mock Title",   None,               None),
+        # 2) Selenium failure ⇒ should propagate WebDriverException
+        (None,           WebDriverException, WebDriverException),
+        # 3) Other error ⇒ should propagate generic Exception
+        (None,           Exception,          Exception),
     ],
     ids=[
         "valid_title",
@@ -45,13 +82,19 @@ def mock_common(mocker):
         "generic_exception",
     ]
 )
-def test_check_driver(mock_driver, title_value, side_effect, expected_result):
+def test_check_driver(mock_driver, title_value, side_effect, expected_exception):
+    # Arrange: either stub driver.title to return a value or raise
     if side_effect:
         type(mock_driver).title = PropertyMock(side_effect=side_effect)
     else:
         mock_driver.title = title_value
 
-    assert viewport.check_driver(mock_driver) is expected_result
+    # Act & Assert
+    if expected_exception:
+        with pytest.raises(expected_exception):
+            viewport.check_driver(mock_driver)
+    else:
+        assert viewport.check_driver(mock_driver) is True
 # ---------------------------------------------------------------------
 # Test: check_next_interval
 # ---------------------------------------------------------------------

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Viewport Control</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+</head>
+<body>
+  <h1>Viewport Control</h1>
+  <section id="info">
+    <div class="flex-parent">
+      <h2>Status</h2>
+      <button id="refreshButton" onclick="loadInfo()">Refresh</button>
+    </div>
+    <ul>
+      <li>Script Uptime: <span id="scriptUptime">–</span></li>
+      <li>System Uptime: <span id="systemUptime">–</span></li>
+      <li>RAM Used / Total: <span id="ram">–</span></li>
+      <li>Health Check Interval: <span id="healthInterval">–</span></li>
+      <li>Log Interval: <span id="logInterval">–</span></li>
+      <li>Last Status Message: <span id="statusMsg">–</span></li>
+      <li>Last Log Entry: <span id="logEntry">–</span></li>
+    </ul>
+  </section>
+  <div id="controls">
+    <button onclick="control('start', this)" data-tooltip="Please wait before sending the same command again.">Start</button>
+    <button onclick="control('restart', this)" data-tooltip="Please wait before sending the same command again.">Restart</button>
+    <button onclick="control('quit', this)" data-tooltip="Please wait before sending the same command again.">Quit</button>
+
+  </div>
+  <div id="statusMessage"><span></span></div>
+
+  <script src="{{ url_for('static', filename='main-min.js') }}" defer></script>
+</body>
+</html>

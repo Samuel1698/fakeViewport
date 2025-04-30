@@ -16,8 +16,10 @@ class ColoredFormatter(logging.Formatter):
             color = self.YELLOW
         elif record.levelno == logging.INFO:
             color = self.GREEN
-        else:
+        elif record.levelno == logging.DEBUG:
             color = self.CYAN
+        else:
+            color = self.NC
         record.msg = f"{color}{record.msg}{self.NC}"
         return super().format(record)
 

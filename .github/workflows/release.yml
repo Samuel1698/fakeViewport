@@ -1,0 +1,24 @@
+name: 📦 Build Releases
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  slice-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build bundles
+        run: |
+          chmod +x ./release.sh
+          ./release.sh
+
+      - name: Publish assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

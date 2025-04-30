@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 # -------------------------------------------------------------------
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
-viewport_version = "2.1.4"
+viewport_version = "2.1.5"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 # Directory and file paths
 script_dir = Path(__file__).resolve().parent
@@ -131,8 +131,12 @@ def args_handler(args):
                         colored_line = f"{GREEN}{line.strip()}{NC}"
                     elif "[WARNING]" in line:
                         colored_line = f"{YELLOW}{line.strip()}{NC}"
-                    else:
+                    elif "[DEBUG]" in line:
+                        colored_line = f"{CYAN}{line.strip()}{NC}"
+                    elif "[ERROR]" in line:
                         colored_line = f"{RED}{line.strip()}{NC}"
+                    else:
+                        colored_line = f"{NC}{line.strip()}{NC}"
                     print(colored_line)  # Print the colored line to the console
         except FileNotFoundError:
             print(f"{RED}Log file not found: {log_file}{NC}")
@@ -145,8 +149,9 @@ def args_handler(args):
             args,
             drop_flags={"background"},  # don’t re-daemonize when the child starts
         )
+        script_path = os.path.realpath(sys.argv[0])
         subprocess.Popen(
-            [sys.executable, __file__] + child_argv,
+            [sys.executable, script_path] + child_argv,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -535,12 +540,14 @@ def status_handler():
                 # Conditionally color the log line based on its content
                 if "[ERROR]" in log_line:
                     colored_log_line = f"{RED}{log_line}{NC}"
+                elif "[DEBUG]" in log_line:
+                    colored_log_line = f"{CYAN}{log_line}{NC}"
                 elif "[WARNING]" in log_line:
                     colored_log_line = f"{YELLOW}{log_line}{NC}"
                 elif "[INFO]" in log_line:
                     colored_log_line = f"{GREEN}{log_line}{NC}"
                 else:
-                    colored_log_line = f"{RED}{log_line}{NC}"
+                    colored_log_line = f"{NC}{log_line}{NC}"
             print(f"{CYAN}Last Log Entry:{NC} {colored_log_line}")
         except FileNotFoundError:
             # Log file does not exist
@@ -698,8 +705,9 @@ def restart_handler(driver):
             args,
             drop_flags={"restart"},  # don’t re-daemonize when the child starts
         )
+        script_path = os.path.realpath(sys.argv[0])
         subprocess.Popen(
-            [sys.executable, __file__] + child_argv,
+            [sys.executable, script_path] + child_argv,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -716,14 +724,18 @@ def restart_handler(driver):
 # Helper Functions for main script
 # These functions return true or false but don't interact directly with the webpage
 # -------------------------------------------------------------------
+def check_crash(driver):
+    # Explicitly checks for the message in page that come from a crashed tab
+    # Would only get called if for some reason the tab crashed but driver is still responsive
+    return "Aw, Snap!" in driver.page_source or "Tab Crashed" in driver.page_source
 def check_driver(driver):
     # Checks if WebDriver is still alive
     # Returns True if driver is responsive, False otherwise
     try:
         driver.title  # Accessing the title will raise an exception if the driver is not alive
         return True
-    except (WebDriverException, Exception):
-        return False
+    except (WebDriverException, InvalidSessionIdException, Exception):
+        raise
 def check_next_interval(interval_seconds, now=None):
     # Calculates the next whole interval based on the current time
     # Seconds until next interval would for a time of 10:51 and interval of 5 minutes, calculate
@@ -1013,6 +1025,11 @@ def handle_view(driver, url):
                     time.sleep(SLEEP_TIME)  # Wait before retrying
                     retry_count += 1
                     handle_retry(driver, url, retry_count, max_retries)
+                if check_crash(driver):
+                    log_error(f"Tab Crashed. Restarting {BROWSER}...", e)
+                    api_status("Tab Crashed")
+                    driver = chrome_restart_handler(url)
+                    continue
                 WebDriverWait(driver, WAIT_TIME).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
                 )

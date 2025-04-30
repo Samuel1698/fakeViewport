@@ -1,0 +1,22 @@
+:root {
+  --endeavor: #08243b;
+  --nevada: #5e6f7c;
+  --iron: #d4d4d6;
+  --ruby: #a20021;
+}
+
+$primary-color:     var(--endeavor);
+$secondary-color:   var(--nevada);
+$background-color:  var(--iron);
+$text-color:        var(--endeavor);
+$white-outline:     var(--ruby);
+
+$border-radius:      4px;
+$transition-speed:   0.3s;
+$border-radius:      4px;
+$transition-speed:   0.3s;
+
+
+$small: 40rem; // 640px
+$medium: 58.75rem; // 940px
+$big: 77.5rem; // 1240px
