@@ -164,7 +164,7 @@ def test_api_control_dispatch_failure(client, monkeypatch, exc_msg):
     assert resp.status_code == 500
     data = resp.get_json()
     assert data["status"] == "error"
-    assert exc_msg in data["message"]
+    assert exc_msg not in data["message"]
 # -------------------------
 # 2. /api/log_entry error path
 # -------------------------

@@ -155,7 +155,7 @@ def create_app(config_path=None):
                            message=f"{action.title()} command issued"), 202
         except Exception as e:
             app.logger.exception("Failed to dispatch control command")
-            return jsonify(status="error", message=str(e)), 500
+            return jsonify(status="error", message="Failed to dispatch control command"), 500
 
     @app.route("/api")
     @app.route("/api/")
