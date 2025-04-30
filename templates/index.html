@@ -13,7 +13,10 @@
 <body>
   <h1>Viewport Control</h1>
   <section id="info">
-    <h2>Status</h2>
+    <div class="flex-parent">
+      <h2>Status</h2>
+      <button id="refreshButton" onclick="loadInfo()">Refresh</button>
+    </div>
     <ul>
       <li>Script Uptime: <span id="scriptUptime">–</span></li>
       <li>System Uptime: <span id="systemUptime">–</span></li>
