@@ -105,6 +105,7 @@ async function loadInfo() {
 async function control(action) {
   const msgEl = document.querySelector('#statusMessage span');
   msgEl.textContent = '';
+  msgEl.style.color = '';
   try {
     const res = await fetch(`/api/control/${action}`, {method: 'POST'});
     const js = await res.json();
@@ -115,8 +116,18 @@ async function control(action) {
       msgEl.textContent = '✗ ' + js.message;
       msgEl.style.color = 'red';
     }
+    // Reset after 1 minute
+    setTimeout(() => {
+      msgEl.textContent = '';
+      msgEl.style.color = '';
+    }, 60_000);
   } catch (e) {
     msgEl.textContent = '✗ ' + e;
     msgEl.style.color = 'red';
+    // Reset after 2 minutes
+    setTimeout(() => {
+      msgEl.textContent = '';
+      msgEl.style.color = '';
+    }, 120_000);
   }
 }
