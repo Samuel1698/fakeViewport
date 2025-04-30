@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+  loadInfo();
   // auto-refresh every minute, but only if info is visible
   setInterval(() => {
     loadInfo();

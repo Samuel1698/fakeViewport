@@ -6,4 +6,3 @@ logs/
 api/
 venv/
 __pycache__/
-prepros.config

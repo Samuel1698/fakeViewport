@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <title>Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
 </head>
 <body>
-  <h1>Enter API Key</h1>
+  <h1>Viewport Login</h1>
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       <ul>
@@ -15,7 +16,7 @@
       </ul>
     {% endif %}
   {% endwith %}
-  <form method="post">
+  <form id="login" method="post">
     <label for="key">API Key:</label>
     <input id="key" name="key" type="password" required>
     <button type="submit">Login</button>
