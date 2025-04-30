@@ -102,32 +102,36 @@ async function loadInfo() {
 }
 
 // send control and update inline message
-async function control(action) {
+async function control(action, btn) {
+  // 1) disable the button immediately
+  btn.setAttribute('disabled', '');
+  setTimeout(() => { btn.removeAttribute('disabled') }, 15_000);
+
+  // 2) do your existing status-message logic
   const msgEl = document.querySelector('#statusMessage span');
   msgEl.textContent = '';
   msgEl.style.color = '';
+
   try {
-    const res = await fetch(`/api/control/${action}`, {method: 'POST'});
-    const js = await res.json();
-    if (js.status==='ok') {
+    const res = await fetch(`/api/control/${action}`, { method: 'POST' });
+    const js  = await res.json();
+
+    if (js.status === 'ok') {
       msgEl.textContent = '✓ ' + js.message;
-      msgEl.style.color = 'green';
+      msgEl.style.color   = 'green';
     } else {
       msgEl.textContent = '✗ ' + js.message;
-      msgEl.style.color = 'red';
+      msgEl.style.color   = 'red';
     }
-    // Reset after 1 minute
+    await loadInfo();
+    // reset the message after 15 seconds
     setTimeout(() => {
       msgEl.textContent = '';
       msgEl.style.color = '';
-    }, 60_000);
+    }, 15_000);
+    setTimeout(loadInfo, 15_000);
   } catch (e) {
     msgEl.textContent = '✗ ' + e;
-    msgEl.style.color = 'red';
-    // Reset after 2 minutes
-    setTimeout(() => {
-      msgEl.textContent = '';
-      msgEl.style.color = '';
-    }, 120_000);
+    msgEl.style.color   = 'red';
   }
 }

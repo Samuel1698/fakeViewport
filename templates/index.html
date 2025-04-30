@@ -27,9 +27,9 @@
     </ul>
   </section>
   <div id="controls">
-    <button onclick="control('start')">Start</button>
-    <button onclick="control('restart')">Restart</button>
-    <button onclick="control('quit')">Quit</button>
+    <button onclick="control('start', this)" data-tooltip="Please wait before sending the same command again.">Start</button>
+    <button onclick="control('restart', this)" data-tooltip="Please wait before sending the same command again.">Restart</button>
+    <button onclick="control('quit', this)" data-tooltip="Please wait before sending the same command again.">Quit</button>
 
   </div>
   <div id="statusMessage"><span></span></div>

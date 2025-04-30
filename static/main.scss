@@ -130,9 +130,42 @@ h1 {
     cursor: pointer;
     transition: background $transition-speed;
     margin-bottom: 0.75rem;
-
     &:hover {
       background-color: $secondary-color;
+    }
+    &:disabled {
+      background-color: $secondary-color;
+      cursor: unset;
+    }
+    &[disabled][data-tooltip]{
+      position: relative;
+      &:hover::before {
+        content: '';
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border-width: 6px 6px 0 6px;
+        border-style: solid;
+        border-color: rgba(0,0,0,0.8) transparent transparent transparent;
+        pointer-events: none;
+        opacity: 1;
+      }
+      &:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%;               /* sit just above the button */
+        left: 50%;                  /* center horizontally */
+        transform: translate(-50%, -6px);
+        background: rgba(0, 0, 0, 0.8);
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 8px;
+        white-space: nowrap;
+        font-size: 1.15em;
+        pointer-events: none;       /* so it doesn’t block the hover state */
+        z-index: 10;
+      }
     }
   }
 }
