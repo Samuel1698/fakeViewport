@@ -9,11 +9,11 @@
   <h1>Viewport Login</h1>
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      <ul>
+      <div id="statusMessage">
         {% for cat, msg in messages %}
-          <li class="{{ cat }}">{{ msg }}</li>
+          <span class="{{ cat }}">{{ msg }}</span>
         {% endfor %}
-      </ul>
+      </div>
     {% endif %}
   {% endwith %}
   <form id="login" method="post">

@@ -11,9 +11,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
 </head>
 <body>
-  <script>
-    const CONTROL_TOKEN = "{{ control_token }}";
-  </script>
   <h1>Viewport Control</h1>
   <section id="info">
     <h2>Status</h2>
@@ -32,8 +29,8 @@
     <button onclick="control('restart')">Restart</button>
     <button onclick="control('quit')">Quit</button>
 
-    <div id="statusMessage"></div>
   </div>
+  <div id="statusMessage"><span></span></div>
 
   <script src="{{ url_for('static', filename='main.js') }}" defer></script>
 </body>

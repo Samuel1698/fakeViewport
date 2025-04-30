@@ -142,16 +142,27 @@ h1 {
     margin-top: 1rem;
   }
 }
-
+// --------------------------------------------------
+// Status Div
+// --------------------------------------------------
+#statusMessage {
+  text-align: center;
+  .danger {
+    color: $white-outline;
+  }
+}
 // --------------------------------------------------
 // Responsive Adjustments
 // --------------------------------------------------
 @include respond-above($small) {
   // Slightly larger form and controls layout for tablets
-  #login {
+  #login{
     max-width: 450px;
   }
-
+  #info {
+    max-width: 600px;
+    margin: 1rem auto;
+  }
   h1 {
     font-size: 2rem;
   }
@@ -174,7 +185,6 @@ h1 {
   html, body {
     padding: 2rem 4rem;
   }
-  #info,
   #login {
     max-width: 600px;
     margin: 1rem auto;

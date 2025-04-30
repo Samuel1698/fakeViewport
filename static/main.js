@@ -1,9 +1,8 @@
+let lastScriptUptime = null;
 document.addEventListener('DOMContentLoaded', () => {
   loadInfo();
   // auto-refresh every minute, but only if info is visible
-  setInterval(() => {
-    loadInfo();
-  }, 60_000);
+  setInterval(loadInfo, 60_000);
 });
 // format seconds → “Dd Hh Mm Ss”
 function formatDuration(sec) {
@@ -28,12 +27,10 @@ function formatDuration(sec) {
 
 // fetch+render all API data
 async function loadInfo() {
-  const token   = localStorage.getItem('viewport_api_key'),
-        headers = { 'X-API-KEY': token };
 
   async function fetchJSON(path) {
     try {
-      const r = await fetch(path, { headers });
+      const r = await fetch(path);
       if (!r.ok) return null;
       return await r.json();
     } catch {
@@ -41,13 +38,25 @@ async function loadInfo() {
     }
   }
 
-  // script uptime
   const sud = await fetchJSON('/api/script_uptime');
-  if (sud?.data) {
-    document.getElementById('scriptUptime')
-            .textContent = formatDuration(sud.data.script_uptime);
-  }
+  const el = document.getElementById('scriptUptime');
+  if (sud?.data && typeof sud.data.script_uptime === 'number') {
+    const current = sud.data.script_uptime;
 
+    // 2) If we’ve seen one value before and it didn’t change → Not Running
+    if (lastScriptUptime !== null && current === lastScriptUptime) {
+      el.textContent = 'Not Running';
+    } else {
+      el.textContent = formatDuration(current);
+    }
+
+    // 3) Update our “last seen” value
+    lastScriptUptime = current;
+  } else {
+    // no data at all (empty file, 404, parse error…)
+    el.textContent = 'Not Running';
+    lastScriptUptime = null;
+  }
   // system uptime
   const syu = await fetchJSON('/api/system_uptime');
   if (syu?.data) {
@@ -94,7 +103,7 @@ async function loadInfo() {
 
 // send control and update inline message
 async function control(action) {
-  const msgEl = document.getElementById('statusMessage');
+  const msgEl = document.querySelector('#statusMessage span');
   msgEl.textContent = '';
   const token = localStorage.getItem('viewport_api_key');
   if (!token) {
@@ -104,9 +113,7 @@ async function control(action) {
   }
 
   try {
-    const res = await fetch(`/api/control/${action}`, {
-      method: 'POST', headers:{ 'X-API-KEY':token }
-    });
+    const res = await fetch(`/api/control/${action}`, {method: 'POST'});
     const js = await res.json();
     if (js.status==='ok') {
       msgEl.textContent = '✓ ' + js.message;
