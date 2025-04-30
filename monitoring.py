@@ -8,6 +8,7 @@ import subprocess
 from functools import wraps
 from pathlib import Path
 from datetime import datetime
+from urllib.parse import urlparse
 from flask import (
     Flask, render_template, request,
     session, redirect, url_for, flash,
@@ -108,7 +109,12 @@ def create_app(config_path=None):
             if key == CONTROL_TOKEN:
                 # Successful login: set auth flag and go to dashboard (or next)
                 session["authenticated"] = CONTROL_TOKEN
-                return redirect(request.args.get("next") or url_for("dashboard"))
+                next_url = request.args.get("next", "").replace("\\", "")
+                if not urlparse(next_url).netloc and not urlparse(next_url).scheme:
+                    # Safe relative path, redirect to it
+                    return redirect(next_url)
+                # Unsafe or invalid path, redirect to dashboard
+                return redirect(url_for("dashboard"))
 
             # Failed login: flash error, but session stays cleared
             error = "Invalid API key"
