@@ -116,9 +116,9 @@ kill <pid>
 ```
 
 ### API Integration (Optional)
-The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, restart the script so you can access the script's status remotely (with appropriate network permissions) by navigating to the Thin Client's IP address in your browser. For example: `http://[machine's IP]:5000/api`
+The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, run `viewport -a` to toggle the API. You can access the script's status remotely (with appropriate network permissions) by navigating to the Thin Client's IP address in your browser. For example: `http://[machine's IP]:5000`
 
-In v2.1.5 I've included a simple page to control the script from your local network. The purpose is saving the machine's IP address to your phone/computer while on the same network as the machine. Ex: `http://[machine's IP]:5000`. You can change the port and the IP address of the Flask server in the `.env` file.
+In v2.1.5 I've included a simple page to control the script from your local network. The purpose is saving the machine's IP address to your phone/computer while on the same network as the machine. You can change the port and the IP address of the Flask server in the `.env` file.
 
 If you wish to lock it behind a secure token/password, run this:
 ```
@@ -135,6 +135,8 @@ Here's how the control page looks like:
 
 
 Api Endpoints:
+
+These endpoints display raw data, meant to be integrated into a third party tool like HomeAssistant or Rainmeter. 
 ```
 /api
    - Displays a list of all the urls
