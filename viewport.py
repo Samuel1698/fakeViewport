@@ -149,8 +149,9 @@ def args_handler(args):
             args,
             drop_flags={"background"},  # don’t re-daemonize when the child starts
         )
+        script_path = os.path.realpath(sys.argv[0])
         subprocess.Popen(
-            [sys.executable, __file__] + child_argv,
+            [sys.executable, script_path] + child_argv,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -704,8 +705,9 @@ def restart_handler(driver):
             args,
             drop_flags={"restart"},  # don’t re-daemonize when the child starts
         )
+        script_path = os.path.realpath(sys.argv[0])
         subprocess.Popen(
-            [sys.executable, __file__] + child_argv,
+            [sys.executable, script_path] + child_argv,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
