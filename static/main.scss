@@ -30,13 +30,19 @@ body {
   line-height: 1.6;
   padding: 1rem;
 }
-
+// --------------------------------------------------
+// Hide anything
+// --------------------------------------------------
+.hidden {
+  display: none !important;
+}
 // --------------------------------------------------
 // Headings
 // --------------------------------------------------
 h1 {
   font-size: 1.75rem;
   margin-bottom: 1rem;
+  text-align: center;
 }
 
 h2 {
@@ -55,10 +61,31 @@ h2 {
 // --------------------------------------------------
 // Login & Controls Sections
 // --------------------------------------------------
+#login {
+  label {
+    input {
+      width: 100%;
+      max-width: 600px;
+      /* rest of your styles */
+      margin-top: 0.25rem;
+      padding: 0.5rem;
+      font-size: 1rem;
+      border: 1px solid lighten($primary-color, 40%);
+      border-radius: $border-radius;
+      transition: border $transition-speed;
+
+      &:focus {
+        border-color: $secondary-color;
+        outline: none;
+      }
+    }
+  }
+}
 #login,
 #controls {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
 
@@ -141,12 +168,12 @@ h2 {
 
   h1 {
     font-size: 2.25rem;
+    text-align: left;
   }
 
   #login,
   #controls {
-    flex-direction: row;
-    align-items: flex-end;
+    flex-direction: column;
 
     label {
       flex: 1;
