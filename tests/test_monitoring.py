@@ -12,6 +12,9 @@ from datetime import datetime, timedelta
 import psutil
 import monitoring
 from monitoring import create_app
+# -------------------------------------------------------------------------
+# Helper to build an app/client with SECRET in the environment
+# -------------------------------------------------------------------------
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     # 1) Stub out real logging
@@ -47,7 +50,44 @@ def client(tmp_path, monkeypatch):
     app = create_app(str(cfg_path))
     app.testing = True
     return app.test_client(), tmp_path / 'api'
+# -------------------------------------------------------------------------
+# Helper to build an app/client with NO SECRET in the environment
+# -------------------------------------------------------------------------
+def no_secret_client(tmp_path, monkeypatch):
+    # Ensure SECRET is not set → CONTROL_TOKEN will be falsey
+    monkeypatch.delenv("SECRET", raising=False)
+    # Stub out logging setup so it doesn’t write anywhere
+    monkeypatch.setattr("monitoring.configure_logging", lambda *a, **k: None)
+    # 2) Fix system uptime: boot_time=1000, time.time()=1010 ⇒ uptime=10s
+    monkeypatch.setattr(monitoring.psutil, 'boot_time', lambda: 1000)
+    monkeypatch.setattr(monitoring.time, 'time', lambda: 1010)
 
+    # 3) Fake RAM numbers
+    class DummyVM:
+        used = 12345
+        total = 67890
+    monkeypatch.setattr(monitoring.psutil, 'virtual_memory', lambda: DummyVM)
+
+    # 4) Temp config.ini pointing API_FILE_PATH to tmp_path/api
+    cfg = configparser.ConfigParser()
+    cfg['API'] = {'API_FILE_PATH': str(tmp_path / 'api')}
+    cfg['General'] = {
+        'SLEEP_TIME': '300',     # health_interval_sec
+        'LOG_INTERVAL': '15'     # log_interval_min
+    }
+    cfg['Logging'] = {
+        'LOG_FILE': 'no',
+        'LOG_CONSOLE': 'no',
+        'VERBOSE_LOGGING': 'no',
+        'LOG_DAYS': '1'
+    }
+    cfg_path = tmp_path / 'config.ini'
+    with open(cfg_path, 'w') as f:
+        cfg.write(f)
+
+    app = create_app(str(cfg_path))
+    app.testing = True
+    return app.test_client(), tmp_path / 'api'
 # -------------------------
 # 1. Control endpoint (/api/control/<action>)
 # -------------------------
@@ -206,7 +246,6 @@ def test_login_post_wrong_key_flashes_error(tmp_path, monkeypatch):
     # flashes is a list of (category, message) tuples
     assert ("danger", "Invalid API key") in flashes
 
-
 def test_login_post_correct_key_redirects(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
     # POST good key → redirect to next ("/")
@@ -220,6 +259,35 @@ def test_logout_clears_session_and_redirects(tmp_path, monkeypatch):
     resp = client_app.get("/logout", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["Location"].endswith("/login")
+# -------------------------------------------------------------------------
+# LOGIN SKIP WHEN NO SECRET
+# -------------------------------------------------------------------------
+def test_login_redirects_to_dashboard_if_no_secret(tmp_path, monkeypatch):
+    """
+    When SECRET is not set, /login should skip auth and redirect straight to dashboard (/).
+    """
+    client_app, api_dir = no_secret_client(tmp_path, monkeypatch)
+    resp = client_app.get("/login", follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/")
+
+@pytest.mark.parametrize("action,expected_msg", [
+    ("start",   "Start command issued"),
+    ("restart", "Restart command issued"),
+    ("quit",    "Quit command issued"),
+])
+def test_control_endpoints_allowed_without_login(tmp_path, monkeypatch, action, expected_msg):
+    """
+    Even if no SECRET is set, POST /api/control/<action> should still work.
+    """
+    client_app, api_dir = no_secret_client(tmp_path, monkeypatch)
+    # stub out Popen to simulate success
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: None)
+    resp = client_app.post(f"/api/control/{action}")
+    assert resp.status_code == 202
+    data = resp.get_json()
+    assert data["status"]  == "ok"
+    assert data["message"] == expected_msg
 # -------------------------
 # /api index
 # -------------------------
