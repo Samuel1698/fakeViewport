@@ -7,7 +7,7 @@ import psutil
 import subprocess
 from functools import wraps
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from flask import (
     Flask, render_template, request,
@@ -42,6 +42,15 @@ def create_app(config_path=None):
     CONTROL_TOKEN = os.getenv("SECRET", "").strip()
     # always give Flask a non-empty secret_key so session/flash() work
     app.secret_key = CONTROL_TOKEN or os.urandom(24)
+    raw = config.get('General', 'RESTART_TIMES', fallback='')
+    RESTART_TIMES = []
+    for part in raw.split(','):
+        if part := part.strip():
+            try:
+                RESTART_TIMES.append(datetime.strptime(part, '%H:%M').time())
+            except ValueError:
+                app.logger.error(f"Bad RESTART_TIMES entry: {part!r} (must be HH:MM)")
+                sys.exit(1)
     # -----------------------------
     # Prepare API directory and files
     # -----------------------------
@@ -167,6 +176,7 @@ def create_app(config_path=None):
             "health_interval": url_for("api_health_interval",_external=True),
             "log_interval":    url_for("api_log_interval",   _external=True),
             "status":          url_for("api_status",         _external=True),
+            "next_restart":    url_for("api_next_restart",   _external=True),
             "log_entry":       url_for("api_log_entry",      _external=True),
         })
 
@@ -210,7 +220,20 @@ def create_app(config_path=None):
         if line is None:
             return jsonify(status="error", message="Status file not found"), 404
         return jsonify(status="ok", data={"status": line})
-
+    @app.route("/api/next_restart")
+    def api_next_restart():
+        if not RESTART_TIMES:
+            return jsonify(status="error", message="No restart times configured"), 404
+        now = datetime.now()
+        # compute next run for each time
+        next_runs = []
+        for t in RESTART_TIMES:
+            run_dt = datetime.combine(now.date(), t)
+            if run_dt <= now:
+                run_dt += timedelta(days=1)
+            next_runs.append(run_dt)
+        next_run = min(next_runs)
+        return jsonify(status="ok", data={"next_restart": next_run.isoformat()})
     @app.route("/api/log_entry")
     def api_log_entry():
         if not log_file.exists():

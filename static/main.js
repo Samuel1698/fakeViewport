@@ -24,7 +24,14 @@ function formatDuration(sec) {
     ? parts.join(' ')
     : '0s';
 }
-
+const formatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',   // "May"
+  day:   '2-digit', // "09"
+  year:  'numeric', // "2025"
+  hour:  '2-digit', // "02"
+  minute:'2-digit', // "00"
+  hour12: false
+});
 // fetch+render all API data
 async function loadInfo() {
 
@@ -88,7 +95,7 @@ async function loadInfo() {
             .textContent = `${li.data.log_interval_min} min`;
   }
 
-  // last status & log entry
+  // last status, log entry & restart time
   const st = await fetchJSON('/api/status');
   if (st?.data) {
     document.getElementById('statusMsg')
@@ -98,6 +105,22 @@ async function loadInfo() {
   if (le?.data) {
     document.getElementById('logEntry')
             .textContent = le.data.log_entry;
+  }
+  const sr = await fetchJSON('/api/next_restart');
+  const srel = document.getElementById('scheduledRestart');
+
+  if (sr?.data?.next_restart) {
+    // parse into a Date object
+    const next = new Date(sr.data.next_restart);
+
+    // format & show
+    srel.textContent = formatter.format(next).replace(/, /g, ' ');
+
+    // make sure it's visible
+    srel.parentElement.removeAttribute('hidden');
+  } else {
+    // hide if no data
+    srel.parentElement.setAttribute('hidden', '');
   }
 }
 
