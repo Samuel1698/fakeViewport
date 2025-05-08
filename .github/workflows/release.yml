@@ -1,5 +1,6 @@
 name: 📦 Build Releases
-
+permissions:
+  contents: write
 on:
   release:
     types: [published]
