@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 # -------------------------------------------------------------------
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
-viewport_version = "2.1.5"
+viewport_version = "2.1.6"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
 # Directory and file paths
 script_dir = Path(__file__).resolve().parent
@@ -839,7 +839,7 @@ def handle_loading_issue(driver):
             # If something goes wrong inspecting the page, treat as “no loading” 
             log_error("Error checking loading dots: ", e)
             has_loading = False
-
+            raise
         if has_loading:
             # First time we see trouble, record the time
             if trouble_loading_start_time is None:

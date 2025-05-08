@@ -93,6 +93,24 @@ def test_handle_loading_issue_no_persistence(
 
     mock_log_error.assert_not_called()
     driver.refresh.assert_not_called()
+# -----------------------------------------------------------------------------
+# Test that an inspection error in handle_loading_issue is not swallowed but re-raised
+@patch("viewport.log_error")
+@patch("viewport.time.sleep", return_value=None)
+def test_handle_loading_issue_inspection_error_raises(mock_sleep, mock_log_error):
+    driver = MagicMock()
+    viewport.CSS_LOADING_DOTS = ".dots"
+
+    # Simulate driver.find_elements throwing
+    driver.find_elements.side_effect = Exception("boom")
+
+    with pytest.raises(Exception) as excinfo:
+        viewport.handle_loading_issue(driver)
+
+    # It should have logged the error
+    mock_log_error.assert_called_once_with("Error checking loading dots: ", excinfo.value)
+    # And the original exception should bubble out
+    assert "boom" in str(excinfo.value)
 
 # -----------------------------------------------------------------------------
 # Test for handle_fullscreen_button function
