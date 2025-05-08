@@ -15,6 +15,7 @@ from flask import (
     jsonify
 )
 from flask_cors import CORS
+from collections import deque
 from logging_config import configure_logging
 from dotenv import load_dotenv, find_dotenv
 dotenv_file = find_dotenv()
@@ -71,12 +72,10 @@ def create_app(config_path=None):
         log_days=LOG_DAYS,
         Debug_logging=DEBUG_LOGGING
     )
-
     # -----------------------------
     # Enable CORS
     # -----------------------------
     CORS(app)
-
     # -----------------------------
     # Helper: read and strip text files
     # -----------------------------
@@ -175,6 +174,7 @@ def create_app(config_path=None):
             "ram":             url_for("api_ram",            _external=True),
             "health_interval": url_for("api_health_interval",_external=True),
             "log_interval":    url_for("api_log_interval",   _external=True),
+            "logs":            url_for("api_logs",           _external=True),
             "status":          url_for("api_status",         _external=True),
             "next_restart":    url_for("api_next_restart",   _external=True),
             "log_entry":       url_for("api_log_entry",      _external=True),
@@ -213,7 +213,23 @@ def create_app(config_path=None):
     @app.route("/api/log_interval")
     def api_log_interval():
         return jsonify(status="ok", data={"log_interval_min": LOG_INTERVAL})
+    @app.route("/api/logs")
+    def api_logs():
+        # grab optional ?limit=... (default 100)
+        try:
+            limit = int(request.args.get("limit", 100))
+        except ValueError:
+            limit = 100
 
+        try:
+            # tail the file
+            with open(log_file, 'r') as f:
+                last_lines = deque(f, maxlen=limit)
+            # return as an array of strings
+            return jsonify(status="ok", data={"logs": list(last_lines)})
+        except Exception as e:
+            app.logger.exception("Failed reading logs")
+            return jsonify(status="error", message=str(e)), 500
     @app.route("/api/status")
     def api_status():
         line = _read_api_file(status_file)

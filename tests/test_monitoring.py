@@ -311,7 +311,9 @@ def test_api_index_links(client):
         'ram',
         'health_interval',
         'log_interval',
+        'logs',
         'status',
+        'next_restart',
         'log_entry',
     }
     assert set(data.keys()) == expected
