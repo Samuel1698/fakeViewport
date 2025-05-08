@@ -13,6 +13,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, mock_open, ANY
 import pytest
 import viewport
+# Ensure no scheduled restarts by default
+viewport.RESTART_TIMES = []
 @pytest.fixture(autouse=True)
 def disable_external_side_effects(monkeypatch):
     # never actually sleep
@@ -35,7 +37,7 @@ def disable_external_side_effects(monkeypatch):
         (True,  123,  True,  True,  False),
         # 5) Edge case Restart: SST Present, no size + Old process -> Write
         (True,  0,  True,  True,  True),
-    ]
+    ],
 )
 @patch("viewport.args_handler", return_value="continue")
 @patch("viewport.process_handler")
@@ -56,7 +58,7 @@ def test_main_various(
     sst_size,
     other_running,
     expected_kill,
-    expected_write
+    expected_write,
 ):
     # Arrange
     viewport.API = False
@@ -105,17 +107,23 @@ def test_main_various(
     else:
         mock_open_file.assert_not_called()
 
-    # Chrome & threading launched
+    # Chrome launched
     mock_chrome.assert_called_once_with(viewport.url)
-    mock_thread.assert_called_once_with(
+   # handle_view should be spun up as before
+    mock_thread.assert_any_call(
         target=viewport.handle_view,
         args=(dummy_driver, viewport.url)
     )
-    mock_thread.return_value.start.assert_called_once()
-
+    # restart_scheduler must also be spun up—and as a daemon!
+    mock_thread.assert_any_call(
+        target=viewport.restart_scheduler,
+        args=(dummy_driver,),
+        daemon=True
+    )
     # no API logic here
     mock_api_handler.assert_not_called()
     mock_api_status.assert_called_with("Starting...")
+
 @patch("viewport.args_handler", return_value="something_else")
 @patch("viewport.process_handler")
 @patch("builtins.open", new_callable=mock_open)
@@ -133,6 +141,7 @@ def test_main_skip_when_not_continue(
     mock_process.assert_not_called()
     mock_chrome.assert_not_called()
     mock_thread.assert_not_called()
+
 # -----------------------------------------------------------------------------
 # Test api_status function
 # -----------------------------------------------------------------------------
@@ -289,7 +298,7 @@ def test_sigterm_clears_and_next_main_writes(mock_exit, tmp_path, monkeypatch):
     monkeypatch.setattr(viewport, "args_handler", lambda a: "continue")
     monkeypatch.setattr(viewport, "process_handler", lambda n, action="check": False)
     monkeypatch.setattr(viewport, "chrome_handler", lambda url: MagicMock())
-    monkeypatch.setattr(viewport, "threading", MagicMock(Thread=lambda target,args: MagicMock(start=lambda: None)))
+    monkeypatch.setattr(viewport.threading, "Thread", lambda *args, **kwargs: MagicMock(start=lambda: None))
 
     # d) call main again
     viewport.main()
@@ -310,7 +319,7 @@ def test_crash_recovery_writes(tmp_path, monkeypatch):
     # ensure main goes through
     monkeypatch.setattr(viewport, "args_handler", lambda a: "continue")
     monkeypatch.setattr(viewport, "chrome_handler", lambda url: MagicMock())
-    monkeypatch.setattr(viewport, "threading", MagicMock(Thread=lambda target,args: MagicMock(start=lambda: None)))
+    monkeypatch.setattr(viewport.threading, "Thread", lambda *args, **kwargs: MagicMock(start=lambda: None))
 
     viewport.main()
     # new timestamp should differ from old

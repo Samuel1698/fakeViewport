@@ -241,9 +241,19 @@ LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
 LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
 API = config.getboolean('API', 'USE_API', fallback=False)
 API_PATH = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
+raw = config.get('General', 'RESTART_TIMES', fallback='')
+RESTART_TIMES = []
 # -------------------------------------------------------------------
 # Config variables validation
 # -------------------------------------------------------------------
+for part in raw.split(','):
+    part = part.strip()
+    if part:
+        try:
+            RESTART_TIMES.append(datetime.strptime(part, '%H:%M').time())
+        except ValueError:
+            logging.error(f"Bad RESTART_TIMES entry: {part!r} (must be HH:MM)")
+            sys.exit(1)
 if not any(vars(args).values()) or args.background:
     if SLEEP_TIME < 60:
         logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
@@ -693,6 +703,25 @@ def chrome_restart_handler(url):
         log_error(f"Error while killing {BROWSER} processes: ", e)
         api_status(f"Error Killing {BROWSER}")
         raise
+def restart_scheduler(driver):
+    #leeps until the next configured restart time, then calls restart_handler.
+    if not RESTART_TIMES: return
+    while True:
+        now = datetime.now()
+        # build the next run datetimes
+        next_runs = []
+        for t in RESTART_TIMES:
+            run_dt = datetime.combine(now.date(), t)
+            if run_dt <= now:
+                run_dt += timedelta(days=1)
+            next_runs.append(run_dt)
+        next_run = min(next_runs)
+        wait = (next_run - now).total_seconds()
+        logging.info(f"Next scheduled restart at {next_run.time()}")
+        time.sleep(wait)
+        logging.info("Performing scheduled restart")
+        api_status(f"Scheduled restart at {next_run.time()}")
+        restart_handler(driver)
 def restart_handler(driver):
     # Reparse args
     args = args_helper()
@@ -1111,5 +1140,7 @@ def main():
     driver = chrome_handler(url)
     # Start the handle_view function in a separate thread
     threading.Thread(target=handle_view, args=(driver, url)).start()
+    # Start the restart scheduler
+    threading.Thread(target=restart_scheduler, args=(driver,), daemon=True).start()
 if __name__ == "__main__":
     main()
