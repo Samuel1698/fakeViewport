@@ -675,7 +675,7 @@ def chrome_handler(url):
     logging.info(f"Starting Script again in {int(SLEEP_TIME/2)} seconds.")
     api_status(f"Restarting Script in {int(SLEEP_TIME/2)} seconds.")
     time.sleep(SLEEP_TIME/2)
-    os.execv(sys.executable, ['python3'] + sys.argv)
+    restart_handler(driver=None)
 def chrome_restart_handler(url):
     # Restarts chrome, checks for the title and logs the result
     # This used to be in handle_retry but gets repeated in handle_view
@@ -692,6 +692,7 @@ def chrome_restart_handler(url):
     except Exception as e:
         log_error(f"Error while killing {BROWSER} processes: ", e)
         api_status(f"Error Killing {BROWSER}")
+        raise
 def restart_handler(driver):
     # Reparse args
     args = args_helper()
