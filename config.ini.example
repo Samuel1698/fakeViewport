@@ -10,12 +10,12 @@ WAIT_TIME=30
 # different kinds of errors with the cameras not loading correctly.
 # Increasing is useful for when you have connectivity issues, and waiting 2-3 minutes before a refresh is the solution.
 # First amount of attempts will just reload the page. Second to last attempt will restart chrome, and the last attempt will restart the script. 
-MAX_RETRIES=3
 # Must be 3 or greater.
+MAX_RETRIES=3
 # Comma-separated list of 24h times (HH:MM) when the script should automatically restart
 # I noticed that chrome seems to crash consistently after being loaded for ~14 hours, so 12 hour interval should be plenty
 # This is not strictly needed since the script will restart itself if it notices an error, this is more of a failsafe for convenience and in case the error-handling breaks in the future. 
-# RESTART_TIMES = 00:00, 12:00
+# RESTART_TIMES = 11:00, 23:00 
 [Chrome]
 # Chrome directory found by navigating to chrome://version/ and copying the Profile Path
 # The script will default to the path location in Linux. 

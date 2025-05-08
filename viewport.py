@@ -380,6 +380,15 @@ def get_browser_version(binary_path):
     # e.g. returns "135.0.7049.95"
     out = subprocess.check_output([binary_path, "--version"], stderr=subprocess.DEVNULL)
     return out.decode().split()[1].strip()
+def get_next_restart(now):
+    # build the next run datetimes
+    next_runs = []
+    for t in RESTART_TIMES:
+        run_dt = datetime.combine(now.date(), t)
+        if run_dt <= now:
+            run_dt += timedelta(days=1)
+        next_runs.append(run_dt)
+    return min(next_runs)
 def usage_handler(match_str):
     """
     Sum CPU & RSS for processes whose name or cmdline contains match_str.
@@ -524,6 +533,10 @@ def status_handler():
             )
         print(f"{CYAN}Check Health Every:{NC} {sleep_str}")
         print(f"{CYAN}Print to Log Every:{NC}{GREEN} {LOG_INTERVAL} min{NC}")
+        if RESTART_TIMES:
+            now = datetime.now()
+            next_run = get_next_restart(now)
+            print(f"{CYAN}Scheduled Restart:{NC}  {GREEN}{next_run}{NC}")
         try:
             with open(status_file, "r") as f:
                 # Read the status file
@@ -704,18 +717,11 @@ def chrome_restart_handler(url):
         api_status(f"Error Killing {BROWSER}")
         raise
 def restart_scheduler(driver):
-    #leeps until the next configured restart time, then calls restart_handler.
+    #sleeps until the next configured restart time, then calls restart_handler.
     if not RESTART_TIMES: return
     while True:
         now = datetime.now()
-        # build the next run datetimes
-        next_runs = []
-        for t in RESTART_TIMES:
-            run_dt = datetime.combine(now.date(), t)
-            if run_dt <= now:
-                run_dt += timedelta(days=1)
-            next_runs.append(run_dt)
-        next_run = min(next_runs)
+        next_run = get_next_restart(now)
         wait = (next_run - now).total_seconds()
         logging.info(f"Next scheduled restart at {next_run.time()}")
         time.sleep(wait)
