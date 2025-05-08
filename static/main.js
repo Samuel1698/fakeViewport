@@ -32,19 +32,17 @@ const formatter = new Intl.DateTimeFormat('en-US', {
   minute:'2-digit', // "00"
   hour12: false
 });
+async function fetchJSON(path) {
+  try {
+    const r = await fetch(path);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
 // fetch+render all API data
 async function loadInfo() {
-
-  async function fetchJSON(path) {
-    try {
-      const r = await fetch(path);
-      if (!r.ok) return null;
-      return await r.json();
-    } catch {
-      return null;
-    }
-  }
-
   const sud = await fetchJSON('/api/script_uptime');
   const el = document.getElementById('scriptUptime');
   if (sud?.data && typeof sud.data.script_uptime === 'number') {
@@ -158,3 +156,27 @@ async function control(action, btn) {
     msgEl.style.color   = 'red';
   }
 }
+
+const logsBtn = document.getElementById('showLogsBtn');
+const modal   = document.getElementById('logsModal');
+const closeX  = document.getElementById('closeLogs');
+const output  = document.getElementById('logOutput');
+
+logsBtn.addEventListener('click', async () => {
+  // fetch the last 100 lines
+  const res = await fetchJSON(`/api/logs?limit=100`);
+  if (res?.data?.logs) {
+    // join the array into one blob of text
+    output.textContent = res.data.logs.join('');
+    modal.removeAttribute('hidden');
+  } else {
+    // you could alert or console.error here
+    modal.setAttribute('hidden', '');
+  }
+});
+
+// close handlers
+closeX.addEventListener('click', () => modal.setAttribute('hidden',''));
+modal.addEventListener('click', e => {
+  if (e.target === modal) modal.setAttribute('hidden','');
+});

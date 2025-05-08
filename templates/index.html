@@ -15,6 +15,7 @@
     <div class="flex-parent">
       <h2>Status</h2>
       <button id="refreshButton" onclick="loadInfo()">Refresh</button>
+      <button id="showLogsBtn">Logfile</button>
     </div>
     <ul>
       <li>Script Uptime: <span id="scriptUptime">-</span></li>
@@ -34,7 +35,15 @@
 
   </div>
   <div id="statusMessage"><span></span></div>
-
+  <div id="logsModal" class="modal" hidden>
+    <div class="modal-content">
+      <div class="container">
+        <h2>Last 100 log lines</h2>
+        <span id="closeLogs" class="close">&times;</span>
+      </div>
+      <pre id="logOutput"></pre>
+    </div>
+  </div>
   <script src="{{ url_for('static', filename='main-min.js') }}" defer></script>
 </body>
 </html>
