@@ -11,16 +11,16 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 
 - Handles login expiration and reconnects automatically.
 - Detects if the console or application are offline and waits before reloading.
-- Detects if chrome is running too slow and restarts it.
+- Detects if your browser is running too slow and restarts it.
 - Automatically clicks the full screen button and hides the cursor and controls from the cameras.
 - Very robust error handling and failsafes.
 - Customizable by changing the `config.ini` file.
 - Easy to set up by running the `setup.sh` bash script.
 - Most uptime I've seen is 6 months uninterrupted (v1.0.0). 
-- Compatible with Chromium 
+- Compatible with Firefox, Chrome and Chromium 
 - Logs output of the terminal to logs/viewport.log for troubleshooting or checking status remotely.
 - Optional API integration for remote monitoring (e.g., with [Rainmeter](https://www.rainmeter.net/)).
-
+- API features a simple and lightweight `Viewport Control` webpage capable of displaying status of the script as well as sending commands to `Start`, `Quit`, or `Restart`. 
 ---
 
 ## Requirements
@@ -33,7 +33,8 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 
 ### Software
 - A lightweight Linux distribution of your choice (Preferably Debian based).
-- Chrome or Chromium installed (Chromium preferred as it is more lightweight).
+- Firefox, Chrome, Chromium installed.
+- Python3
 - OPTIONAL but recommended: ssh installed and configured for remote monitoring.
 
 ---
@@ -146,7 +147,7 @@ These endpoints display raw data, meant to be integrated into a third party tool
    - Number of minutes between each 'log' entry into log file. Corresponds to LOG_INTERVAL in config.ini
 /api/logs
 /api/logs?limit=
-   - Displays the last N logs. Default 100
+   - Displays the last N logs in the logfile. Default 100
 /api/ram
    - Ram Total/Used
 /api/script_uptime
