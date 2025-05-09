@@ -721,8 +721,8 @@ def browser_handler(url):
                 opts.add_argument("-start-debugger-server")
                 opts.set_preference("signon.rememberSignons", False)
                 opts.set_preference("signon.autofillForms", False)
-                profile = FirefoxProfile(BROWSER_PROFILE_PATH)
-                opts.profile = profile
+                opts.add_argument("-profile")
+                opts.add_argument(BROWSER_PROFILE_PATH)
                 opts.binary_location = BROWSER_BINARY
                 opts.accept_insecure_certs = True
                 service = FirefoxService(executable_path=GeckoDriverManager().install())
