@@ -119,7 +119,7 @@ def test_handle_loading_issue_inspection_error_raises(mock_sleep, mock_log_error
     (None, True, None, "Fullscreen Activated"),
     (Exception("bad"), False, "Error while clicking the fullscreen button: ", "Error Clicking Fullscreen"),
 ])
-@patch("viewport.chrome_restart_handler")
+@patch("viewport.browser_restart_handler")
 @patch("viewport.api_status")
 @patch("viewport.log_error")
 @patch("viewport.logging.info")
@@ -174,7 +174,7 @@ def test_handle_fullscreen_button(
     (None, True, None, None),
     (Exception("oops"), False, "Error during login: ", "Error Logging In"),
 ])
-@patch("viewport.chrome_restart_handler")
+@patch("viewport.browser_restart_handler")
 @patch("viewport.api_status")
 @patch("viewport.log_error")
 @patch("viewport.time.sleep", return_value=None)
@@ -265,7 +265,7 @@ def test_handle_page_timeout_logs_and_returns_false(
     (0, "Ubiquiti Account", True, True, False, ["Log-in page found. Inputting credentials...",]),
 ])
 @patch("viewport.restart_handler")
-@patch("viewport.chrome_restart_handler", return_value="NEW_DRIVER")
+@patch("viewport.browser_restart_handler", return_value="NEW_DRIVER")
 @patch("viewport.handle_fullscreen_button", return_value=False)
 @patch("viewport.handle_login")
 @patch("viewport.handle_page", return_value=True)
@@ -304,7 +304,7 @@ def test_handle_retry_basic_paths(
 # max_retries − 1 branch
 @patch("viewport.api_status")
 @patch("viewport.logging.info")
-@patch("viewport.chrome_restart_handler", return_value="CH_RESTARTED")
+@patch("viewport.browser_restart_handler", return_value="CH_RESTARTED")
 @patch("viewport.check_driver", return_value=True)
 def test_handle_retry_final_before_restart(
     mock_check_driver,
@@ -315,7 +315,7 @@ def test_handle_retry_final_before_restart(
     driver = MagicMock(title="Whatever")
     url = "u"
 
-    # attempt == max_retries−1 → should call chrome_restart_handler and return its value
+    # attempt == max_retries−1 → should call browser_restart_handler and return its value
     result = viewport.handle_retry(driver, url, attempt=2, max_retries=3)
 
     mock_chrome_restart.assert_called_once_with("u")
@@ -332,8 +332,8 @@ def test_handle_retry_max_retries_calls_restart(mock_api, mock_info, mock_restar
     mock_info.assert_any_call("Max Attempts reached, restarting script...")
     mock_api.assert_called_with("Max Attempts Reached, restarting script")
     mock_restart.assert_called_once_with(driver)
-# handle_retry triggers chrome_restart_handler when driver has crashed
-@patch("viewport.chrome_restart_handler", return_value=MagicMock(title="Dashboard Home"))
+# handle_retry triggers browser_restart_handler when driver has crashed
+@patch("viewport.browser_restart_handler", return_value=MagicMock(title="Dashboard Home"))
 @patch("viewport.handle_fullscreen_button", return_value=True)
 @patch("viewport.handle_login", return_value=True)
 @patch("viewport.handle_page", return_value=True)
@@ -360,7 +360,7 @@ def test_handle_retry_detects_driver_crash_and_restarts(
 
     # 1) we should have warned about a crash...
     mock_log_warning.assert_called_once_with("WebDriver crashed.")
-    # 2) ...and then invoked chrome_restart_handler(url)
+    # 2) ...and then invoked browser_restart_handler(url)
     mock_chrome_restart.assert_called_once_with(url)
 
     new_driver = mock_chrome_restart.return_value
@@ -681,7 +681,7 @@ def test_handle_view_offline_branch(
             "handle_retry",
             lambda drv, url, mw: (drv, url, 1, mw),
         ),
-        # 5) WebDriverException ⇒ chrome_restart_handler(url)
+        # 5) WebDriverException ⇒ browser_restart_handler(url)
         (
             lambda drv, wdw: setattr(
                 wdw, "until",
@@ -689,7 +689,7 @@ def test_handle_view_offline_branch(
             ),
             (f"Tab Crashed. Restarting {viewport.BROWSER}...", ANY),
             "Tab Crashed",
-            "chrome_restart_handler",
+            "browser_restart_handler",
             lambda drv, url, mw: (url,),
         ),
         # 6) Generic Exception ⇒ handle_retry(driver, url, 1, max_retries)
@@ -706,7 +706,7 @@ def test_handle_view_offline_branch(
     ],
 )
 @patch("viewport.time.sleep", return_value=None)
-@patch("viewport.chrome_restart_handler", side_effect=Exception)  # break loop
+@patch("viewport.browser_restart_handler", side_effect=Exception)  # break loop
 @patch("viewport.handle_retry", side_effect=Exception)
 @patch("viewport.restart_handler", side_effect=Exception)
 @patch("viewport.api_status")

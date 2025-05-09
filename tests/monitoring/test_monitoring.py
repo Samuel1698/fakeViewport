@@ -4,6 +4,10 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 import os
 import configparser
+import logging
+import logging.handlers
+# stub out the rotating‐file handler before viewport.py ever sees it
+logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
 import pytest
 import subprocess
 import pathlib

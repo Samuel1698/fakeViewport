@@ -353,7 +353,7 @@ def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
     assert path == "/already/installed/driver"
     mock_chrome_driver_manager.assert_not_called()
 # -------------------------------------------------------------------------
-# Test for chrome_handler with restart_handler 
+# Test for browser_handler  
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "chrome_side_effects, "
@@ -376,7 +376,7 @@ def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.api_status")
 @patch("viewport.log_error")
-def test_chrome_handler(
+def test_browser_handler(
     mock_log_error,
     mock_api_status,
     mock_sleep,
@@ -404,7 +404,7 @@ def test_chrome_handler(
     mock_options.return_value = MagicMock()
 
     # Act
-    result = viewport.chrome_handler(url)
+    result = viewport.browser_handler(url)
 
     # Assert: process_handler("chrome", "kill") call count
     assert mock_process_handler.call_count == expected_kill_calls
@@ -430,7 +430,7 @@ def test_chrome_handler(
     error_count = sum(isinstance(e, Exception) for e in chrome_side_effects)
     assert mock_log_error.call_count >= (error_count - (1 if not expect_restart else 0))
 # -------------------------------------------------------------------------
-# Tests for chrome_restart_handler
+# Tests for browser_restart_handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "chrome_exc,    check_exc,     handle_page_ret, "
@@ -451,7 +451,7 @@ def test_chrome_handler(
             False, False,
             [call(f"Restarting {viewport.BROWSER}")],
         ),
-        # 3) chrome_handler throws
+        # 3) browser_handler throws
         (
             Exception("boom"), None, None,
             False, False, False,
@@ -473,9 +473,9 @@ def test_chrome_handler(
 @patch("viewport.log_error")
 @patch("viewport.handle_page")
 @patch("viewport.check_for_title")
-@patch("viewport.chrome_handler")
-def test_chrome_restart_handler(
-    mock_chrome_handler,
+@patch("viewport.browser_handler")
+def test_browser_restart_handler(
+    mock_browser_handler,
     mock_check_for_title,
     mock_handle_page,
     mock_log_error,
@@ -495,11 +495,11 @@ def test_chrome_restart_handler(
     url = "http://example.com"
     fake_driver = MagicMock()
 
-    # wire up chrome_handler
+    # wire up browser_handler
     if chrome_exc:
-        mock_chrome_handler.side_effect = chrome_exc
+        mock_browser_handler.side_effect = chrome_exc
     else:
-        mock_chrome_handler.return_value = fake_driver
+        mock_browser_handler.return_value = fake_driver
 
     # wire up check_for_title
     if check_exc:
@@ -511,9 +511,9 @@ def test_chrome_restart_handler(
     # Act
     if should_raise:
         with pytest.raises(Exception):
-            viewport.chrome_restart_handler(url)
+            viewport.browser_restart_handler(url)
     else:
-        result = viewport.chrome_restart_handler(url)
+        result = viewport.browser_restart_handler(url)
 
     # Always start by logging & api_status "Restarting BROWSER"
     mock_log_info.assert_any_call(f"Restarting {viewport.BROWSER}...")
