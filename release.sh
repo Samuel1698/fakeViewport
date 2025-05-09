@@ -10,15 +10,14 @@ mkdir -p "$OUTDIR"
 git archive \
   --format=tar.gz \
   --prefix="viewport ${VERSION}/" \
-  -o "${OUTDIR}/viewport-full-${VERSION}.tar.gz" \
+  -o "${OUTDIR}/viewport-${VERSION}-full.tar.gz" \
   HEAD
 
-# 2️⃣ Minimal: only runtime files (adjust to your needs)
-# you can keep a list in a text file, or enumerate here:
+# 2️⃣ Minimal: only runtime files
 git archive \
   --format=tar.gz \
   --prefix="viewport ${VERSION}/" \
-  -o "${OUTDIR}/viewport-minimal-${VERSION}.tar.gz" \
+  -o "${OUTDIR}/viewport-${VERSION}-minimal.tar.gz" \
   HEAD \
     viewport.py \
     monitoring.py \
@@ -37,7 +36,7 @@ git archive \
 git archive \
   --format=tar.gz \
   --prefix="viewport ${VERSION}/" \
-  -o "${OUTDIR}/viewport-minimal-no-api-${VERSION}.tar.gz" \
+  -o "${OUTDIR}/viewport-${VERSION}-no-api.tar.gz" \
   HEAD \
     viewport.py \
     setup.sh \

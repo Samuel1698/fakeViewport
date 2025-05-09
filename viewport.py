@@ -20,18 +20,24 @@ from dotenv import load_dotenv
 # -------------------------------------------------------------------
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
-viewport_version = "2.1.5"
-os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch chrome.
+viewport_version = "2.1.6"
+os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
 # Directory and file paths
 script_dir = Path(__file__).resolve().parent
 config_file = Path.cwd() / 'config.ini'
 if not config_file.exists():
-    config_file = script_dir / 'config.ini'
+    logging.error("Missing config.ini file. Run ./setup.sh")
+    sys.exit(1)
 env_dir = script_dir / '.env'
 logs_dir = script_dir / 'logs'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file = logs_dir / 'viewport.log'
+api_dir = script_dir / 'api'
+if not api_dir.exists():
+    api_dir.mkdir(parents=True, exist_ok=True)
+sst_file = api_dir / 'sst.txt'
+status_file = api_dir / 'status.txt'
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
@@ -90,12 +96,16 @@ args = args_helper()
 if not any(vars(args).values()) or args.background:
     import threading
     from webdriver_manager.chrome import ChromeDriverManager
+    from webdriver_manager.firefox import GeckoDriverManager
     from webdriver_manager.core.os_manager import ChromeType
     from selenium import webdriver
     from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.firefox.service import Service as FirefoxService
+    from selenium.webdriver.firefox.options import Options as FirefoxOptions
+    from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.action_chains import ActionChains
-    from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.common.exceptions import TimeoutException, NoSuchElementException, InvalidSessionIdException, WebDriverException
@@ -226,12 +236,11 @@ config = configparser.ConfigParser()
 config.read(config_file)
 user = getpass.getuser()
 default_profile_path = f"/home/{user}/.config/google-chrome/Default"
-BROWSER_PROFILE_PATH = config.get('Chrome', 'BROWSER_PROFILE_PATH', fallback=default_profile_path).strip()
 WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
 MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
-BROWSER_BINARY = config.get('Chrome', 'BROWSER_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
-BROWSER = "chromium" if "chromium" in BROWSER_BINARY.lower() else "chrome"
-HEADLESS = config.getboolean('Chrome', 'HEADLESS', fallback=False)
+BROWSER_PROFILE_PATH = config.get('Browser', 'BROWSER_PROFILE_PATH', fallback=default_profile_path).strip()
+BROWSER_BINARY = config.get('Browser', 'BROWSER_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
+HEADLESS = config.getboolean('Browser', 'HEADLESS', fallback=False)
 SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
 LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
@@ -240,31 +249,42 @@ ERROR_LOGGING = config.getboolean('Logging', 'ERROR_LOGGING', fallback=False)
 LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
 LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
 API = config.getboolean('API', 'USE_API', fallback=False)
-API_PATH = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
+TIMES = config.get('General', 'RESTART_TIMES', fallback='')
+RESTART_TIMES = []
+BROWSER = (
+    "firefox"   if "firefox"   in BROWSER_BINARY.lower() else
+    "chromium"  if "chromium"  in BROWSER_BINARY.lower() else
+    "chrome"
+)
 # -------------------------------------------------------------------
 # Config variables validation
 # -------------------------------------------------------------------
-if not any(vars(args).values()) or args.background:
-    if SLEEP_TIME < 60:
-        logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
-        sys.exit(1)
-    if WAIT_TIME <= 5:
-        logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
-        sys.exit(1)
-    if MAX_RETRIES < 3:
-        logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
-        sys.exit(1)
+for part in TIMES.split(','):
+    part = part.strip()
+    if part:
+        try:
+            RESTART_TIMES.append(datetime.strptime(part, '%H:%M').time())
+        except ValueError:
+            logging.error(f"Bad RESTART_TIMES entry: {part!r} (must be HH:MM)")
+            sys.exit(1)
+if SLEEP_TIME < 60:
+    logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
+    sys.exit(1)
+if WAIT_TIME <= 5:
+    logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
+    sys.exit(1)
+if MAX_RETRIES < 3:
+    logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
+    sys.exit(1)
 if LOG_DAYS < 1:
     logging.error("Invalid value for LOG_DAYS. It should be a positive integer greater than 0.")
     sys.exit(1)
 if LOG_INTERVAL < 1:
     logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
     sys.exit(1)
-api_dir = Path(API_PATH)
-if not api_dir.exists():
-    api_dir.mkdir(parents=True, exist_ok=True)
-sst_file = api_dir / 'sst.txt'
-status_file = api_dir / 'status.txt'
+if "your-user" in BROWSER_PROFILE_PATH:
+    logging.error(f"'your-user' in the config file should be replaced by {user}")
+    sys.exit(1)
 # -------------------------------------------------------------------
 # .env variables validation
 # -------------------------------------------------------------------
@@ -370,11 +390,18 @@ def get_browser_version(binary_path):
     # e.g. returns "135.0.7049.95"
     out = subprocess.check_output([binary_path, "--version"], stderr=subprocess.DEVNULL)
     return out.decode().split()[1].strip()
+def get_next_restart(now):
+    # build the next run datetimes
+    next_runs = []
+    for t in RESTART_TIMES:
+        run_dt = datetime.combine(now.date(), t)
+        if run_dt <= now:
+            run_dt += timedelta(days=1)
+        next_runs.append(run_dt)
+    return min(next_runs)
 def usage_handler(match_str):
-    """
-    Sum CPU & RSS for processes whose name or cmdline contains match_str.
-    Returns (total_cpu, total_mem_bytes).
-    """
+    # Sum CPU & RSS for processes whose name or cmdline contains match_str.
+    # Returns (total_cpu, total_mem_bytes).
     # build the list of substrings to look for
     names_to_match = [match_str]
     total_cpu = 0.0
@@ -514,6 +541,10 @@ def status_handler():
             )
         print(f"{CYAN}Check Health Every:{NC} {sleep_str}")
         print(f"{CYAN}Print to Log Every:{NC}{GREEN} {LOG_INTERVAL} min{NC}")
+        if RESTART_TIMES:
+            now = datetime.now()
+            next_run = get_next_restart(now)
+            print(f"{CYAN}Scheduled Restart:{NC}  {GREEN}{next_run}{NC}")
         try:
             with open(status_file, "r") as f:
                 # Read the status file
@@ -567,46 +598,59 @@ def process_handler(name, action="check"):
     # - "kill": Kill the process if it is running (excluding the current instance).
     # Returns: bool: True if a process exists with that name, False otherwise.
     try:
-        current = os.getpid()
+        me = os.geteuid()
+        current_pid = os.getpid()
         matches = []
 
-        for p in psutil.process_iter(["pid", "cmdline"]):
+        # prepare lowercase tokens
+        lower_name   = name.lower()
+        script_token = lower_name[:-3] if lower_name.endswith(".py") else lower_name
+
+        # iterate with both name & cmdline available
+        for proc in psutil.process_iter(['pid', 'name', 'uids', 'cmdline']):
             try:
-                # get raw cmdline, which may be list or string
-                raw = p.info.get("cmdline") or []
-                if isinstance(raw, (list, tuple)):
-                    cmd = " ".join(raw)
-                else:
-                    cmd = str(raw)
+                info = proc.info
+                proc_name = (info.get('name') or '').lower()
+                raw_cmd  = info.get('cmdline') or []
+                cmd = " ".join(raw_cmd) if isinstance(raw_cmd, (list,tuple)) else str(raw_cmd)
 
-                # if the target name appears as a substring in the command line
-                if name in cmd:
-                    pid = p.info["pid"]
-                    # skip the current process itself
-                    if pid != current:
-                        matches.append(pid)
+                # match if either the exe-name or the cmdline contains our token
+                if not (
+                    proc_name in (lower_name, script_token)
+                    or lower_name in cmd
+                    or script_token in cmd
+                ):
+                    continue
 
-                # in "check" mode, return True as soon as we find one
-                if action == "check" and matches:
+                # only kill/check processes _you_ own
+                uids = info.get('uids')
+                if uids is not None and uids.real != me:
+                    continue
+
+                pid = info.get('pid')
+                # skip yourself
+                if pid == current_pid:
+                    continue
+
+                matches.append(pid)
+                if action == "check":
                     return True
+
             except (psutil.NoSuchProcess, psutil.AccessDenied):
-                # skip processes that disappear or we can't inspect
                 continue
 
-        # in "kill" mode, terminate all matched pids
+        # in "kill" mode: terminate them all
         if action == "kill" and matches:
             for pid in matches:
                 try:
                     os.kill(pid, signal.SIGKILL)
                 except ProcessLookupError:
-                    log_error(f"Process {pid} already gone")
-                    api_status(f"Process {pid} already gone")
+                    logging.warning(f"Process {pid} already gone")
             pids = ', '.join(str(x) for x in matches)
             logging.info(f"Killed process '{name}' with PIDs: {pids}")
             api_status(f"Killed process '{name}'")
             return False
 
-        # return True/False whether we found any matches
         return bool(matches)
     except Exception as e:
         # catch-all: log and notify API on unexpected errors
@@ -626,39 +670,63 @@ def service_handler():
         ).install()
 
     return _chrome_driver_path
-def chrome_handler(url):
-    # Kills any chrome instance, then launches a new one with the specified URL
-    # Starts a chrome 'driver' and handles error reattempts
-    # If the driver fails to start, it will retry a few times before killing all existing chrome processes and restarting the script
+def browser_handler(url):
+    # Kills any browser instance, then launches a new one with the specified URL
+    # Starts a browser 'driver' and handles error reattempts
+    # If the driver fails to start, it will retry a few times before killing all existing browser processes and restarting the script
     process_handler(BROWSER, action="kill")
     retry_count = 0
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
         try:
-            chrome_options = Options()
-            if HEADLESS:
-                chrome_options.add_argument("--headless")
-                chrome_options.add_argument("--disable-gpu")
-                chrome_options.add_argument("--window-size=1920,1080")
-            chrome_options.add_argument("--start-maximized")
-            chrome_options.add_argument("--disable-infobars")
-            chrome_options.add_argument("--disable-translate")
-            chrome_options.add_argument("--no-default-browser-check")
-            chrome_options.add_argument("--no-first-run")
-            chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument('--ignore-certificate-errors') 
-            chrome_options.add_argument('--ignore-ssl-errors')
-            chrome_options.add_argument("--hide-crash-restore-bubble")
-            chrome_options.add_argument("--remote-debugging-port=9222")
-            chrome_options.add_argument(f"--user-data-dir={BROWSER_PROFILE_PATH}")
-            chrome_options.add_experimental_option("excludeSwitches", ['enable-automation'])
-            chrome_options.binary_location = BROWSER_BINARY
-            chrome_options.add_experimental_option("prefs", {
-                "credentials_enable_service": False,
-                "profile.password_manager_enabled": False
-            })
-            driver = webdriver.Chrome(service=Service(service_handler()), options=chrome_options)
+            if BROWSER in ("chrome", "chromium"):
+                chrome_options = Options()
+                if HEADLESS:
+                    chrome_options.add_argument("--headless")
+                    chrome_options.add_argument("--disable-gpu")
+                    chrome_options.add_argument("--window-size=1920,1080")
+                chrome_options.add_argument("--start-maximized")
+                chrome_options.add_argument("--disable-infobars")
+                chrome_options.add_argument("--disable-translate")
+                chrome_options.add_argument("--no-default-browser-check")
+                chrome_options.add_argument("--no-first-run")
+                chrome_options.add_argument("--disable-dev-shm-usage")
+                chrome_options.add_argument("--no-sandbox")
+                chrome_options.add_argument('--ignore-certificate-errors') 
+                chrome_options.add_argument('--ignore-ssl-errors')
+                chrome_options.add_argument("--hide-crash-restore-bubble")
+                chrome_options.add_argument("--remote-debugging-port=9222")
+                chrome_options.add_argument(f"--user-data-dir={BROWSER_PROFILE_PATH}")
+                chrome_options.add_experimental_option("excludeSwitches", ['enable-automation'])
+                chrome_options.binary_location = BROWSER_BINARY
+                chrome_options.add_experimental_option("prefs", {
+                    "credentials_enable_service": False,
+                    "profile.password_manager_enabled": False
+                })
+                driver = webdriver.Chrome(service=Service(service_handler()), options=chrome_options)
+            elif BROWSER == "firefox":
+                opts = FirefoxOptions()
+                if HEADLESS:
+                    opts.add_argument("--headless")
+                    opts.add_argument("--width=1920")
+                    opts.add_argument("--height=1080")
+                opts.set_preference("browser.shell.checkDefaultBrowser", False)
+                opts.set_preference("browser.startup.homepage_override.mstone", "ignore")
+                opts.set_preference("toolkit.telemetry.reportingpolicy.firstRun", False)
+                opts.set_preference("browser.sessionstore.resume_from_crash", False)
+                opts.set_preference("devtools.debugger.remote-enabled", True)
+                opts.set_preference("devtools.debugger.remote-port", 9222)
+                opts.set_preference("dom.webdriver.enabled", False)
+                opts.set_preference("useAutomationExtension", False)
+                opts.add_argument("-start-debugger-server")
+                opts.set_preference("signon.rememberSignons", False)
+                opts.set_preference("signon.autofillForms", False)
+                opts.add_argument("-profile")
+                opts.add_argument(BROWSER_PROFILE_PATH)
+                opts.binary_location = BROWSER_BINARY
+                opts.accept_insecure_certs = True
+                service = FirefoxService(executable_path=GeckoDriverManager().install())
+                driver  = webdriver.Firefox(service=service, options=opts)
             driver.get(url)
             return driver
         except Exception as e:
@@ -675,14 +743,14 @@ def chrome_handler(url):
     logging.info(f"Starting Script again in {int(SLEEP_TIME/2)} seconds.")
     api_status(f"Restarting Script in {int(SLEEP_TIME/2)} seconds.")
     time.sleep(SLEEP_TIME/2)
-    os.execv(sys.executable, ['python3'] + sys.argv)
-def chrome_restart_handler(url):
-    # Restarts chrome, checks for the title and logs the result
+    restart_handler(driver=None)
+def browser_restart_handler(url):
+    # Restarts browser, checks for the title and logs the result
     # This used to be in handle_retry but gets repeated in handle_view
     try:
         logging.info(f"Restarting {BROWSER}...")
         api_status(f"Restarting {BROWSER}")
-        driver = chrome_handler(url)
+        driver = browser_handler(url)
         check_for_title(driver)
         if handle_page(driver):
             logging.info("Page successfully reloaded.")
@@ -692,6 +760,19 @@ def chrome_restart_handler(url):
     except Exception as e:
         log_error(f"Error while killing {BROWSER} processes: ", e)
         api_status(f"Error Killing {BROWSER}")
+        raise
+def restart_scheduler(driver):
+    #sleeps until the next configured restart time, then calls restart_handler.
+    if not RESTART_TIMES: return
+    while True:
+        now = datetime.now()
+        next_run = get_next_restart(now)
+        wait = (next_run - now).total_seconds()
+        logging.info(f"Next scheduled restart at {next_run.time()}")
+        time.sleep(wait)
+        logging.info("Performing scheduled restart")
+        api_status(f"Scheduled restart at {next_run.time()}")
+        restart_handler(driver)
 def restart_handler(driver):
     # Reparse args
     args = args_helper()
@@ -839,7 +920,7 @@ def handle_loading_issue(driver):
             # If something goes wrong inspecting the page, treat as “no loading” 
             log_error("Error checking loading dots: ", e)
             has_loading = False
-
+            raise
         if has_loading:
             # First time we see trouble, record the time
             if trouble_loading_start_time is None:
@@ -941,7 +1022,7 @@ def handle_page(driver):
 def handle_retry(driver, url, attempt, max_retries):
     # Handles the retry logic for the main loop
     # First checks if the title of the page indicate a login page, and if not, reloads the page.
-    # If it's the second to last attempt, it kills all existing browser processes and calls chrome_handler again.
+    # If it's the second to last attempt, it kills all existing browser processes and calls browser_handler again.
     # If it's the last attempt, it restarts the script.
     logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
     api_status(f"Retrying: {attempt} of {max_retries}")
@@ -949,7 +1030,7 @@ def handle_retry(driver, url, attempt, max_retries):
         try:
             if not check_driver(driver):
                 logging.warning("WebDriver crashed.")
-                driver = chrome_restart_handler(url)
+                driver = browser_restart_handler(url)
             if "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
                 logging.info("Log-in page found. Inputting credentials...")
                 if handle_login(driver):
@@ -972,12 +1053,12 @@ def handle_retry(driver, url, attempt, max_retries):
         except WebDriverException as e:
             log_error(f"Tab Crashed. Restarting {BROWSER}...", e)
             api_status("Tab Crashed")
-            driver = chrome_restart_handler(url)
+            driver = browser_restart_handler(url)
         except Exception as e:
             log_error("Error while handling retry logic: ", e)
             api_status("Error refreshing")
     if attempt == max_retries - 1:
-        driver = chrome_restart_handler(url)
+        driver = browser_restart_handler(url)
     elif attempt == max_retries:
         logging.info("Max Attempts reached, restarting script...")
         api_status("Max Attempts Reached, restarting script")
@@ -1028,7 +1109,7 @@ def handle_view(driver, url):
                 if check_crash(driver):
                     log_error(f"Tab Crashed. Restarting {BROWSER}...", e)
                     api_status("Tab Crashed")
-                    driver = chrome_restart_handler(url)
+                    driver = browser_restart_handler(url)
                     continue
                 WebDriverWait(driver, WAIT_TIME).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
@@ -1076,7 +1157,7 @@ def handle_view(driver, url):
         except WebDriverException as e:
             log_error(f"Tab Crashed. Restarting {BROWSER}...", e)
             api_status("Tab Crashed")
-            driver = chrome_restart_handler(url)
+            driver = browser_restart_handler(url)
         except Exception as e:
             log_error("Unexpected error occurred: ", e)
             api_status("Unexpected Error")
@@ -1107,8 +1188,10 @@ def main():
     if sst_size == 0 or crashed:
         with open(sst_file, 'w') as f:
             f.write(str(datetime.now()))
-    driver = chrome_handler(url)
+    driver = browser_handler(url)
     # Start the handle_view function in a separate thread
     threading.Thread(target=handle_view, args=(driver, url)).start()
+    # Start the restart scheduler
+    threading.Thread(target=restart_scheduler, args=(driver,), daemon=True).start()
 if __name__ == "__main__":
     main()

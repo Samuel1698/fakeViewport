@@ -24,20 +24,25 @@ function formatDuration(sec) {
     ? parts.join(' ')
     : '0s';
 }
-
+const formatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',   // "May"
+  day:   '2-digit', // "09"
+  year:  'numeric', // "2025"
+  hour:  '2-digit', // "02"
+  minute:'2-digit', // "00"
+  hour12: false
+});
+async function fetchJSON(path) {
+  try {
+    const r = await fetch(path);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
 // fetch+render all API data
 async function loadInfo() {
-
-  async function fetchJSON(path) {
-    try {
-      const r = await fetch(path);
-      if (!r.ok) return null;
-      return await r.json();
-    } catch {
-      return null;
-    }
-  }
-
   const sud = await fetchJSON('/api/script_uptime');
   const el = document.getElementById('scriptUptime');
   if (sud?.data && typeof sud.data.script_uptime === 'number') {
@@ -88,7 +93,7 @@ async function loadInfo() {
             .textContent = `${li.data.log_interval_min} min`;
   }
 
-  // last status & log entry
+  // last status, log entry & restart time
   const st = await fetchJSON('/api/status');
   if (st?.data) {
     document.getElementById('statusMsg')
@@ -98,6 +103,22 @@ async function loadInfo() {
   if (le?.data) {
     document.getElementById('logEntry')
             .textContent = le.data.log_entry;
+  }
+  const sr = await fetchJSON('/api/next_restart');
+  const srel = document.getElementById('scheduledRestart');
+
+  if (sr?.data?.next_restart) {
+    // parse into a Date object
+    const next = new Date(sr.data.next_restart);
+
+    // format & show
+    srel.textContent = formatter.format(next).replace(/, /g, ' ');
+
+    // make sure it's visible
+    srel.parentElement.removeAttribute('hidden');
+  } else {
+    // hide if no data
+    srel.parentElement.setAttribute('hidden', '');
   }
 }
 
@@ -135,3 +156,27 @@ async function control(action, btn) {
     msgEl.style.color   = 'red';
   }
 }
+
+const logsBtn = document.getElementById('showLogsBtn');
+const modal   = document.getElementById('logsModal');
+const closeX  = document.getElementById('closeLogs');
+const output  = document.getElementById('logOutput');
+
+logsBtn.addEventListener('click', async () => {
+  // fetch the last 100 lines
+  const res = await fetchJSON(`/api/logs?limit=100`);
+  if (res?.data?.logs) {
+    // join the array into one blob of text
+    output.textContent = res.data.logs.join('');
+    modal.removeAttribute('hidden');
+  } else {
+    // you could alert or console.error here
+    modal.setAttribute('hidden', '');
+  }
+});
+
+// close handlers
+closeX.addEventListener('click', () => modal.setAttribute('hidden',''));
+modal.addEventListener('click', e => {
+  if (e.target === modal) modal.setAttribute('hidden','');
+});

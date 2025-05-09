@@ -47,7 +47,6 @@ LOG_INTERVAL = {log_interval}
 
 [API]
 USE_API = false
-API_FILE_PATH = {api_path}
 """
 
 ENV_CONTENT = """
@@ -61,8 +60,7 @@ def write_config(tmp_path, **kwargs):
         wait=kwargs.get("wait", 30),
         retries=kwargs.get("retries", 5),
         log_days=kwargs.get("log_days", 7),
-        log_interval=kwargs.get("log_interval", 60),
-        api_path=str(tmp_path / "api")
+        log_interval=kwargs.get("log_interval", 60)
     )
     (tmp_path / "config.ini").write_text(ini)
 
@@ -74,8 +72,6 @@ def test_valid_config(tmp_path):
     assert mod.SLEEP_TIME == 300
     assert mod.WAIT_TIME == 30
     assert mod.MAX_RETRIES == 5
-    # api directory auto-created
-    assert (tmp_path / "api").exists()
 
 @pytest.mark.parametrize("sleep", [30, 59])
 def test_invalid_sleep_time(tmp_path, sleep):
