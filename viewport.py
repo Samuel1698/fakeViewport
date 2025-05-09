@@ -598,46 +598,59 @@ def process_handler(name, action="check"):
     # - "kill": Kill the process if it is running (excluding the current instance).
     # Returns: bool: True if a process exists with that name, False otherwise.
     try:
-        current = os.getpid()
+        me = os.geteuid()
+        current_pid = os.getpid()
         matches = []
 
-        for p in psutil.process_iter(["pid", "cmdline"]):
+        # prepare lowercase tokens
+        lower_name   = name.lower()
+        script_token = lower_name[:-3] if lower_name.endswith(".py") else lower_name
+
+        # iterate with both name & cmdline available
+        for proc in psutil.process_iter(['pid', 'name', 'uids', 'cmdline']):
             try:
-                # get raw cmdline, which may be list or string
-                raw = p.info.get("cmdline") or []
-                if isinstance(raw, (list, tuple)):
-                    cmd = " ".join(raw)
-                else:
-                    cmd = str(raw)
+                info = proc.info
+                proc_name = (info.get('name') or '').lower()
+                raw_cmd  = info.get('cmdline') or []
+                cmd = " ".join(raw_cmd) if isinstance(raw_cmd, (list,tuple)) else str(raw_cmd)
 
-                # if the target name appears as a substring in the command line
-                if name in cmd:
-                    pid = p.info["pid"]
-                    # skip the current process itself
-                    if pid != current:
-                        matches.append(pid)
+                # match if either the exe-name or the cmdline contains our token
+                if not (
+                    proc_name in (lower_name, script_token)
+                    or lower_name in cmd
+                    or script_token in cmd
+                ):
+                    continue
 
-                # in "check" mode, return True as soon as we find one
-                if action == "check" and matches:
+                # only kill/check processes _you_ own
+                uids = info.get('uids')
+                if not uids or uids.real != me:
+                    continue
+
+                pid = info.get('pid')
+                # skip yourself
+                if pid == current_pid:
+                    continue
+
+                matches.append(pid)
+                if action == "check":
                     return True
+
             except (psutil.NoSuchProcess, psutil.AccessDenied):
-                # skip processes that disappear or we can't inspect
                 continue
 
-        # in "kill" mode, terminate all matched pids
+        # in "kill" mode: terminate them all
         if action == "kill" and matches:
             for pid in matches:
                 try:
                     os.kill(pid, signal.SIGKILL)
                 except ProcessLookupError:
-                    log_error(f"Process {pid} already gone")
-                    api_status(f"Process {pid} already gone")
+                    logging.warning(f"Process {pid} already gone")
             pids = ', '.join(str(x) for x in matches)
             logging.info(f"Killed process '{name}' with PIDs: {pids}")
             api_status(f"Killed process '{name}'")
             return False
 
-        # return True/False whether we found any matches
         return bool(matches)
     except Exception as e:
         # catch-all: log and notify API on unexpected errors

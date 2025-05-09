@@ -7,6 +7,8 @@ import logging.handlers
 logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
 
 import pytest
+import os
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
 from io import StringIO
 from datetime import datetime, time as dt_time
@@ -15,9 +17,20 @@ import viewport
 import signal
 import subprocess
 # helper to build a fake psutil.Process‐like object
-def _make_proc(pid, cmdline):
+def _make_proc(pid, cmdline, uids=None):
+    # pid: the fake pid
+    # cmdline: either a list or a string
+    # uids:   an object with .real (e.g. SimpleNamespace(real=1000)); 
+    #         if None, defaults to os.geteuid()
     proc = MagicMock()
-    proc.info = {"pid": pid, "cmdline": cmdline}
+    # build the info dict
+    info = {
+        "pid": pid,
+        "cmdline": cmdline,
+        # if they passed in a uids, use it; otherwise assume this proc is ours
+        "uids": uids if uids is not None else SimpleNamespace(real=os.geteuid()),
+    }
+    proc.info = info
     return proc
 @pytest.fixture(autouse=True)
 def isolate_sst(tmp_path, monkeypatch):
@@ -265,19 +278,37 @@ def test_status_handler_various(
             999, "viewport.py", "kill", False,
             [(2, signal.SIGKILL)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2"]
         ),
+        # Firefox main + root-owned helper: should kill only the main (uid == me)
+        (
+            [
+                # main firefox, owned by us
+                _make_proc(2, ["firefox"], uids=SimpleNamespace(real=1000)),
+                # helper, owned by root → should be ignored
+                _make_proc(3, ["firefox"], uids=SimpleNamespace(real=0)),
+            ],
+            999, "firefox", "kill", False,
+            # only pid 2 gets SIGKILL
+            [(2, signal.SIGKILL)],
+            # api_status should be called with this message
+            ["Killed process 'firefox'"],
+            # logging.info with this
+            ["Killed process 'firefox' with PIDs: 2"]
+        ),
     ]
 )
 @patch("viewport.logging.info")
 @patch("viewport.psutil.process_iter")
+@patch("viewport.os.geteuid")
 @patch("viewport.os.getpid")
 @patch("viewport.os.kill")
 @patch("viewport.api_status")
 def test_process_handler(
-    mock_api, mock_kill, mock_getpid, mock_iter, mock_log_info,
+    mock_api, mock_kill, mock_getpid, mock_geteuid, mock_iter, mock_log_info,
     proc_list, current_pid, name, action,
     expected_result, expected_kill_calls, expected_api_calls, expected_log_info
 ):
     # arrange
+    mock_geteuid.return_value = 1000
     mock_iter.return_value   = proc_list
     mock_getpid.return_value = current_pid
 
