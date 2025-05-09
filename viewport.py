@@ -235,7 +235,7 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
 config = configparser.ConfigParser()
 config.read(config_file)
 user = getpass.getuser()
-default_profile_path = f"/home/{user}/.config/google-chrome/Default"
+default_profile_path = f"/home/{user}/.config/google-chrome/"
 WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
 MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
 BROWSER_PROFILE_PATH = config.get('Browser', 'BROWSER_PROFILE_PATH', fallback=default_profile_path).strip()
