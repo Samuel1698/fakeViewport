@@ -267,16 +267,15 @@ for part in TIMES.split(','):
         except ValueError:
             logging.error(f"Bad RESTART_TIMES entry: {part!r} (must be HH:MM)")
             sys.exit(1)
-if not any(vars(args).values()) or args.background:
-    if SLEEP_TIME < 60:
-        logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
-        sys.exit(1)
-    if WAIT_TIME <= 5:
-        logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
-        sys.exit(1)
-    if MAX_RETRIES < 3:
-        logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
-        sys.exit(1)
+if SLEEP_TIME < 60:
+    logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
+    sys.exit(1)
+if WAIT_TIME <= 5:
+    logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
+    sys.exit(1)
+if MAX_RETRIES < 3:
+    logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
+    sys.exit(1)
 if LOG_DAYS < 1:
     logging.error("Invalid value for LOG_DAYS. It should be a positive integer greater than 0.")
     sys.exit(1)
