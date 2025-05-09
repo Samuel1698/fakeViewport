@@ -43,7 +43,7 @@ def disable_external_side_effects(monkeypatch):
 @patch("viewport.process_handler")
 @patch("viewport.api_handler")
 @patch("viewport.api_status")
-@patch("viewport.chrome_handler")
+@patch("viewport.browser_handler")
 @patch("builtins.open", new_callable=mock_open)
 @patch("viewport.threading.Thread")
 def test_main_various(
@@ -127,7 +127,7 @@ def test_main_various(
 @patch("viewport.args_handler", return_value="something_else")
 @patch("viewport.process_handler")
 @patch("builtins.open", new_callable=mock_open)
-@patch("viewport.chrome_handler")
+@patch("viewport.browser_handler")
 @patch("viewport.threading.Thread")
 def test_main_skip_when_not_continue(
     mock_thread,
@@ -137,7 +137,7 @@ def test_main_skip_when_not_continue(
     mock_args
 ):
     viewport.main()
-    # process_handler, chrome_handler, thread.start should never run
+    # process_handler, browser_handler, thread.start should never run
     mock_process.assert_not_called()
     mock_chrome.assert_not_called()
     mock_thread.assert_not_called()
@@ -250,7 +250,7 @@ def test_args_handler_flag_sst(mock_exit, mock_proc, flag, pre, should_clear, tm
     ]
 )
 @patch("viewport.args_handler", return_value="continue")
-@patch("viewport.chrome_handler")
+@patch("viewport.browser_handler")
 @patch("viewport.threading.Thread")
 def test_main_sst_write_logic(mock_thread, mock_chrome, mock_args, pre, other_running, expect_write, tmp_path, monkeypatch):
     # set up
@@ -297,7 +297,7 @@ def test_sigterm_clears_and_next_main_writes(mock_exit, tmp_path, monkeypatch):
     # c) stub out everything else so main() will actually write
     monkeypatch.setattr(viewport, "args_handler", lambda a: "continue")
     monkeypatch.setattr(viewport, "process_handler", lambda n, action="check": False)
-    monkeypatch.setattr(viewport, "chrome_handler", lambda url: MagicMock())
+    monkeypatch.setattr(viewport, "browser_handler", lambda url: MagicMock())
     monkeypatch.setattr(viewport.threading, "Thread", lambda *args, **kwargs: MagicMock(start=lambda: None))
 
     # d) call main again
@@ -318,7 +318,7 @@ def test_crash_recovery_writes(tmp_path, monkeypatch):
 
     # ensure main goes through
     monkeypatch.setattr(viewport, "args_handler", lambda a: "continue")
-    monkeypatch.setattr(viewport, "chrome_handler", lambda url: MagicMock())
+    monkeypatch.setattr(viewport, "browser_handler", lambda url: MagicMock())
     monkeypatch.setattr(viewport.threading, "Thread", lambda *args, **kwargs: MagicMock(start=lambda: None))
 
     viewport.main()

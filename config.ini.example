@@ -16,15 +16,18 @@ MAX_RETRIES=3
 # I noticed that chrome seems to crash consistently after being loaded for ~14 hours, so 12 hour interval should be plenty
 # This is not strictly needed since the script will restart itself if it notices an error, this is more of a failsafe for convenience and in case the error-handling breaks in the future. 
 # RESTART_TIMES = 11:00, 23:00 
-[Chrome]
-# Chrome directory found by navigating to chrome://version/ and copying the Profile Path
-# The script will default to the path location in Linux. 
-# Copy profile path of Chromium here if you want to use that browser
+[Browser]
+# Chrome/Chromium profile directory found by navigating to chrome://version/ and copying the "Profile Path"
+# Firefox         profile directory found by navigating to about:support and copying the "Profile Folder"
+# The script will default to the path location in Linux for chrome. 
+# BROWSER_PROFILE_PATH=
 # BROWSER_PROFILE_PATH=/home/your-user/.config/chromium/Default/Default
 # BROWSER_PROFILE_PATH=/home/your-user/.config/google-chrome/Default
 
-# Path of your chrome binary. Depends on your OS
+# Path of your browser binary. Depends on your OS and browser
 # Find it by navigating to chrome://version/ and copying "Executable Path"
+# or if using firefox, about:support and copying "Application Binary"
+# BROWSER_BINARY=/usr/bin/firefox
 # BROWSER_BINARY=/usr/lib/chromium/chromium
 BROWSER_BINARY=/usr/bin/google-chrome-stable
 # Headless mode is only useful for development/testing other parts of the code
