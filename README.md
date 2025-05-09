@@ -140,19 +140,24 @@ These endpoints display raw data, meant to be integrated into a third party tool
 ```
 /api
    - Displays a list of all the urls
-/health_interval
+/api/health_interval
    - Number of seconds between each 'health' check. Corresponds to SLEEP_TIME in config.ini
-/log_entry
+/api/log_entry
    - Displays the last line logged into the log file
-/log_interval
+/api/log_interval
    - Number of minutes between each 'log' entry into log file. Corresponds to LOG_INTERVAL in config.ini
-/ram
+/api/logs
+/api/logs?limit=
+   - Displays the last N logs. Default 100
+/api/ram
    - Ram Total/Used
-/script_uptime
+/api/script_uptime
    - Timestamp of when the script started running
-/status
+/api/status
    - Self-Reported status of the script's health
-/system_uptime
+/api/next_restart
+   - Datetime in which the script will restart itself
+/api/system_uptime
    - Timestamp of when the system was turned on
 ```
 

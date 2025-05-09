@@ -20,6 +20,7 @@ from logging_config import configure_logging
 from dotenv import load_dotenv, find_dotenv
 dotenv_file = find_dotenv()
 load_dotenv(dotenv_file, override=True)
+script_dir = Path(__file__).resolve().parent
 # -------------------------------------------------------------------
 # Application for the monitoring API
 # -------------------------------------------------------------------
@@ -55,10 +56,9 @@ def create_app(config_path=None):
     # -----------------------------
     # Prepare API directory and files
     # -----------------------------
-    script_dir = Path(__file__).resolve().parent
-    api_root = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
-    api_dir = Path(api_root)
-    api_dir.mkdir(parents=True, exist_ok=True)
+    api_dir = script_dir / 'api'
+    if not api_dir.exists():
+        api_dir.mkdir(parents=True, exist_ok=True)
     sst_file = api_dir / 'sst.txt'
     status_file = api_dir / 'status.txt'
     log_file = script_dir / 'logs' / 'viewport.log'
@@ -213,6 +213,7 @@ def create_app(config_path=None):
     @app.route("/api/log_interval")
     def api_log_interval():
         return jsonify(status="ok", data={"log_interval_min": LOG_INTERVAL})
+    @app.route("/api/log")
     @app.route("/api/logs")
     def api_logs():
         # grab optional ?limit=... (default 100)

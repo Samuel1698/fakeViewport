@@ -26,12 +26,18 @@ os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very i
 script_dir = Path(__file__).resolve().parent
 config_file = Path.cwd() / 'config.ini'
 if not config_file.exists():
-    config_file = script_dir / 'config.ini'
+    logging.error("Missing config.ini file. Run ./setup.sh")
+    sys.exit(1)
 env_dir = script_dir / '.env'
 logs_dir = script_dir / 'logs'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file = logs_dir / 'viewport.log'
+api_dir = script_dir / 'api'
+if not api_dir.exists():
+    api_dir.mkdir(parents=True, exist_ok=True)
+sst_file = api_dir / 'sst.txt'
+status_file = api_dir / 'status.txt'
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
@@ -240,7 +246,6 @@ ERROR_LOGGING = config.getboolean('Logging', 'ERROR_LOGGING', fallback=False)
 LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
 LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
 API = config.getboolean('API', 'USE_API', fallback=False)
-API_PATH = config.get('API', 'API_FILE_PATH', fallback=str(script_dir / 'api')).strip()
 raw = config.get('General', 'RESTART_TIMES', fallback='')
 RESTART_TIMES = []
 # -------------------------------------------------------------------
@@ -270,11 +275,6 @@ if LOG_DAYS < 1:
 if LOG_INTERVAL < 1:
     logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
     sys.exit(1)
-api_dir = Path(API_PATH)
-if not api_dir.exists():
-    api_dir.mkdir(parents=True, exist_ok=True)
-sst_file = api_dir / 'sst.txt'
-status_file = api_dir / 'status.txt'
 # -------------------------------------------------------------------
 # .env variables validation
 # -------------------------------------------------------------------

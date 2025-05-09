@@ -15,63 +15,88 @@ from monitoring import create_app
 # -------------------------------------------------------------------------
 # Helper to build an app/client
 # -------------------------------------------------------------------------
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    # 1) Stub out real logging
+    # ─────────────────────────────────────────────────────
+    # 1) Stub out all real logging
+    # ─────────────────────────────────────────────────────
     monkeypatch.setattr(monitoring, 'configure_logging', lambda *a, **k: None)
 
-    # 2) Fix system uptime: boot_time=1000, time.time()=1010 ⇒ uptime=10s
-    monkeypatch.setattr(monitoring.psutil, 'boot_time', lambda: 1000)
-    monkeypatch.setattr(monitoring.time, 'time', lambda: 1010)
+    # ─────────────────────────────────────────────────────
+    # 2) Force script_dir → tmp_path so all endpoints read/write there
+    # ─────────────────────────────────────────────────────
+    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
 
-    # 3) Fake RAM numbers
+    # ─────────────────────────────────────────────────────
+    # 3) Fake psutil uptime & RAM
+    # ─────────────────────────────────────────────────────
+    monkeypatch.setattr(monitoring.psutil, 'boot_time',    lambda: 1000)
+    monkeypatch.setattr(monitoring.time,    'time',        lambda: 1010)
     class DummyVM:
-        used = 12345
+        used  = 12345
         total = 67890
     monkeypatch.setattr(monitoring.psutil, 'virtual_memory', lambda: DummyVM)
 
-    # 4) Temp config.ini pointing API_FILE_PATH to tmp_path/api
+    # ─────────────────────────────────────────────────────
+    # 4) Write a minimal config.ini into tmp_path
+    # ─────────────────────────────────────────────────────
     cfg = configparser.ConfigParser()
-    cfg['API'] = {'API_FILE_PATH': str(tmp_path / 'api')}
     cfg['General'] = {
-        'SLEEP_TIME': '300',     # health_interval_sec
-        'LOG_INTERVAL': '15'     # log_interval_min
+        'SLEEP_TIME':   '300',
+        'LOG_INTERVAL': '15',
     }
     cfg['Logging'] = {
-        'LOG_FILE': 'no',
-        'LOG_CONSOLE': 'no',
-        'VERBOSE_LOGGING': 'no',
-        'LOG_DAYS': '1'
+        # we no longer care about API_FILE_PATH here
+        'LOG_FILE':       'False',
+        'LOG_CONSOLE':    'False',
+        'VERBOSE_LOGGING':'False',
+        'LOG_DAYS':       '1',
     }
     cfg_path = tmp_path / 'config.ini'
-    with open(cfg_path, 'w') as f:
+    with cfg_path.open('w') as f:
         cfg.write(f)
 
+    # ─────────────────────────────────────────────────────
+    # 5) Create & return the Flask test client
+    # ─────────────────────────────────────────────────────
     app = create_app(str(cfg_path))
     app.testing = True
-    return app.test_client(), tmp_path / 'api'
+    return app.test_client()
 # -------------------------------------------------------------------------
 # Helper to build an app/client with SECRET in the environment
 # -------------------------------------------------------------------------
 def _make_auth_client(tmp_path, monkeypatch):
-    # Stub logging and set SECRET before app creation
+    # 1) Stub logging so it never writes
     monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
+
+    # 2) Make SECRET present
     monkeypatch.setenv("SECRET", "shh")
-    # Minimal config.ini
+
+    # 3) Redirect all file-based operations under tmp_path
+    monkeypatch.setattr(monitoring, "script_dir", tmp_path)
+
+    # 4) Build the minimal config.ini
     cfg = configparser.ConfigParser()
-    cfg["API"]     = {"API_FILE_PATH": str(tmp_path / "api")}
-    cfg["General"] = {"SLEEP_TIME": "300", "LOG_INTERVAL": "15"}
+    cfg["General"] = {
+        "SLEEP_TIME":   "300",   
+        "LOG_INTERVAL": "15",    
+    }
     cfg["Logging"] = {
-        "LOG_FILE": "no",
-        "LOG_CONSOLE": "no",
-        "VERBOSE_LOGGING": "no",
-        "LOG_DAYS": "1",
+        "LOG_FILE":        "False",
+        "LOG_CONSOLE":     "False",
+        "VERBOSE_LOGGING": "False",
+        "LOG_DAYS":        "1",
     }
     cfg_path = tmp_path / "config.ini"
     with open(cfg_path, "w") as f:
         cfg.write(f)
-    # Render templates to a known string
-    monkeypatch.setattr(monitoring, "render_template", lambda tpl, **ctx: f"TEMPLATE({tpl})")
+
+    # 5) Stub out render_template so you know what’s returned
+    monkeypatch.setattr(monitoring, "render_template",
+                        lambda tpl, **ctx: f"TEMPLATE({tpl})")
+
+    # 6) Create the app and return just the test client
     app = create_app(str(cfg_path))
     app.testing = True
     return app.test_client()
@@ -79,40 +104,43 @@ def _make_auth_client(tmp_path, monkeypatch):
 # Helper to build an app/client with NO SECRET in the environment
 # -------------------------------------------------------------------------
 def no_secret_client(tmp_path, monkeypatch):
-    # Ensure SECRET is not set → CONTROL_TOKEN will be falsey
+    # 1) Ensure SECRET isn’t set
     monkeypatch.delenv("SECRET", raising=False)
-    # Stub out logging setup so it doesn’t write anywhere
-    monkeypatch.setattr("monitoring.configure_logging", lambda *a, **k: None)
-    # 2) Fix system uptime: boot_time=1000, time.time()=1010 ⇒ uptime=10s
-    monkeypatch.setattr(monitoring.psutil, 'boot_time', lambda: 1000)
-    monkeypatch.setattr(monitoring.time, 'time', lambda: 1010)
 
-    # 3) Fake RAM numbers
+    # 2) Stub logging
+    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
+
+    # 3) Fake out psutil / time so uptime & memory are deterministic
+    monkeypatch.setattr(monitoring.psutil, "boot_time", lambda: 1000)
+    monkeypatch.setattr(monitoring.time,   "time",      lambda: 1010)
     class DummyVM:
         used = 12345
         total = 67890
-    monkeypatch.setattr(monitoring.psutil, 'virtual_memory', lambda: DummyVM)
+    monkeypatch.setattr(monitoring.psutil, "virtual_memory", lambda: DummyVM)
 
-    # 4) Temp config.ini pointing API_FILE_PATH to tmp_path/api
+    # 4) Redirect all file-based operations under tmp_path
+    monkeypatch.setattr(monitoring, "script_dir", tmp_path)
+
+    # 5) Build the minimal config.ini 
     cfg = configparser.ConfigParser()
-    cfg['API'] = {'API_FILE_PATH': str(tmp_path / 'api')}
-    cfg['General'] = {
-        'SLEEP_TIME': '300',     # health_interval_sec
-        'LOG_INTERVAL': '15'     # log_interval_min
+    cfg["General"] = {
+        "SLEEP_TIME":   "300",
+        "LOG_INTERVAL": "15",
     }
-    cfg['Logging'] = {
-        'LOG_FILE': 'no',
-        'LOG_CONSOLE': 'no',
-        'VERBOSE_LOGGING': 'no',
-        'LOG_DAYS': '1'
+    cfg["Logging"] = {
+        "LOG_FILE":        "False",
+        "LOG_CONSOLE":     "False",
+        "VERBOSE_LOGGING": "False",
+        "LOG_DAYS":        "1",
     }
-    cfg_path = tmp_path / 'config.ini'
-    with open(cfg_path, 'w') as f:
+    cfg_path = tmp_path / "config.ini"
+    with open(cfg_path, "w") as f:
         cfg.write(f)
 
+    # 6) Create the app and return just the test client
     app = create_app(str(cfg_path))
     app.testing = True
-    return app.test_client(), tmp_path / 'api'
+    return app.test_client()
 # -------------------------
 # 1. Control endpoint (/api/control/<action>)
 # -------------------------
@@ -128,7 +156,7 @@ def no_secret_client(tmp_path, monkeypatch):
     ]
 )
 def test_api_control_valid_actions(client, monkeypatch, action, expected_message):
-    client_app, api_dir = client
+    client_app = client
     # Stub out subprocess.Popen to simulate success
     monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: None)
     resp = client_app.post(f"/api/control/{action}")
@@ -138,7 +166,7 @@ def test_api_control_valid_actions(client, monkeypatch, action, expected_message
     assert data["message"] == expected_message
 
 def test_api_control_unknown_action(client):
-    client_app, api_dir = client
+    client_app = client
     # Unknown action should return 400 with appropriate error
     resp = client_app.post("/api/control/foobar")
     assert resp.status_code == 400
@@ -155,7 +183,7 @@ def test_control_requires_login_for_all_actions(tmp_path, monkeypatch, action):
     
 @pytest.mark.parametrize("exc_msg", ["boom", "kaboom"])
 def test_api_control_dispatch_failure(client, monkeypatch, exc_msg):
-    client_app, api_dir = client
+    client_app = client
     # Make Popen raise to exercise the 500 branch
     def fake_popen(*args, **kwargs):
         raise RuntimeError(exc_msg)
@@ -169,7 +197,7 @@ def test_api_control_dispatch_failure(client, monkeypatch, exc_msg):
 # 2. /api/log_entry error path
 # -------------------------
 def test_api_log_entry_read_error(client, monkeypatch):
-    client_app, api_dir = client
+    client_app = client
     # Force .exists() → True and .read_text() → IOError
     monkeypatch.setattr(Path, "exists",    lambda self: True)
     monkeypatch.setattr(Path, "read_text", lambda self: (_ for _ in ()).throw(IOError("boom")))
@@ -189,7 +217,7 @@ def test_api_log_entry_read_error(client, monkeypatch):
     "/api/log_entry",
 ])
 def test_cors_headers_for_api_routes(client, route):
-    client_app, api_dir = client
+    client_app = client
     resp = client_app.get(route)
     # Flask-CORS should inject this header
     assert resp.headers.get("Access-Control-Allow-Origin") == "*"
@@ -204,7 +232,7 @@ def test_cors_headers_for_api_routes(client, route):
     "/api/",
 ])
 def test_api_index_trailing_slash_alias(client, path):
-    client_app, api_dir = client
+    client_app = client
     resp_base = client_app.get("/api")
     resp_alias = client_app.get(path)
     # Both must have same status and payload
@@ -215,15 +243,21 @@ def test_api_index_trailing_slash_alias(client, path):
 # 5. Generic 404 for unknown API path
 # -------------------------
 def test_unknown_api_path_returns_404(client):
-    client_app, api_dir = client
+    client_app = client
     resp = client_app.get("/api/nonexistent")
     assert resp.status_code == 404
 
 # -------------------------
 # 6. API directory is created by the fixture
 # -------------------------
-def test_api_directory_created_by_fixture(client):
-    client_app, api_dir = client
+def test_api_directory_created_by_fixture(client, tmp_path, monkeypatch):
+    # 1) point monitoring.script_dir at a tmp dir
+    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+
+    # 2) compute the api_dir exactly like the app does
+    api_dir: Path = monitoring.script_dir / 'api'
+    api_dir.mkdir(parents=True, exist_ok=True)
+
     assert api_dir.exists() and api_dir.is_dir()
 
 # -------------------------
@@ -275,7 +309,7 @@ def test_login_redirects_to_dashboard_if_no_secret(tmp_path, monkeypatch):
     """
     When SECRET is not set, /login should skip auth and redirect straight to dashboard (/).
     """
-    client_app, api_dir = no_secret_client(tmp_path, monkeypatch)
+    client_app = no_secret_client(tmp_path, monkeypatch)
     resp = client_app.get("/login", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["Location"].endswith("/")
@@ -289,7 +323,7 @@ def test_control_endpoints_allowed_without_login(tmp_path, monkeypatch, action, 
     """
     Even if no SECRET is set, POST /api/control/<action> should still work.
     """
-    client_app, api_dir = no_secret_client(tmp_path, monkeypatch)
+    client_app = no_secret_client(tmp_path, monkeypatch)
     # stub out Popen to simulate success
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: None)
     resp = client_app.post(f"/api/control/{action}")
@@ -301,7 +335,6 @@ def test_control_endpoints_allowed_without_login(tmp_path, monkeypatch, action, 
 # /api index
 # -------------------------
 def test_api_index_links(client):
-    client, api_dir = client
     resp = client.get('/api')
     assert resp.status_code == 200
     data = resp.get_json()
@@ -324,15 +357,20 @@ def test_api_index_links(client):
 # /api/script_uptime
 # -------------------------
 def test_script_uptime_missing(client):
-    client, api_dir = client
     resp = client.get('/api/script_uptime')
     assert resp.status_code == 404
     obj = resp.get_json()
     assert obj['status'] == 'error'
     assert 'SST file not found' in obj['message']
 
-def test_script_uptime_malformed(client):
-    client, api_dir = client
+def test_script_uptime_malformed(client, tmp_path, monkeypatch):
+    # 1) point monitoring.script_dir at a tmp dir
+    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+
+    # 2) compute the api_dir exactly like the app does
+    api_dir: Path = monitoring.script_dir / 'api'
+    api_dir.mkdir(parents=True, exist_ok=True)
+
     (api_dir / 'sst.txt').write_text('not a timestamp')
     resp = client.get('/api/script_uptime')
     assert resp.status_code == 400
@@ -340,8 +378,14 @@ def test_script_uptime_malformed(client):
     assert obj['status'] == 'error'
     assert 'Malformed SST timestamp' in obj['message']
 
-def test_script_uptime_ok(monkeypatch, client):
-    client, api_dir = client
+def test_script_uptime_ok(client, tmp_path, monkeypatch):
+    # 1) point monitoring.script_dir at a tmp dir
+    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+
+    # 2) compute the api_dir exactly like the app does
+    api_dir: Path = monitoring.script_dir / 'api'
+    api_dir.mkdir(parents=True, exist_ok=True)
+
     import datetime as real_dt
     fixed = real_dt.datetime(2025, 4, 28, 12, 0, 10)
     class DummyDT:
@@ -365,7 +409,6 @@ def test_script_uptime_ok(monkeypatch, client):
 # /api/system_uptime
 # -------------------------
 def test_system_uptime_ok(client):
-    client, api_dir = client
     resp = client.get('/api/system_uptime')
     assert resp.status_code == 200
     obj = resp.get_json()
@@ -373,7 +416,6 @@ def test_system_uptime_ok(client):
     assert pytest.approx(obj['data']['system_uptime'], rel=1e-3) == 10
 
 def test_system_uptime_error(monkeypatch, client):
-    client, api_dir = client
     monkeypatch.setattr(monitoring.psutil, 'boot_time', lambda: (_ for _ in ()).throw(Exception()))
     resp = client.get('/api/system_uptime')
     assert resp.status_code == 500
@@ -386,7 +428,6 @@ def test_system_uptime_error(monkeypatch, client):
 # /api/ram
 # -------------------------
 def test_ram_endpoint(client):
-    client, api_dir = client
     resp = client.get('/api/ram')
     assert resp.status_code == 200
     obj = resp.get_json()
@@ -399,7 +440,6 @@ def test_ram_endpoint(client):
 # /api/health_interval
 # -------------------------
 def test_health_interval(client):
-    client, api_dir = client
     resp = client.get('/api/health_interval')
     assert resp.status_code == 200
     obj = resp.get_json()
@@ -411,7 +451,6 @@ def test_health_interval(client):
 # /api/log_interval
 # -------------------------
 def test_log_interval(client):
-    client, api_dir = client
     resp = client.get('/api/log_interval')
     assert resp.status_code == 200
     obj = resp.get_json()
@@ -423,15 +462,20 @@ def test_log_interval(client):
 # /api/status (last status update)
 # -------------------------
 def test_status_missing(client):
-    client, api_dir = client
     resp = client.get('/api/status')
     assert resp.status_code == 404
     obj = resp.get_json()
     assert obj['status'] == 'error'
     assert 'Status file not found' in obj['message']
 
-def test_status_ok(client):
-    client, api_dir = client
+def test_status_ok(client, tmp_path, monkeypatch):
+    # 1) point monitoring.script_dir at a tmp dir
+    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+
+    # 2) compute the api_dir exactly like the app does
+    api_dir: Path = monitoring.script_dir / 'api'
+    api_dir.mkdir(parents=True, exist_ok=True)
+
     (api_dir / 'status.txt').write_text('All Good')
     resp = client.get('/api/status')
     assert resp.status_code == 200
@@ -444,7 +488,6 @@ def test_status_ok(client):
 # /api/log_entry (last log line)
 # -------------------------
 def test_log_entry_missing(client, monkeypatch):
-    client, api_dir = client
 
     # Patch Path.exists to always say the viewport.log doesn't exist
     orig_exists = pathlib.Path.exists
@@ -461,7 +504,6 @@ def test_log_entry_missing(client, monkeypatch):
     assert 'Log file not found' in obj['message']
 
 def test_log_entry_ok(client, monkeypatch):
-    client, api_dir = client
 
     # Patch Path.exists to say viewport.log exists
     orig_exists = pathlib.Path.exists
@@ -484,3 +526,96 @@ def test_log_entry_ok(client, monkeypatch):
     obj = resp.get_json()
     assert obj['status'] == 'ok'
     assert obj['data']['log_entry'] == 'third'
+# -------------------------
+# /api/logs?limit
+# -------------------------
+def test_default_limit_returns_100_lines(client, tmp_path, monkeypatch):
+    client_app = client
+    # 1) point script_dir at tmp
+    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+
+    # 2) create logs/viewport.log
+    logs_dir = monitoring.script_dir / 'logs'
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / 'viewport.log'
+
+    # 3) write 150 entries
+    lines = [f"entry {i}" for i in range(150)]
+    log_path.write_text("\n".join(lines) + "\n")
+
+    # 4) call endpoint
+    resp = client_app.get("/api/logs")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["status"] == "ok"
+
+    logs = body["data"]["logs"]
+    assert isinstance(logs, list)
+    # last 100 of the 150
+    assert len(logs) == 100
+    assert logs[0] == "entry 50\n"
+    assert logs[-1] == "entry 149\n"
+
+
+@pytest.mark.parametrize("limit,expected_start", [
+    (10, 140),
+    (200, 0),
+])
+def test_custom_limit(client, limit, expected_start, tmp_path, monkeypatch):
+    client_app = client
+    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+
+    logs_dir = monitoring.script_dir / 'logs'
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / 'viewport.log'
+
+    # 150 lines
+    lines = [f"row {i}" for i in range(150)]
+    log_path.write_text("\n".join(lines) + "\n")
+
+    resp = client_app.get(f"/api/logs?limit={limit}")
+    assert resp.status_code == 200
+    logs = resp.get_json()["data"]["logs"]
+
+    count = min(limit, 150)
+    assert len(logs) == count
+    assert logs[0] == f"row {150 - count}\n"
+    assert logs[-1] == "row 149\n"
+
+def test_invalid_limit_falls_back_to_default(client, tmp_path, monkeypatch):
+    client_app = client
+    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+
+    logs_dir = monitoring.script_dir / 'logs'
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / 'viewport.log'
+
+    # 120 lines
+    lines = [f"x{i}" for i in range(120)]
+    log_path.write_text("\n".join(lines) + "\n")
+
+    # non-integer limit → default 100
+    resp = client_app.get("/api/logs?limit=notanumber")
+    assert resp.status_code == 200
+    logs = resp.get_json()["data"]["logs"]
+
+    assert len(logs) == 100
+    assert logs[0] == "x20\n"   # 120 - 100 = 20
+    assert logs[-1] == "x119\n"
+
+
+def test_missing_file_returns_500(client, tmp_path, monkeypatch):
+    client_app = client
+    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+
+    # create the logs dir, but do NOT create viewport.log
+    logs_dir = monitoring.script_dir / 'logs'
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    resp = client_app.get("/api/logs")
+    assert resp.status_code == 500
+
+    body = resp.get_json()
+    assert body["status"] == "error"
+    # should mention the missing file
+    assert "No such file" in body["message"] or "not found" in body["message"]

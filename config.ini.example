@@ -50,6 +50,3 @@ LOG_INTERVAL=60
 # The status of the webpage, as well as giving me the script and system
 # uptime. It's turned off by default.
 USE_API=False
-# Example of custom directory
-# API_FILE_PATH=/home/your-user/Documents
-
