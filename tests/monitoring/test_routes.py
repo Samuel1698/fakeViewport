@@ -424,4 +424,4 @@ def test_missing_file_returns_500(client, tmp_path, monkeypatch):
     body = resp.get_json()
     assert body["status"] == "error"
     # should mention the missing file
-    assert "No such file" in body["message"] or "not found" in body["message"]
+    assert "An internal error occurred while reading logs" in body["message"]
