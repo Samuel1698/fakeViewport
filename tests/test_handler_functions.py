@@ -8,27 +8,28 @@ logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.Null
 
 import pytest
 import os
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch, call
 from io import StringIO
 from datetime import datetime, time as dt_time
 from webdriver_manager.core.os_manager import ChromeType
 import viewport
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch, call
 import signal
 import subprocess
+print("Viewport module:", viewport.__file__)
 # helper to build a fake psutil.Process‐like object
 def _make_proc(pid, cmdline, uids=None):
-    # pid: the fake pid
-    # cmdline: either a list or a string
-    # uids:   an object with .real (e.g. SimpleNamespace(real=1000)); 
-    #         if None, defaults to os.geteuid()
+    # pid     : fake PID
+    # cmdline : list or string (what psutil would give you)
+    # uids    : SimpleNamespace(real=…) if you want to override; 
+    #           otherwise defaults to viewport.os.geteuid()
     proc = MagicMock()
-    # build the info dict
+    # assemble info dict
     info = {
         "pid": pid,
         "cmdline": cmdline,
-        # if they passed in a uids, use it; otherwise assume this proc is ours
-        "uids": uids if uids is not None else SimpleNamespace(real=os.geteuid()),
+        "uids": uids if uids is not None
+               else SimpleNamespace(real=viewport.os.geteuid()),
     }
     proc.info = info
     return proc

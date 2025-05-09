@@ -624,7 +624,7 @@ def process_handler(name, action="check"):
 
                 # only kill/check processes _you_ own
                 uids = info.get('uids')
-                if not uids or uids.real != me:
+                if uids is not None and uids.real != me:
                     continue
 
                 pid = info.get('pid')
