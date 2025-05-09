@@ -18,18 +18,18 @@ import signal
 import subprocess
 print("Viewport module:", viewport.__file__)
 # helper to build a fake psutil.Process‐like object
-def _make_proc(pid, cmdline, uids=None):
-    # pid     : fake PID
-    # cmdline : list or string (what psutil would give you)
-    # uids    : SimpleNamespace(real=…) if you want to override; 
-    #           otherwise defaults to viewport.os.geteuid()
+def _make_proc(pid, cmdline, uids=None, name=None):
+    if isinstance(cmdline, str):
+        cmdline = cmdline.split()
+    if name is None:
+        name = cmdline[0] if cmdline else f"proc{pid}"
+
     proc = MagicMock()
-    # assemble info dict
     info = {
         "pid": pid,
         "cmdline": cmdline,
-        "uids": uids if uids is not None
-               else SimpleNamespace(real=viewport.os.geteuid()),
+        "uids": uids or SimpleNamespace(real=1000),
+        "name": name,
     }
     proc.info = info
     return proc
@@ -219,7 +219,7 @@ def test_status_handler_various(
         # Different commandline process with argument
         # 'viewport', 'check', Should be True
         (
-            [_make_proc(10, "/usr/bin/viewport.py --foo")], 
+            [_make_proc(10, ["/usr/bin/viewport.py", "--foo"])], 
             0, "viewport.py", "check", True, 
             [], [], []
         ),
@@ -310,7 +310,7 @@ def test_process_handler(
 ):
     # arrange
     mock_geteuid.return_value = 1000
-    mock_iter.return_value   = proc_list
+    mock_iter.return_value = iter(proc_list)
     mock_getpid.return_value = current_pid
 
     # act
