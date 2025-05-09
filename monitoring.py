@@ -230,7 +230,7 @@ def create_app(config_path=None):
             return jsonify(status="ok", data={"logs": list(last_lines)})
         except Exception as e:
             app.logger.exception("Failed reading logs")
-            return jsonify(status="error", message=str(e)), 500
+            return jsonify(status="error", message="An internal error occurred while reading logs"), 500
     @app.route("/api/status")
     def api_status():
         line = _read_api_file(status_file)
