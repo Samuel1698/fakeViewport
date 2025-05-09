@@ -56,16 +56,48 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ./setup.sh
    ```
 
-3. **Configure the `.env` and `config.ini` File**  
+3. **Configure the `.env` file**  
    The `setup.sh` script will rename the `.env.example` file to `.env`. 
    
-   Open the `.env` file and update it with your credentials* and the URL of your Protect Live View. You can use vim or nano for this.
+   Open the `.env` file and update it with your credentials* and the URL of your Protect Live View. You can use vim or nano for this. This is also where you could put your API IP and Port, if different than the default, and where you would put the `SECRET` key if using one.
 
-   You will also see a `config.ini` file, open it and check what options there are available for customization of how the script runs.
+   $${\color{red}*I \space strongly \space recommend \space using \space a \space local-only \space account \space for \space this \space use \space case.}$$
+   
+   Here's how the .env file might look like:
+   ```ini
+   USERNAME=YourLocalUsername
+   PASSWORD=YourLocalPassword
+   URL=http://192.168.100.100/protect/dashboard/multiviewurl
+   FLASK_RUN_HOST=0.0.0.0
+   FLASK_RUN_PORT=5000
+   SECRET=jgrkJvmTmCrF9Utt2dGAOS158Nh-sBoB_OykkAcjsh0
    ```
-   *I strongly recommend a local-only account for this use case.
+4. **Configure the `config.ini` file**
+
+   Open the `config.ini` file and check what options there are available for customization of how the script runs.
+   
+   If running chrome or chromium, navigate to `chrome://version/` and check the **Profile Path.** It should say something along the lines of:
+   `/home/your-user/.config/google-chrome/Default` or `/home/your-user/.config/chromium/Default`. Drop the `Default` and copy the parent folder, in this case it would be `/home/your-user/.config/google-chrome/`. That path goes in your `BROWSER_PROFILE_PATH=` config.
+
+   Next, look for **Command Line** in `chrome://version/` and copy the executable path without the `--flags`. For instance:
+   `/usr/lib/chromium/chromium` or `/usr/bin/google-chrome-stable` and paste it next to `BROWSER_BINARY=`.
+
+   For Firefox, navigate to `about:support`, copying the **Profile Folder** path as well as the **Application Binary** path, respectively.
+
+   This is how they would look like by default. 
+   ```ini
+   # Firefox
+   BROWSER_PROFILE_PATH=/home/your-user/.mozilla/firefox/
+   BROWSER_BINARY=/usr/lib/firefox-esr/firefox-esr
+   # Chromium
+   BROWSER_PROFILE_PATH=/home/your-user/.config/chromium/
+   BROWSER_BINARY=/usr/lib/chromium/chromium
+   # Chrome
+   BROWSER_PROFILE_PATH=/home/your-user/.config/google-chrome/
+   BROWSER_BINARY=/usr/bin/google-chrome-stable
    ```
-4. **Run the Script**  
+
+5. **Run the Script**  
    Run this command first to make sure everything is working
    ```bash
    viewport -h
@@ -130,8 +162,7 @@ and paste it in your `.env` file with the name `SECRET=`. This will serve as you
 
 Here's how the control page looks like:
 
-<img width="554" alt="{3A3F2229-CF42-46D5-A97F-BB1532A9E7BD}" src="https://github.com/user-attachments/assets/db340221-492f-448a-b000-217dc1dea3c0" />
-
+<img width="600" alt="Viewport Control Panel" src="https://github.com/user-attachments/assets/8caa3576-d761-46d3-9bf4-3eb30618fc03" />
 
 Api Endpoints:
 
