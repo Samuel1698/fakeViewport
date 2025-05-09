@@ -14,20 +14,21 @@ WAIT_TIME=30
 MAX_RETRIES=3
 # Comma-separated list of 24h times (HH:MM) when the script should automatically restart
 # I noticed that chrome seems to crash consistently after being loaded for ~14 hours, so 12 hour interval should be plenty
-# This is not strictly needed since the script will restart itself if it notices an error, this is more of a failsafe for convenience and in case the error-handling breaks in the future. 
+# This is not strictly needed since the script will restart itself if it notices an error, this is more of a failsafe for convenience and in case the error-handling breaks in the future. Might also be helpful to prevent the worst-case scenario where the tab crashes just *after* the script checked it's own health, leading to up to SLEEP_TIME of downtime before the script notices it's broken.
 # RESTART_TIMES = 11:00, 23:00 
 [Browser]
 # Chrome/Chromium profile directory found by navigating to chrome://version/ and copying the "Profile Path"
 # Firefox         profile directory found by navigating to about:support and copying the "Profile Folder"
 # The script will default to the path location in Linux for chrome. 
-# BROWSER_PROFILE_PATH=
+# These profiles paths below are placeholders and might not work. Please get the real profile paths before running the script
+# BROWSER_PROFILE_PATH=/home/your-user/snap/firefox/common/.mozilla/firefox/
 # BROWSER_PROFILE_PATH=/home/your-user/.config/chromium/Default/Default
 # BROWSER_PROFILE_PATH=/home/your-user/.config/google-chrome/Default
 
 # Path of your browser binary. Depends on your OS and browser
 # Find it by navigating to chrome://version/ and copying "Executable Path"
 # or if using firefox, about:support and copying "Application Binary"
-# BROWSER_BINARY=/usr/bin/firefox
+# BROWSER_BINARY=/snap/firefox/6103/usr/lib/firefox/firefox
 # BROWSER_BINARY=/usr/lib/chromium/chromium
 BROWSER_BINARY=/usr/bin/google-chrome-stable
 # Headless mode is only useful for development/testing other parts of the code

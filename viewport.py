@@ -282,6 +282,9 @@ if LOG_DAYS < 1:
 if LOG_INTERVAL < 1:
     logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
     sys.exit(1)
+if "your-user" in BROWSER_PROFILE_PATH:
+    logging.error(f"'your-user' in the config file should be replaced by {user}")
+    sys.exit(1)
 # -------------------------------------------------------------------
 # .env variables validation
 # -------------------------------------------------------------------
@@ -706,10 +709,11 @@ def browser_handler(url):
                 opts.set_preference("signon.rememberSignons", False)
                 opts.set_preference("signon.autofillForms", False)
                 profile = FirefoxProfile(BROWSER_PROFILE_PATH)
+                opts.profile = profile
                 opts.binary_location = BROWSER_BINARY
                 opts.accept_insecure_certs = True
                 service = FirefoxService(executable_path=GeckoDriverManager().install())
-                driver  = webdriver.Firefox(service=service, options=opts, firefox_profile=profile)
+                driver  = webdriver.Firefox(service=service, options=opts)
             driver.get(url)
             return driver
         except Exception as e:
