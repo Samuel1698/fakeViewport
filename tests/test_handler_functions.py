@@ -356,79 +356,106 @@ def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
 # Test for browser_handler  
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize(
-    "chrome_side_effects, "
-    "expected_driver_get_calls, "
-    "expected_kill_calls, "
-    "expect_restart",
+    "browser, side_effects, expected_driver_get_calls, expected_kill_calls, expect_restart",
     [
-        # 1) Success on first try
-        ([MagicMock()], 1, 1, False),
-        # 2) Fail twice, then succeed on 3rd (with MAX_RETRIES=3)
-        ([Exception("boom"), Exception("boom"), MagicMock()], 1, 1, False),
-        # 3) Always fail => exhaust retries, kill twice (start + final), then call restart_handler
-        ([Exception("fail")] * 3, 0, 2, True),
+        # Chrome cases
+        ("chrome",  [MagicMock()],                    1, 1, False),
+        ("chrome",  [Exception("boom"), MagicMock()], 1, 1, False),
+        ("chrome",  [Exception("fail")] * 3,         0, 2, True),
+        # Chrome cases
+        ("chromium",  [MagicMock()],                    1, 1, False),
+        ("chromium",  [Exception("boom"), MagicMock()], 1, 1, False),
+        ("chromium",  [Exception("fail")] * 3,         0, 2, True),
+        # Firefox cases
+        ("firefox", [MagicMock()],                    1, 1, False),
+        ("firefox", [Exception("boom"), MagicMock()], 1, 1, False),
+        ("firefox", [Exception("fail")] * 3,         0, 2, True),
     ]
 )
 @patch("viewport.restart_handler")
 @patch("viewport.process_handler")
+@patch("viewport.FirefoxOptions")
+@patch("viewport.FirefoxProfile")
+@patch("viewport.FirefoxService")
+@patch("viewport.GeckoDriverManager")
 @patch("viewport.Options")
+@patch("viewport.webdriver.Firefox")
 @patch("viewport.webdriver.Chrome")
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.api_status")
 @patch("viewport.log_error")
-def test_browser_handler(
+def test_browser_handler_extended(
     mock_log_error,
     mock_api_status,
     mock_sleep,
     mock_chrome,
+    mock_firefox,
     mock_options,
+    mock_gecko_mgr,
+    mock_ff_service,
+    mock_ff_profile,
+    mock_ff_opts,
     mock_process_handler,
     mock_restart_handler,
-    chrome_side_effects,
+    monkeypatch,               
+    browser,
+    side_effects,
     expected_driver_get_calls,
     expected_kill_calls,
     expect_restart,
 ):
     url = "http://example.com"
-    viewport.MAX_RETRIES = 3
-    viewport.SLEEP_TIME = 10  # make retry delay predictable
 
-    # Build the side_effect list for webdriver.Chrome
+    # temporarily override module‐globals for *this* test only
+    monkeypatch.setattr(viewport, "BROWSER", browser)
+    monkeypatch.setattr(viewport, "MAX_RETRIES", 3)
+    monkeypatch.setattr(viewport, "SLEEP_TIME", 10)
+
     mock_driver = MagicMock()
-    mock_chrome.side_effect = [
-        e if isinstance(e, Exception) else mock_driver
-        for e in chrome_side_effects
-    ]
+    # build side effect for Chrome/Firefox
+    effects = [e if isinstance(e, Exception) else mock_driver
+               for e in side_effects]
 
-    # Options() should return a dummy options object
-    mock_options.return_value = MagicMock()
+    if browser in ("chrome", "chromium"):
+        mock_chrome.side_effect = effects
+        mock_options.return_value = MagicMock()
+    else:
+        mock_firefox.side_effect = effects
+        mock_ff_opts.return_value     = MagicMock()
+        mock_ff_profile.return_value  = MagicMock()
+        mock_gecko_mgr.return_value.install.return_value = "/fake/gecko"
+        mock_ff_service.return_value = MagicMock()
 
     # Act
     result = viewport.browser_handler(url)
 
-    # Assert: process_handler("chrome", "kill") call count
+    # Assert kill calls
     assert mock_process_handler.call_count == expected_kill_calls
-    mock_process_handler.assert_any_call(viewport.BROWSER, action="kill")
+    mock_process_handler.assert_any_call(browser, action="kill")
 
-    # webdriver.Chrome called up to MAX_RETRIES
-    assert mock_chrome.call_count == len(chrome_side_effects)
+    # Assert constructor calls
+    if browser in ("chrome", "chromium"):
+        assert mock_chrome.call_count == len(side_effects)
+    else:
+        assert mock_firefox.call_count == len(side_effects)
 
-    # If we got a driver back, ensure .get(url) was called exactly once
+    # .get/url and return value
     if expected_driver_get_calls:
         mock_driver.get.assert_called_once_with(url)
         assert result is mock_driver
     else:
         assert result is None
 
-    # On permanent failure, we should NOT execv, but call restart_handler(None)
+    # restart_handler only on permanent failure
     if expect_restart:
         mock_restart_handler.assert_called_once_with(driver=None)
     else:
         mock_restart_handler.assert_not_called()
 
-    # Ensure we still log intermediate errors on each Exception
-    error_count = sum(isinstance(e, Exception) for e in chrome_side_effects)
-    assert mock_log_error.call_count >= (error_count - (1 if not expect_restart else 0))
+    # log_error count
+    error_count = sum(isinstance(e, Exception) for e in side_effects)
+    min_errors = error_count - (1 if expect_restart else 0)
+    assert mock_log_error.call_count >= min_errors
 # -------------------------------------------------------------------------
 # Tests for browser_restart_handler
 # -------------------------------------------------------------------------
