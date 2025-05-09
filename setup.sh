@@ -97,17 +97,19 @@ else
     exit 1
 fi
 # -------------------------------------------------------------------
-# 5. Verify Chrome/Chromium and ChromeDriver
+# 5. Verify Google Chrome, Chromium, or Firefox
 # -------------------------------------------------------------------
-if ! command -v google-chrome-stable &> /dev/null; then
-    if ! command -v chromium &> /dev/null; then
-        echo -e "${RED}Chrome/Chromium not found! Install manually:"
-        echo -e "  sudo apt install -y chromium${NC}"
-    else
-        echo -e "${GREEN}✓ Chromium is installed${NC}"
-    fi
-else
+if   command -v google-chrome-stable &> /dev/null; then
     echo -e "${GREEN}✓ Google Chrome is installed${NC}"
+elif command -v chromium        &> /dev/null; then
+    echo -e "${GREEN}✓ Chromium is installed${NC}"
+elif command -v firefox         &> /dev/null; then
+    echo -e "${GREEN}✓ Firefox is installed${NC}"
+else
+    echo -e "${RED}No supported browser found! Install one of:${NC}"
+    echo -e "${YELLOW}    sudo apt install -y google-chrome-stable${NC}"
+    echo -e "${YELLOW}    sudo apt install -y chromium${NC}"
+    echo -e "${YELLOW}    sudo apt install -y firefox${NC}"
 fi
 # -------------------------------------------------------------------
 # 6: Rename .env.example to .env
