@@ -46,6 +46,8 @@ LOG_CONSOLE=True
 DEBUG_LOGGING=False
 # If True, errors will raise an Exception instead of an Error which makes them more verbose and traceable.
 ERROR_LOGGING=False
+# If True, errors will attempt to take a screenshot of the website after a failure.
+ERROR_PRTSCR=False
 # How many log files to keeps. It will keep the last 7 days of logs by default.
 LOG_DAYS=7
 # Interval of how often the script will log the status of the cameras, in minutes. 

@@ -253,6 +253,7 @@ LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
 LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
 DEBUG_LOGGING = config.getboolean('Logging', 'DEBUG_LOGGING', fallback=False)
 ERROR_LOGGING = config.getboolean('Logging', 'ERROR_LOGGING', fallback=False)
+ERROR_PRTSCR = config.getboolean('Logging', 'ERROR_PRTSCR', fallback=False)
 LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
 LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
 API = config.getboolean('API', 'USE_API', fallback=False)
@@ -317,11 +318,23 @@ configure_logging(
     log_days=LOG_DAYS,
     Debug_logging=DEBUG_LOGGING
 )
-def log_error(message, exception=None):
+def log_error(message, exception=None, driver=None):
     if ERROR_LOGGING and exception:
         logging.exception(message)  # Logs the message with the stacktrace
     else:
         logging.error(message)  # Logs the message without any exception
+    # Screenshot on error if driver is provided
+    if driver and ERROR_PRTSCR:
+        try:
+            check_driver(driver)
+            timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            screenshot_path = logs_dir / f"screenshot_{timestamp}.png"
+            driver.save_screenshot(str(screenshot_path))
+            logging.info(f"Saved screenshot to {screenshot_path}")
+        except (InvalidSessionIdException, WebDriverException) as e:
+            logging.warning(f"Could not take screenshot: WebDriver not alive ({e})")
+        except Exception as e:
+            logging.warning(f"Unexpected error taking screenshot: {e}")
 # -------------------------------------------------------------------
 # API setup
 # -------------------------------------------------------------------
@@ -776,7 +789,7 @@ def browser_restart_handler(url):
             time.sleep(WAIT_TIME)
         return driver
     except Exception as e:
-        log_error(f"Error while killing {BROWSER} processes: ", e)
+        log_error(f"Error while killing {BROWSER} processes: ", e, driver)
         api_status(f"Error Killing {BROWSER}")
         raise
 def restart_scheduler(driver):
@@ -815,7 +828,7 @@ def restart_handler(driver):
         )
         sys.exit(0)
     except Exception as e:
-        log_error("Error during restart process:", e)
+        log_error("Error during restart process:", e, driver)
         api_status("Error Restarting, exiting...")
         clear_sst()
         sys.exit(1)
@@ -849,12 +862,12 @@ def check_for_title(driver, title=None):
             logging.info(f"Loaded page: '{title}'")
             api_status(f"Loaded page: '{title}'")
         return True
-    except TimeoutException:
+    except TimeoutException as e:
         if title is None:
-            log_error("Timed out waiting for the page title to not be empty.")
+            log_error("Timed out waiting for the page title to not be empty.", e, driver)
             api_status("Paged Timed Out")
         else:
-            log_error(f"Timed out waiting for the title '{title}' to load.")
+            log_error(f"Timed out waiting for the title '{title}' to load.", e, driver)
             api_status(f"Timed Out Waiting for Title '{title}'")
         return False
     except WebDriverException:
@@ -862,7 +875,7 @@ def check_for_title(driver, title=None):
         api_status("Tab Crashed")
         return False
     except Exception as e:
-        log_error(f"Error while waiting for title '{title}': ", e)
+        log_error(f"Error while waiting for title '{title}': ", e, driver)
         api_status(f"Error Waiting for Title '{title}'")
         return False
 def check_unable_to_stream(driver):
@@ -879,7 +892,7 @@ def check_unable_to_stream(driver):
         api_status("Tab Crashed")
         return False
     except Exception as e:
-        log_error("Error while checking for 'Unable to Stream' message: ", e)
+        log_error("Error while checking for 'Unable to Stream' message: ", e, driver)
         api_status("Error Checking Unable to Stream")
         return False
 # -------------------------------------------------------------------
@@ -925,7 +938,7 @@ def handle_loading_issue(driver):
             has_loading = bool(loading_elems)
         except Exception as e:
             # If something goes wrong inspecting the page, treat as “no loading” 
-            log_error("Error checking loading dots: ", e)
+            log_error("Error checking loading dots: ", e, driver)
             has_loading = False
             raise
         if has_loading:
@@ -934,14 +947,14 @@ def handle_loading_issue(driver):
                 trouble_loading_start_time = time.time()
             # If it’s been persisting 15 s or more, handle refresh
             elif time.time() - trouble_loading_start_time >= 15:
-                log_error("Video feed trouble persisting for 15 seconds, refreshing the page.")
+                log_error("Video feed trouble persisting for 15 seconds, refreshing the page.", e=None, driver=driver)
                 api_status("Loading Issue Detected")
                 driver.refresh()
                 time.sleep(5)  # let it load
 
                 # Validate after refresh
                 if not handle_page(driver):
-                    log_error("Unexpected page loaded after refresh. Waiting before retrying...")
+                    log_error("Unexpected page loaded after refresh. Waiting before retrying...", e=None, driver=driver)
                     api_status("Error Reloading")
                     time.sleep(SLEEP_TIME)
                     return
@@ -973,7 +986,7 @@ def handle_fullscreen_button(driver):
         api_status("Fullscreen Activated")
         return True
     except Exception as e:
-        log_error("Error while clicking the fullscreen button: ", e)
+        log_error("Error while clicking the fullscreen button: ", e, driver)
         api_status("Error Clicking Fullscreen")
         return False
 def handle_login(driver):
@@ -1003,7 +1016,7 @@ def handle_login(driver):
         # Verify successful login
         return check_for_title(driver, "Dashboard")
     except Exception as e: 
-        log_error("Error during login: ", e)
+        log_error("Error during login: ", e, driver)
         api_status("Error Logging In")
         return False
 def handle_page(driver):
@@ -1022,7 +1035,7 @@ def handle_page(driver):
             if not handle_login(driver):
                 return False
         elif time.time() - start_time > WAIT_TIME * 2:  # If timeout limit is reached
-            log_error("Unexpected page loaded. The page title is: " + driver.title)
+            log_error("Unexpected page loaded. The page title is: " + driver.title, e=None, driver=driver)
             api_status(f"Error Loading Page {driver.title}")
             return False
         time.sleep(3)
@@ -1062,7 +1075,7 @@ def handle_retry(driver, url, attempt, max_retries):
             api_status("Tab Crashed")
             driver = browser_restart_handler(url)
         except Exception as e:
-            log_error("Error while handling retry logic: ", e)
+            log_error("Error while handling retry logic: ", e, driver)
             api_status("Error refreshing")
     if attempt == max_retries - 1:
         driver = browser_restart_handler(url)
@@ -1095,7 +1108,7 @@ def handle_view(driver, url):
     if handle_page(driver):
         logging.info(f"Checking health of page every {SLEEP_TIME} seconds...")
     else:
-        log_error("Error loading the live view. Restarting the program.")
+        log_error("Error loading the live view. Restarting the program.", e=None, driver=driver)
         api_status("Error Loading Live View. Restarting...")
         restart_handler(driver)
     while True:
@@ -1114,7 +1127,7 @@ def handle_view(driver, url):
                     retry_count += 1
                     handle_retry(driver, url, retry_count, max_retries)
                 if check_crash(driver):
-                    log_error(f"Tab Crashed. Restarting {BROWSER}...", e)
+                    log_error(f"Tab Crashed. Restarting {BROWSER}...", e, driver)
                     api_status("Tab Crashed")
                     driver = browser_restart_handler(url)
                     continue
@@ -1148,14 +1161,14 @@ def handle_view(driver, url):
             api_status("Restarting Program")
             restart_handler(driver)
         except (TimeoutException, NoSuchElementException) as e:
-            log_error("Video feeds not found or page timed out.", e)
+            log_error("Video feeds not found or page timed out.", e, driver)
             api_status("Video Feeds Not Found")
             time.sleep(WAIT_TIME)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
         except NewConnectionError as e:
-            log_error("Connection error occurred. Retrying...", e)
+            log_error("Connection error occurred. Retrying...", e, driver)
             api_status("Connection Error")
             time.sleep(SLEEP_TIME/2)
             retry_count += 1
@@ -1166,7 +1179,7 @@ def handle_view(driver, url):
             api_status("Tab Crashed")
             driver = browser_restart_handler(url)
         except Exception as e:
-            log_error("Unexpected error occurred: ", e)
+            log_error("Unexpected error occurred: ", e, driver)
             api_status("Unexpected Error")
             time.sleep(WAIT_TIME)
             retry_count += 1
