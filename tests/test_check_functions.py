@@ -139,10 +139,11 @@ def test_check_for_title(mock_driver, mock_common, side_effect, title, expected_
     assert result is expected_result
 
     if expected_log_error:
-        mock_common["log_error"].assert_called_with(expected_log_error)
+        args, _ = mock_common["log_error"].call_args
+        assert args[0] == expected_log_error
     else:
         mock_common["log_error"].assert_not_called()
-
+        
     if expected_api_status:
         mock_common["api_status"].assert_called_with(expected_api_status)
     else:

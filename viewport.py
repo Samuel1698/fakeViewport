@@ -802,7 +802,7 @@ def browser_restart_handler(url):
             time.sleep(WAIT_TIME)
         return driver
     except Exception as e:
-        log_error(f"Error while killing {BROWSER} processes: ", e, driver)
+        log_error(f"Error while killing {BROWSER} processes: ", e)
         api_status(f"Error Killing {BROWSER}")
         raise
 def restart_scheduler(driver):

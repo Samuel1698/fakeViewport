@@ -4,5 +4,5 @@
 
     [x] Basic functionality
     [x] Delete old screenshots if more than LOG_DAYS old
-    [ ] Modify tests to account for new behavior
+    [x] Modify tests to account for new behavior
     [ ] Test screenshot funcionality
