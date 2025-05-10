@@ -20,19 +20,26 @@ from dotenv import load_dotenv
 # -------------------------------------------------------------------
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
-viewport_version = "2.1.6"
+viewport_version = "2.1.7"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
 # Directory and file paths
 script_dir = Path(__file__).resolve().parent
+# Config
 config_file = Path.cwd() / 'config.ini'
 if not config_file.exists():
     logging.error("Missing config.ini file. Run ./setup.sh")
     sys.exit(1)
+# .env
 env_dir = script_dir / '.env'
+if not env_dir.exists():
+    logging.error("Missing .env file.")
+    sys.exit(1)
+# /logs/viewport.log
 logs_dir = script_dir / 'logs'
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
 log_file = logs_dir / 'viewport.log'
+# /api/sst.txt & /api/status.txt
 api_dir = script_dir / 'api'
 if not api_dir.exists():
     api_dir.mkdir(parents=True, exist_ok=True)
@@ -286,11 +293,8 @@ if "your-user" in BROWSER_PROFILE_PATH:
     logging.error(f"'your-user' in the config file should be replaced by {user}")
     sys.exit(1)
 # -------------------------------------------------------------------
-# .env variables validation
+# .env variables
 # -------------------------------------------------------------------
-if not env_dir.exists():
-    logging.error("Missing .env file.")
-    sys.exit(1)
 global username, password, url
 load_dotenv()
 username = os.getenv('USERNAME')
