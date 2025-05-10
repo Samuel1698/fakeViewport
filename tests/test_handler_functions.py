@@ -58,6 +58,118 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
     mock_api_status.assert_called_once_with("Stopped ")
     mock_exit.assert_called_once_with(0)
 # -------------------------------------------------------------------------
+# Tests for screenshot handler
+# -------------------------------------------------------------------------
+@pytest.mark.parametrize("file_ages_days, expected_deleted", [
+    ([10, 5, 1], ["screenshot_0.png", "screenshot_1.png"]),  # 10 and 5 days old, delete if cutoff is 2
+    ([1, 0.5], []),  # recent files, none deleted
+])
+def test_screenshot_handler(tmp_path, file_ages_days, expected_deleted, monkeypatch):
+    # Arrange
+    max_age_days = 2
+    now = time.time()
+
+    created_files = []
+    for i, age in enumerate(file_ages_days):
+        file = tmp_path / f"screenshot_{i}.png"
+        file.write_text("dummy")
+        os.utime(file, (now - age * 86400, now - age * 86400))
+        created_files.append(file)
+
+    mock_info = MagicMock()
+    mock_api_status = MagicMock()
+    mock_log_error = MagicMock()
+
+    monkeypatch.setattr(logging, "info", mock_info)
+    monkeypatch.setattr(viewport, "api_status", mock_api_status)
+    monkeypatch.setattr(viewport, "log_error", mock_log_error)
+
+    # Act
+    viewport.screenshot_handler(tmp_path, max_age_days)
+
+    # Assert
+    deleted_names = [f.name for f in created_files if not f.exists()]
+    assert sorted(deleted_names) == sorted(expected_deleted)
+    assert mock_info.call_count == len(expected_deleted)
+    assert mock_api_status.call_count == len(expected_deleted)
+    mock_log_error.assert_not_called() 
+def test_screenshot_handler_unlink_raises(tmp_path, monkeypatch):
+    import time
+    from pathlib import Path
+
+    # Arrange
+    file = tmp_path / "screenshot_fail.png"
+    file.write_text("dummy")
+    os.utime(file, (time.time() - 10 * 86400, time.time() - 10 * 86400))  # definitely old
+
+    mock_info = MagicMock()
+    mock_api_status = MagicMock()
+    mock_log_error = MagicMock()
+
+    class BadFile:
+        def __init__(self, path):
+            self._path = path
+            self.name = path.name
+        def stat(self):
+            return type('stat', (), {'st_mtime': time.time() - 10 * 86400})()
+        def unlink(self):
+            raise OSError("unlink failed")
+
+    monkeypatch.setattr(logging, "info", mock_info)
+    monkeypatch.setattr(viewport, "api_status", mock_api_status)
+    monkeypatch.setattr(viewport, "log_error", mock_log_error)
+    monkeypatch.setattr(Path, "glob", lambda self, pattern: [BadFile(file)] if pattern == "screenshot_*.png" else [])
+
+    # Act
+    viewport.screenshot_handler(tmp_path, max_age_days=2)
+
+    # Assert
+    mock_info.assert_not_called()
+    mock_api_status.assert_not_called()
+    mock_log_error.assert_called_once()
+    assert "unlink failed" in str(mock_log_error.call_args[0][1])
+# -------------------------------------------------------------------------
+# Test for usage_handler
+# -------------------------------------------------------------------------
+@patch("viewport.psutil.process_iter")
+def test_usage_handler_sums_matching_procs(mock_process_iter):
+    # Arrange
+    p1 = _make_proc(1, ["python", "target_app.py"])
+    p2 = _make_proc(2, ["other_process", "target_app", "--debug"])
+    p3 = _make_proc(3, ["bash", "-c", "something"], name="not_relevant")
+
+    # Add cpu_percent and memory_info behavior
+    for proc in [p1, p2]:
+        proc.cpu_percent.return_value = 7.5
+        proc.memory_info.return_value = MagicMock(rss=200000)
+
+    p3.cpu_percent.return_value = 1.0
+    p3.memory_info.return_value = MagicMock(rss=50000)
+
+    mock_process_iter.return_value = [p1, p2, p3]
+
+    # Act
+    cpu, mem = viewport.usage_handler("target")
+
+    # Assert
+    assert cpu == 15.0  # 7.5 + 7.5
+    assert mem == 400000  # 200k + 200k
+@patch("viewport.psutil.process_iter")
+def test_usage_handler_ignores_exceptions(mock_process_iter):
+    # One matching proc, one that raises
+    p1 = _make_proc(1, ["target_app"])
+    p1.cpu_percent.return_value = 10.0
+    p1.memory_info.return_value = MagicMock(rss=100000)
+
+    broken = _make_proc(2, ["target_app"])
+    broken.cpu_percent.side_effect = Exception("denied")
+
+    mock_process_iter.return_value = [p1, broken]
+
+    cpu, mem = viewport.usage_handler("target")
+    assert cpu == 10.0
+    assert mem == 100000
+# -------------------------------------------------------------------------
 # Test for Status Handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize(
@@ -601,6 +713,107 @@ def test_browser_restart_handler(
     # log_error only on exception paths
     assert mock_log_error.called == should_log_err
 # -------------------------------------------------------------------------
+# Tests for restart_scheduler
+# -------------------------------------------------------------------------
+def test_restart_scheduler_triggers_api_and_restart(monkeypatch):
+    # 1) Fix "now" at 2025-05-08 12:00:00
+    fixed_now = datetime(2025, 5, 8, 12, 0, 0)
+
+    # Create a subclass so we can override now(), but inherit combine()/time() etc.
+    class DummyDateTime(datetime):
+        @classmethod
+        def now(cls):
+            return fixed_now
+
+    # 2) Patch in our DummyDateTime and a single RESTART_TIME at 12:00:10
+    monkeypatch.setattr(viewport, 'datetime', DummyDateTime)
+    monkeypatch.setattr(viewport, 'RESTART_TIMES', [dt_time(12, 0, 10)])
+
+    # 3) Capture the sleep duration
+    sleep_calls = []
+    monkeypatch.setattr(viewport.time, 'sleep', lambda secs: sleep_calls.append(secs))
+
+    # 4) Capture api_status calls
+    api_calls = []
+    monkeypatch.setattr(viewport, 'api_status', lambda msg: api_calls.append(msg))
+
+    # 5) Stub restart_handler to record the driver and then raise to break the loop
+    restart_calls = []
+    def fake_restart(driver):
+        restart_calls.append(driver)
+        raise StopIteration
+    monkeypatch.setattr(viewport, 'restart_handler', fake_restart)
+
+    dummy_driver = object()
+
+    # Act: we expect StopIteration to bubble out after one iteration
+    with pytest.raises(StopIteration):
+        viewport.restart_scheduler(dummy_driver)
+
+    # Compute what the wait _should_ have been:
+    #   next_run = today at 12:00:10 → wait = 10 seconds
+    expected_wait = (fixed_now.replace(hour=12, minute=0, second=10) - fixed_now).total_seconds()
+
+    # === Assertions ===
+    # A) We slept exactly the right amount
+    assert sleep_calls == [expected_wait]
+
+    # B) api_status was called once with the scheduled‐restart time
+    assert len(api_calls) == 1
+    assert api_calls[0] == f"Scheduled restart at {dt_time(12, 0, 10)}"
+
+    # C) restart_handler was called with our dummy driver
+    assert restart_calls == [dummy_driver]
+def test_restart_scheduler_no_times(monkeypatch):
+    # Arrange: no restart times configured
+    monkeypatch.setattr(viewport, 'RESTART_TIMES', [])
+
+    # Any of these being called would mean we didn't return early
+    monkeypatch.setattr(viewport, 'api_status',                lambda msg: pytest.fail("api_status should NOT be called"))
+    monkeypatch.setattr(viewport, 'restart_handler',           lambda drv: pytest.fail("restart_handler should NOT be called"))
+    monkeypatch.setattr(viewport.time,   'sleep',              lambda secs: pytest.fail("time.sleep should NOT be called"))
+
+    # Act & Assert: should return None and not raise
+    result = viewport.restart_scheduler(driver="dummy")
+    assert result is None
+def test_restart_thread_terminates_on_system_exit(monkeypatch):
+    # 1) Fix "now" at 2025-05-08 12:00:00
+    fixed_now = datetime(2025, 5, 8, 12, 0, 0)
+    class DummyDateTime(datetime):
+        @classmethod
+        def now(cls):
+            return fixed_now
+
+    # 2) Patch datetime and give us a single restart 10s in the future
+    monkeypatch.setattr(viewport, 'datetime', DummyDateTime)
+    monkeypatch.setattr(viewport, 'RESTART_TIMES', [dt_time(12, 0, 10)])
+
+    # 3) Don’t actually sleep
+    monkeypatch.setattr(viewport.time, 'sleep', lambda secs: None)
+
+    # 4) Capture api_status so we know that happened
+    api_msgs = []
+    monkeypatch.setattr(viewport, 'api_status', lambda msg: api_msgs.append(msg))
+
+    # 5) Make restart_handler simulate killing the thread via sys.exit(0)
+    def fake_restart(driver):
+        fake_restart.called = True
+        raise SystemExit(0)
+    fake_restart.called = False
+    monkeypatch.setattr(viewport, 'restart_handler', fake_restart)
+
+    # 6) Now when we call restart_scheduler, it should raise SystemExit(0)
+    with pytest.raises(SystemExit) as exc:
+        viewport.restart_scheduler(driver="DUMMY")
+
+    # === Assertions ===
+    assert exc.value.code == 0, "Thread should exit with code 0"
+    assert fake_restart.called, "restart_handler must have been called"
+    # And we also got our api_status before the exit
+    assert api_msgs and api_msgs[0].startswith("Scheduled restart"), \
+           "api_status should have been invoked before the exit"
+           
+# -------------------------------------------------------------------------
 # Tests for restart_handler
 # -------------------------------------------------------------------------
 @pytest.mark.parametrize("initial_argv, driver_present, expected_flags", [
@@ -661,181 +874,3 @@ def test_restart_handler(
 
     # Assert: parent exits with code 0
     mock_exit.assert_called_once_with(0)
-
-# -------------------------------------------------------------------------
-# Tests for restart_scheduler
-# -------------------------------------------------------------------------
-def test_restart_scheduler_triggers_api_and_restart(monkeypatch):
-    # 1) Fix "now" at 2025-05-08 12:00:00
-    fixed_now = datetime(2025, 5, 8, 12, 0, 0)
-
-    # Create a subclass so we can override now(), but inherit combine()/time() etc.
-    class DummyDateTime(datetime):
-        @classmethod
-        def now(cls):
-            return fixed_now
-
-    # 2) Patch in our DummyDateTime and a single RESTART_TIME at 12:00:10
-    monkeypatch.setattr(viewport, 'datetime', DummyDateTime)
-    monkeypatch.setattr(viewport, 'RESTART_TIMES', [dt_time(12, 0, 10)])
-
-    # 3) Capture the sleep duration
-    sleep_calls = []
-    monkeypatch.setattr(viewport.time, 'sleep', lambda secs: sleep_calls.append(secs))
-
-    # 4) Capture api_status calls
-    api_calls = []
-    monkeypatch.setattr(viewport, 'api_status', lambda msg: api_calls.append(msg))
-
-    # 5) Stub restart_handler to record the driver and then raise to break the loop
-    restart_calls = []
-    def fake_restart(driver):
-        restart_calls.append(driver)
-        raise StopIteration
-    monkeypatch.setattr(viewport, 'restart_handler', fake_restart)
-
-    dummy_driver = object()
-
-    # Act: we expect StopIteration to bubble out after one iteration
-    with pytest.raises(StopIteration):
-        viewport.restart_scheduler(dummy_driver)
-
-    # Compute what the wait _should_ have been:
-    #   next_run = today at 12:00:10 → wait = 10 seconds
-    expected_wait = (fixed_now.replace(hour=12, minute=0, second=10) - fixed_now).total_seconds()
-
-    # === Assertions ===
-    # A) We slept exactly the right amount
-    assert sleep_calls == [expected_wait]
-
-    # B) api_status was called once with the scheduled‐restart time
-    assert len(api_calls) == 1
-    assert api_calls[0] == f"Scheduled restart at {dt_time(12, 0, 10)}"
-
-    # C) restart_handler was called with our dummy driver
-    assert restart_calls == [dummy_driver]
-
-def test_restart_scheduler_no_times(monkeypatch):
-    # Arrange: no restart times configured
-    monkeypatch.setattr(viewport, 'RESTART_TIMES', [])
-
-    # Any of these being called would mean we didn't return early
-    monkeypatch.setattr(viewport, 'api_status',                lambda msg: pytest.fail("api_status should NOT be called"))
-    monkeypatch.setattr(viewport, 'restart_handler',           lambda drv: pytest.fail("restart_handler should NOT be called"))
-    monkeypatch.setattr(viewport.time,   'sleep',              lambda secs: pytest.fail("time.sleep should NOT be called"))
-
-    # Act & Assert: should return None and not raise
-    result = viewport.restart_scheduler(driver="dummy")
-    assert result is None
-
-
-def test_restart_thread_terminates_on_system_exit(monkeypatch):
-    # 1) Fix "now" at 2025-05-08 12:00:00
-    fixed_now = datetime(2025, 5, 8, 12, 0, 0)
-    class DummyDateTime(datetime):
-        @classmethod
-        def now(cls):
-            return fixed_now
-
-    # 2) Patch datetime and give us a single restart 10s in the future
-    monkeypatch.setattr(viewport, 'datetime', DummyDateTime)
-    monkeypatch.setattr(viewport, 'RESTART_TIMES', [dt_time(12, 0, 10)])
-
-    # 3) Don’t actually sleep
-    monkeypatch.setattr(viewport.time, 'sleep', lambda secs: None)
-
-    # 4) Capture api_status so we know that happened
-    api_msgs = []
-    monkeypatch.setattr(viewport, 'api_status', lambda msg: api_msgs.append(msg))
-
-    # 5) Make restart_handler simulate killing the thread via sys.exit(0)
-    def fake_restart(driver):
-        fake_restart.called = True
-        raise SystemExit(0)
-    fake_restart.called = False
-    monkeypatch.setattr(viewport, 'restart_handler', fake_restart)
-
-    # 6) Now when we call restart_scheduler, it should raise SystemExit(0)
-    with pytest.raises(SystemExit) as exc:
-        viewport.restart_scheduler(driver="DUMMY")
-
-    # === Assertions ===
-    assert exc.value.code == 0, "Thread should exit with code 0"
-    assert fake_restart.called, "restart_handler must have been called"
-    # And we also got our api_status before the exit
-    assert api_msgs and api_msgs[0].startswith("Scheduled restart"), \
-           "api_status should have been invoked before the exit"
-           
-# -------------------------------------------------------------------------
-# Tests for screenshot handler
-# -------------------------------------------------------------------------
-@pytest.mark.parametrize("file_ages_days, expected_deleted", [
-    ([10, 5, 1], ["screenshot_0.png", "screenshot_1.png"]),  # 10 and 5 days old, delete if cutoff is 2
-    ([1, 0.5], []),  # recent files, none deleted
-])
-def test_screenshot_handler(tmp_path, file_ages_days, expected_deleted, monkeypatch):
-    # Arrange
-    max_age_days = 2
-    now = time.time()
-
-    created_files = []
-    for i, age in enumerate(file_ages_days):
-        file = tmp_path / f"screenshot_{i}.png"
-        file.write_text("dummy")
-        os.utime(file, (now - age * 86400, now - age * 86400))
-        created_files.append(file)
-
-    mock_info = MagicMock()
-    mock_api_status = MagicMock()
-    mock_log_error = MagicMock()
-
-    monkeypatch.setattr(logging, "info", mock_info)
-    monkeypatch.setattr(viewport, "api_status", mock_api_status)
-    monkeypatch.setattr(viewport, "log_error", mock_log_error)
-
-    # Act
-    viewport.screenshot_handler(tmp_path, max_age_days)
-
-    # Assert
-    deleted_names = [f.name for f in created_files if not f.exists()]
-    assert sorted(deleted_names) == sorted(expected_deleted)
-    assert mock_info.call_count == len(expected_deleted)
-    assert mock_api_status.call_count == len(expected_deleted)
-    mock_log_error.assert_not_called()
-    
-
-def test_screenshot_handler_unlink_raises(tmp_path, monkeypatch):
-    import time
-    from pathlib import Path
-
-    # Arrange
-    file = tmp_path / "screenshot_fail.png"
-    file.write_text("dummy")
-    os.utime(file, (time.time() - 10 * 86400, time.time() - 10 * 86400))  # definitely old
-
-    mock_info = MagicMock()
-    mock_api_status = MagicMock()
-    mock_log_error = MagicMock()
-
-    class BadFile:
-        def __init__(self, path):
-            self._path = path
-            self.name = path.name
-        def stat(self):
-            return type('stat', (), {'st_mtime': time.time() - 10 * 86400})()
-        def unlink(self):
-            raise OSError("unlink failed")
-
-    monkeypatch.setattr(logging, "info", mock_info)
-    monkeypatch.setattr(viewport, "api_status", mock_api_status)
-    monkeypatch.setattr(viewport, "log_error", mock_log_error)
-    monkeypatch.setattr(Path, "glob", lambda self, pattern: [BadFile(file)] if pattern == "screenshot_*.png" else [])
-
-    # Act
-    viewport.screenshot_handler(tmp_path, max_age_days=2)
-
-    # Assert
-    mock_info.assert_not_called()
-    mock_api_status.assert_not_called()
-    mock_log_error.assert_called_once()
-    assert "unlink failed" in str(mock_log_error.call_args[0][1])
