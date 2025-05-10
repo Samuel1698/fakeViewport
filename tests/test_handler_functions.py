@@ -131,29 +131,67 @@ def test_screenshot_handler_unlink_raises(tmp_path, monkeypatch):
 # -------------------------------------------------------------------------
 # Test for usage_handler
 # -------------------------------------------------------------------------
-@patch("viewport.psutil.process_iter")
-def test_usage_handler_sums_matching_procs(mock_process_iter):
-    # Arrange
-    p1 = _make_proc(1, ["python", "target_app.py"])
-    p2 = _make_proc(2, ["other_process", "target_app", "--debug"])
-    p3 = _make_proc(3, ["bash", "-c", "something"], name="not_relevant")
+# ---------------------------------------------------------------------
+# Test usage_handler sums CPU and memory for matching processes
+# ---------------------------------------------------------------------
+def test_usage_handler(monkeypatch):
+    # Helper for fake memory info
+    class FakeMem:
+        def __init__(self, rss): self.rss = rss
 
-    # Add cpu_percent and memory_info behavior
-    for proc in [p1, p2]:
-        proc.cpu_percent.return_value = 7.5
-        proc.memory_info.return_value = MagicMock(rss=200000)
+    # Fake Proc object
+    class FakeProc:
+        def __init__(self, pid, name, cmdline, cpu, mem):
+            self.info    = {"pid": pid, "name": name, "cmdline": cmdline}
+            self._cpu    = cpu
+            self._mem    = mem
+        def cpu_percent(self, interval):
+            return self._cpu
+        def memory_info(self):
+            return FakeMem(self._mem)
 
-    p3.cpu_percent.return_value = 1.0
-    p3.memory_info.return_value = MagicMock(rss=50000)
+    test_cases = [
+        # match_str,                                      procs,                              expected_cpu, expected_mem
+        (
+            "viewport",
+            [
+                FakeProc(1, "viewport.py",    None,                  cpu=3.0, mem=1000),
+                FakeProc(2, None,             ["python", "viewport"],cpu=2.0, mem=2000),
+                FakeProc(3, "other.py",       None,                  cpu=5.0, mem=3000),
+            ],
+            5.0, 3000
+        ),
+        (
+            "chrome",
+            [
+                FakeProc(1, "chrome",          None,              cpu=1.0, mem=100),
+                FakeProc(2, None,             ["chromedriver"],   cpu=2.0, mem=200),
+                FakeProc(3, "unrelated",       None,              cpu=9.0, mem=900),
+            ],
+            3.0, 300
+        ),
+        (
+            "chromium",
+            [
+                FakeProc(1, "chromium",          None,             cpu=1.0, mem=100),
+                FakeProc(2, None,             ["chromiumdriver"],  cpu=2.0, mem=200),
+                FakeProc(3, "unrelated",       None,               cpu=9.0, mem=900),
+            ],
+            3.0, 300
+        ),
+    ]
 
-    mock_process_iter.return_value = [p1, p2, p3]
+    for match_str, procs, exp_cpu, exp_mem in test_cases:
+        # patch process_iter to return our fake procs
+        monkeypatch.setattr(
+            viewport.psutil, "process_iter",
+            lambda attrs: procs
+        )
 
-    # Act
-    cpu, mem = viewport.usage_handler("target")
+        total_cpu, total_mem = viewport.usage_handler(match_str)
 
-    # Assert
-    assert cpu == 15.0  # 7.5 + 7.5
-    assert mem == 400000  # 200k + 200k
+        assert total_cpu == pytest.approx(exp_cpu), f"{match_str!r} CPU sum"
+        assert total_mem == exp_mem,              f"{match_str!r} memory sum"
 @patch("viewport.psutil.process_iter")
 def test_usage_handler_ignores_exceptions(mock_process_iter):
     # One matching proc, one that raises

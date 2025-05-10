@@ -36,7 +36,6 @@ def test_handle_elements_executes_both_scripts():
     script2, arg2 = driver.execute_script.call_args_list[1][0]
     assert "hidePlayerOptionsStyle" in script2
     assert arg2 == "player-options-class"
-
 # -----------------------------------------------------------------------------
 # Tests for handle_loading_issue function
 # -----------------------------------------------------------------------------
@@ -93,8 +92,7 @@ def test_handle_loading_issue_no_persistence(
 
     mock_log_error.assert_not_called()
     driver.refresh.assert_not_called()
-# -----------------------------------------------------------------------------
-# Test that an inspection error in handle_loading_issue is not swallowed but re-raised
+
 @patch("viewport.log_error")
 @patch("viewport.time.sleep", return_value=None)
 def test_handle_loading_issue_inspection_error_raises(mock_sleep, mock_log_error):

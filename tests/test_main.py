@@ -141,7 +141,73 @@ def test_main_skip_when_not_continue(
     mock_process.assert_not_called()
     mock_chrome.assert_not_called()
     mock_thread.assert_not_called()
+# -----------------------------------------------------------------------------
+# Test log_error function
+# -----------------------------------------------------------------------------
+@patch("viewport.logging")
+@patch("viewport.screenshot_handler")
+@patch("viewport.check_driver")
+@patch("viewport.api_status")
+@patch("viewport.logs_dir", Path("/mock/logs"))
+@patch("viewport.LOG_DAYS", 7)
+def test_log_error_exception_logged(mock_api, mock_check, mock_sh, mock_log, *_):
+    with patch("viewport.ERROR_LOGGING", True), patch("viewport.ERROR_PRTSCR", False):
+        viewport.log_error("Something broke", exception=ValueError("fail"))
+        mock_log.exception.assert_called_once_with("Something broke")
+        mock_log.error.assert_not_called()
+        mock_sh.assert_not_called()
+        mock_api.assert_not_called()
 
+@patch("viewport.logging")
+@patch("viewport.screenshot_handler")
+@patch("viewport.check_driver")
+@patch("viewport.api_status")
+@patch("viewport.logs_dir", Path("/mock/logs"))
+@patch("viewport.LOG_DAYS", 7)
+def test_log_error_without_exception(mock_api, mock_check, mock_sh, mock_log, *_):
+    with patch("viewport.ERROR_LOGGING", True), patch("viewport.ERROR_PRTSCR", False):
+        viewport.log_error("Basic error")
+        mock_log.error.assert_called_once_with("Basic error")
+        mock_log.exception.assert_not_called()
+        mock_sh.assert_not_called()
+        mock_api.assert_not_called()
+
+@patch("viewport.logging")
+@patch("viewport.screenshot_handler")
+@patch("viewport.check_driver")
+@patch("viewport.api_status")
+@patch("viewport.logs_dir", Path("/mock/logs"))
+@patch("viewport.LOG_DAYS", 7)
+def test_log_error_with_driver_success(mock_api, mock_check, mock_sh, mock_log, *_):
+    mock_driver = MagicMock()
+    with patch("viewport.ERROR_LOGGING", False), patch("viewport.ERROR_PRTSCR", True), patch("viewport.datetime") as mock_dt:
+        mock_dt.now.return_value = datetime(2025, 5, 10, 12, 0, 0)
+        viewport.log_error("driver fail", driver=mock_driver)
+
+        # Screenshot handler and check_driver called
+        mock_sh.assert_called_once()
+        mock_check.assert_called_once_with(mock_driver)
+
+        # Screenshot path should match expected format
+        mock_driver.save_screenshot.assert_called_once_with("/mock/logs/screenshot_2025-05-10_12-00-00.png")
+        mock_log.info.assert_called_once()
+        mock_api.assert_called_once_with("Saved error screenshot.")
+
+@patch("viewport.logging")
+@patch("viewport.screenshot_handler")
+@patch("viewport.check_driver")
+@patch("viewport.api_status")
+@patch("viewport.logs_dir", Path("/mock/logs"))
+@patch("viewport.LOG_DAYS", 7)
+def test_log_error_screenshot_webdriver_exception(mock_api, mock_check, mock_sh, mock_log, *_):
+    # Setup mock driver and raise WebDriverException
+    mock_driver = MagicMock()
+    from selenium.common.exceptions import WebDriverException
+    with patch("viewport.ERROR_LOGGING", False), patch("viewport.ERROR_PRTSCR", True):
+        mock_driver.save_screenshot.side_effect = WebDriverException("chrome died")
+        viewport.log_error("error with driver", driver=mock_driver)
+
+        mock_log.warning.assert_called_with("Could not take screenshot: WebDriver not alive (Message: chrome died\n)")
 # -----------------------------------------------------------------------------
 # Test api_status function
 # -----------------------------------------------------------------------------
@@ -235,7 +301,6 @@ def test_args_handler_flag_sst(mock_exit, mock_proc, flag, pre, should_clear, tm
     else:
         assert content == pre
 
-
 # -------------------------------------------------------------------------
 # 2) main(): initial / crash / normal cases for writing SST
 @pytest.mark.parametrize(
@@ -279,7 +344,6 @@ def test_main_sst_write_logic(mock_thread, mock_chrome, mock_args, pre, other_ru
         # untouched
         assert sst.read_text() == pre
 
-
 # -------------------------------------------------------------------------
 # 3) simulate SIGTERM (signal_handler): clears SST, then main() writes again
 @patch("viewport.sys.exit")
@@ -303,7 +367,6 @@ def test_sigterm_clears_and_next_main_writes(mock_exit, tmp_path, monkeypatch):
     # d) call main again
     viewport.main()
     assert sst.read_text().strip() != ""
-
 
 # -------------------------------------------------------------------------
 # 4) simulate a true crash (no SIGTERM cleanup): prefilled SST + no process => main rewrites
