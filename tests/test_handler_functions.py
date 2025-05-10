@@ -10,13 +10,13 @@ import pytest
 import os
 from io import StringIO
 from datetime import datetime, time as dt_time
+import time 
 from webdriver_manager.core.os_manager import ChromeType
 import viewport
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
 import signal
 import subprocess
-print("Viewport module:", viewport.__file__)
 # helper to build a fake psutil.Process‐like object
 def _make_proc(pid, cmdline, uids=None, name=None):
     if isinstance(cmdline, str):
@@ -765,3 +765,77 @@ def test_restart_thread_terminates_on_system_exit(monkeypatch):
     # And we also got our api_status before the exit
     assert api_msgs and api_msgs[0].startswith("Scheduled restart"), \
            "api_status should have been invoked before the exit"
+           
+# -------------------------------------------------------------------------
+# Tests for screenshot handler
+# -------------------------------------------------------------------------
+@pytest.mark.parametrize("file_ages_days, expected_deleted", [
+    ([10, 5, 1], ["screenshot_0.png", "screenshot_1.png"]),  # 10 and 5 days old, delete if cutoff is 2
+    ([1, 0.5], []),  # recent files, none deleted
+])
+def test_screenshot_handler(tmp_path, file_ages_days, expected_deleted, monkeypatch):
+    # Arrange
+    max_age_days = 2
+    now = time.time()
+
+    created_files = []
+    for i, age in enumerate(file_ages_days):
+        file = tmp_path / f"screenshot_{i}.png"
+        file.write_text("dummy")
+        os.utime(file, (now - age * 86400, now - age * 86400))
+        created_files.append(file)
+
+    mock_info = MagicMock()
+    mock_api_status = MagicMock()
+    mock_log_error = MagicMock()
+
+    monkeypatch.setattr(logging, "info", mock_info)
+    monkeypatch.setattr(viewport, "api_status", mock_api_status)
+    monkeypatch.setattr(viewport, "log_error", mock_log_error)
+
+    # Act
+    viewport.screenshot_handler(tmp_path, max_age_days)
+
+    # Assert
+    deleted_names = [f.name for f in created_files if not f.exists()]
+    assert sorted(deleted_names) == sorted(expected_deleted)
+    assert mock_info.call_count == len(expected_deleted)
+    assert mock_api_status.call_count == len(expected_deleted)
+    mock_log_error.assert_not_called()
+    
+
+def test_screenshot_handler_unlink_raises(tmp_path, monkeypatch):
+    import time
+    from pathlib import Path
+
+    # Arrange
+    file = tmp_path / "screenshot_fail.png"
+    file.write_text("dummy")
+    os.utime(file, (time.time() - 10 * 86400, time.time() - 10 * 86400))  # definitely old
+
+    mock_info = MagicMock()
+    mock_api_status = MagicMock()
+    mock_log_error = MagicMock()
+
+    class BadFile:
+        def __init__(self, path):
+            self._path = path
+            self.name = path.name
+        def stat(self):
+            return type('stat', (), {'st_mtime': time.time() - 10 * 86400})()
+        def unlink(self):
+            raise OSError("unlink failed")
+
+    monkeypatch.setattr(logging, "info", mock_info)
+    monkeypatch.setattr(viewport, "api_status", mock_api_status)
+    monkeypatch.setattr(viewport, "log_error", mock_log_error)
+    monkeypatch.setattr(Path, "glob", lambda self, pattern: [BadFile(file)] if pattern == "screenshot_*.png" else [])
+
+    # Act
+    viewport.screenshot_handler(tmp_path, max_age_days=2)
+
+    # Assert
+    mock_info.assert_not_called()
+    mock_api_status.assert_not_called()
+    mock_log_error.assert_called_once()
+    assert "unlink failed" in str(mock_log_error.call_args[0][1])
