@@ -325,12 +325,14 @@ def log_error(message, exception=None, driver=None):
         logging.error(message)  # Logs the message without any exception
     # Screenshot on error if driver is provided
     if driver and ERROR_PRTSCR:
+        screenshot_handler(logs_dir, LOG_DAYS)
         try:
             check_driver(driver)
             timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
             screenshot_path = logs_dir / f"screenshot_{timestamp}.png"
             driver.save_screenshot(str(screenshot_path))
             logging.info(f"Saved screenshot to {screenshot_path}")
+            api_status("Saved error screenshot.")
         except (InvalidSessionIdException, WebDriverException) as e:
             logging.warning(f"Could not take screenshot: WebDriver not alive ({e})")
         except Exception as e:
@@ -430,6 +432,17 @@ def get_next_interval(interval_seconds, now=None):
 # -------------------------------------------------------------------
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
+def screenshot_handler(logs_dir, max_age_days):
+    #Deletes screenshot files in logs_dir older than max_age_days.
+    cutoff = time.time() - (max_age_days * 86400)  # 86400 seconds in a day
+    for file in logs_dir.glob("screenshot_*.png"):
+        try:
+            if file.stat().st_mtime < cutoff:
+                file.unlink()
+                logging.info(f"Deleted old screenshot: {file.name}")
+                api_status("Deleted old screenshot.")
+        except Exception as e:
+            log_error(f"Failed to delete screenshot {file.name}: ", e)
 def usage_handler(match_str):
     # Sum CPU & RSS for processes whose name or cmdline contains match_str.
     # Returns (total_cpu, total_mem_bytes).
