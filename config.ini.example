@@ -14,7 +14,10 @@ WAIT_TIME=30
 MAX_RETRIES=3
 # Comma-separated list of 24h times (HH:MM) when the script should automatically restart
 # I noticed that chrome seems to crash consistently after being loaded for ~14 hours, so 12 hour interval should be plenty
-# This is not strictly needed since the script will restart itself if it notices an error, this is more of a failsafe for convenience and in case the error-handling breaks in the future. Might also be helpful to prevent the worst-case scenario where the tab crashes just *after* the script checked it's own health, leading to up to SLEEP_TIME of downtime before the script notices it's broken.
+# This is not strictly needed since the script will restart itself if it notices an error.
+# This is more of a failsafe for convenience and in case the error-handling breaks in the future. 
+# Might also be helpful to prevent the worst-case scenario where the tab crashes just *after* the script checked it's own health,
+# leading to up to SLEEP_TIME of downtime before the script notices it's broken.
 # RESTART_TIMES=11:00, 23:00 
 [Browser]
 # Chrome/Chromium profile directory found by navigating to chrome://version/ and copying the "Profile Path"
@@ -49,6 +52,7 @@ ERROR_LOGGING=False
 # If True, errors will attempt to take a screenshot of the website after a failure.
 ERROR_PRTSCR=False
 # How many log files to keeps. It will keep the last 7 days of logs by default.
+# This number will also determine how old to keep screenshots of errors if using that funcionality.
 LOG_DAYS=7
 # Interval of how often the script will log the status of the cameras, in minutes. 
 # You should see "Feed Healthy" if everything is working once every 60 minutes by default.
