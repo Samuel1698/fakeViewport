@@ -368,7 +368,7 @@ def signal_handler(signum, frame, driver=None):
 signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, driver))
 signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
 # -------------------------------------------------------------------
-# Helper Functions for installing packages and handling processes
+# Helper functions for getting information
 # -------------------------------------------------------------------
 def get_cpu_color(name, pct):
     # viewport.py & monitoring.py thresholds
@@ -403,6 +403,20 @@ def get_next_restart(now):
             run_dt += timedelta(days=1)
         next_runs.append(run_dt)
     return min(next_runs)
+def get_next_interval(interval_seconds, now=None):
+    # Calculates the next whole interval based on the current time
+    # Seconds until next interval would for a time of 10:51 and interval of 5 minutes, calculate
+    # 300 - (51*60 + 0) mod 300 = 240 seconds until next interval
+    # Which would be 10:55
+    now = now or datetime.now()
+    seconds_until_next_interval = interval_seconds - (now.minute * 60 + now.second) % interval_seconds
+    if seconds_until_next_interval <= 30:
+        seconds_until_next_interval += interval_seconds
+    next_interval = now + timedelta(seconds=seconds_until_next_interval)
+    return next_interval.timestamp()
+# -------------------------------------------------------------------
+# Helper Functions for installing packages and handling processes
+# -------------------------------------------------------------------
 def usage_handler(match_str):
     # Sum CPU & RSS for processes whose name or cmdline contains match_str.
     # Returns (total_cpu, total_mem_bytes).
@@ -499,7 +513,7 @@ def status_handler():
         # helper to format bytes→GB
         fmt_mem = lambda b: f"{b/(1024**3):.1f}GB"
         # next health-check countdown
-        next_ts = check_next_interval(SLEEP_TIME)
+        next_ts = get_next_interval(SLEEP_TIME)
         secs = int(next_ts - time.time())
         hrs, rem = divmod(secs, 3600)
         mins, sc = divmod(rem, 60)
@@ -821,17 +835,6 @@ def check_driver(driver):
         return True
     except (WebDriverException, InvalidSessionIdException, Exception):
         raise
-def check_next_interval(interval_seconds, now=None):
-    # Calculates the next whole interval based on the current time
-    # Seconds until next interval would for a time of 10:51 and interval of 5 minutes, calculate
-    # 300 - (51*60 + 0) mod 300 = 240 seconds until next interval
-    # Which would be 10:55
-    now = now or datetime.now()
-    seconds_until_next_interval = interval_seconds - (now.minute * 60 + now.second) % interval_seconds
-    if seconds_until_next_interval <= 30:
-        seconds_until_next_interval += interval_seconds
-    next_interval = now + timedelta(seconds=seconds_until_next_interval)
-    return next_interval.timestamp()
 def check_for_title(driver, title=None):
     # Waits for the title of the page to contain a specific string
     # If the title is not found within the specified time, it logs an error and returns false.
@@ -1137,7 +1140,7 @@ def handle_view(driver, url):
                     iteration_counter = 0  # Reset the counter
                 # Calculate the time to sleep until the next health check
                 # Based on the difference between the current time and the next health check time
-                sleep_duration = max(0, check_next_interval(SLEEP_TIME) - time.time())
+                sleep_duration = max(0, get_next_interval(SLEEP_TIME) - time.time())
                 time.sleep(sleep_duration)
                 iteration_counter += 1
         except InvalidSessionIdException as e:

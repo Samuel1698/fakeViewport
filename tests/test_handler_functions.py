@@ -113,7 +113,7 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
     ]
 )
 @patch("viewport.time.time", return_value=0)
-@patch("viewport.check_next_interval", return_value=60)
+@patch("viewport.get_next_interval", return_value=60)
 @patch("viewport.psutil.virtual_memory")
 @patch("viewport.psutil.process_iter", return_value=[])
 @patch("viewport.process_handler")
@@ -125,7 +125,7 @@ def test_status_handler_various(
     mock_process_handler,
     mock_process_iter,
     mock_virtual_memory,
-    mock_check_next_interval,
+    mock_get_next_interval,
     mock_time_time,
     sst_exists,
     status_exists,

@@ -396,7 +396,7 @@ def test_handle_view_initial_load_failure(
 # -----------------------------------------------------------------------------
 # Healthy‐path iteration
 @patch("viewport.time.sleep", side_effect=BreakLoop)
-@patch("viewport.check_next_interval", return_value=time.time())
+@patch("viewport.get_next_interval", return_value=time.time())
 @patch("viewport.check_unable_to_stream", return_value=False)
 @patch("viewport.api_status")
 @patch("viewport.handle_elements")
@@ -554,7 +554,7 @@ def test_handle_view_video_feeds_healthy_logging(
 @patch("viewport.logging.warning")
 @patch("viewport.api_status")
 @patch("viewport.time.sleep", side_effect=BreakLoop)                       # break out after first sleep
-@patch("viewport.check_next_interval", return_value=time.time())
+@patch("viewport.get_next_interval", return_value=time.time())
 @patch("viewport.check_unable_to_stream", return_value=True)               # simulate decoding error
 @patch("viewport.handle_elements")
 @patch("viewport.handle_loading_issue")

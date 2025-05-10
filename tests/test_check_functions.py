@@ -96,7 +96,7 @@ def test_check_driver(mock_driver, title_value, side_effect, expected_exception)
     else:
         assert viewport.check_driver(mock_driver) is True
 # ---------------------------------------------------------------------
-# Test: check_next_interval
+# Test: get_next_interval
 # ---------------------------------------------------------------------
 @pytest.mark.parametrize(
     "interval_seconds, now, expected",
@@ -108,8 +108,8 @@ def test_check_driver(mock_driver, title_value, side_effect, expected_exception)
         (60,  datetime(2025, 1, 1, 10, 59, 59), datetime(2025, 1, 1, 11, 1, 0)),
     ]
 )
-def test_check_next_interval(interval_seconds, now, expected):
-    result = viewport.check_next_interval(interval_seconds, now=now)
+def test_get_next_interval(interval_seconds, now, expected):
+    result = viewport.get_next_interval(interval_seconds, now=now)
     assert datetime.fromtimestamp(result) == expected
 
 # ---------------------------------------------------------------------
