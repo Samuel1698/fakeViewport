@@ -14,7 +14,7 @@ from logging.handlers import TimedRotatingFileHandler
 from logging_config import configure_logging
 from pathlib import Path
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 # -------------------------------------------------------------------
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
@@ -24,34 +24,18 @@ viewport_version = "2.1.7"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
 # Directory and file paths
 script_dir = Path(__file__).resolve().parent
-# Config
 config_file = Path.cwd() / 'config.ini'
-if not config_file.exists():
-    logging.error("Missing config.ini file. Run ./setup.sh")
-    sys.exit(1)
-# .env
-env_dir = script_dir / '.env'
-if not env_dir.exists():
-    logging.error("Missing .env file.")
-    sys.exit(1)
-# /logs/viewport.log
+env_file = script_dir / '.env'
 logs_dir = script_dir / 'logs'
-if not logs_dir.exists():
-    logs_dir.mkdir(parents=True, exist_ok=True)
-log_file = logs_dir / 'viewport.log'
-# /api/sst.txt & /api/status.txt
 api_dir = script_dir / 'api'
-if not api_dir.exists():
-    api_dir.mkdir(parents=True, exist_ok=True)
-sst_file = api_dir / 'sst.txt'
-status_file = api_dir / 'status.txt'
+# Colors
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
 CYAN = "\033[36m"
 NC="\033[0m"
 # -------------------------------------------------------------------
-# Argument Handlers
+# Argument Handlers & Config safe wrapper
 # -------------------------------------------------------------------
 def args_helper():
     # Parse command-line arguments for the script.
@@ -91,6 +75,12 @@ def args_helper():
         metavar="n",
         dest="logs",
         help="Display the last n lines from the log file (default: 5)."
+    )
+    group.add_argument(
+        "-d", "--diagnose",
+        action="store_true",
+        dest="diagnose",
+        help="Checks validity of your config and env files."
     )
     group.add_argument(
         "-a", "--api",
@@ -182,6 +172,11 @@ def args_handler(args):
         process_handler(BROWSER, action="kill")
         clear_sst()
         sys.exit(0)
+    if args.diagnose:
+        logging.info("Checking validity of config.ini and .env variables...")
+        if validate_config(strict=False, print=True):
+            logging.info("No errors found.")       
+        sys.exit(0)
     if args.api:
         if process_handler("monitoring.py", action="check"):
             logging.info("Stopping the API...")
@@ -237,77 +232,145 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
                 child.extend([f"--{dest}", str(override)])
     return child
 # -------------------------------------------------------------------
-# Config file initialization
-# -------------------------------------------------------------------
-config = configparser.ConfigParser()
-config.read(config_file)
-user = getpass.getuser()
-default_profile_path = f"/home/{user}/.config/google-chrome/"
-WAIT_TIME = int(config.get('General', 'WAIT_TIME', fallback=30))
-MAX_RETRIES = int(config.get('General', 'MAX_RETRIES', fallback=5))
-BROWSER_PROFILE_PATH = config.get('Browser', 'BROWSER_PROFILE_PATH', fallback=default_profile_path).strip()
-BROWSER_BINARY = config.get('Browser', 'BROWSER_BINARY', fallback='/usr/bin/google-chrome-stable').strip()
-HEADLESS = config.getboolean('Browser', 'HEADLESS', fallback=False)
-SLEEP_TIME = int(config.get('General', 'SLEEP_TIME', fallback=300))
-LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
-LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
-DEBUG_LOGGING = config.getboolean('Logging', 'DEBUG_LOGGING', fallback=False)
-ERROR_LOGGING = config.getboolean('Logging', 'ERROR_LOGGING', fallback=False)
-ERROR_PRTSCR = config.getboolean('Logging', 'ERROR_PRTSCR', fallback=False)
-LOG_DAYS = int(config.getint('Logging', 'LOG_DAYS', fallback=7))
-LOG_INTERVAL = int(config.getint('Logging', 'LOG_INTERVAL', fallback=60))
-API = config.getboolean('API', 'USE_API', fallback=False)
-TIMES = config.get('General', 'RESTART_TIMES', fallback='')
-RESTART_TIMES = []
-BROWSER = (
-    "firefox"   if "firefox"   in BROWSER_BINARY.lower() else
-    "chromium"  if "chromium"  in BROWSER_BINARY.lower() else
-    "chrome"
-)
-# -------------------------------------------------------------------
 # Config variables validation
 # -------------------------------------------------------------------
-for part in TIMES.split(','):
-    part = part.strip()
-    if part:
+def validate_config(
+    strict=True,
+    print=False, 
+    config_file=config_file, 
+    env_file=env_file, 
+    logs_dir=logs_dir, 
+    api_dir=api_dir
+    ):
+    errors = []
+    global SLEEP_TIME, WAIT_TIME, MAX_RETRIES, RESTART_TIMES
+    global BROWSER_PROFILE_PATH, BROWSER_BINARY, HEADLESS, BROWSER
+    global LOG_FILE, LOG_CONSOLE, DEBUG_LOGGING, ERROR_LOGGING, ERROR_PRTSCR
+    global LOG_DAYS, LOG_INTERVAL, USE_API
+    global username, password, url, log_file, sst_file, status_file
+     
+    if not config_file.exists():
+        errors.append("Missing config.ini file.")
+    if not env_file.exists():
+        errors.append("Missing .env file.")
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_file = logs_dir / 'viewport.log'
+    api_dir.mkdir(parents=True, exist_ok=True)
+    sst_file = api_dir / 'sst.txt'
+    status_file = api_dir / 'status.txt'
+    
+    config = configparser.ConfigParser()
+    config.read(config_file)
+    user = getpass.getuser()
+    default_profile_path = f"/home/{user}/.config/google-chrome/"
+
+    def safe_get(section, key, fallback, parse_fn, type_name):
         try:
-            RESTART_TIMES.append(datetime.strptime(part, '%H:%M').time())
-        except ValueError:
-            logging.error(f"Bad RESTART_TIMES entry: {part!r} (must be HH:MM)")
+            raw = config.get(section, key, fallback=None)
+            if raw is None or str(raw).strip() == "":
+                return fallback  # Empty or missing is fine
+            return parse_fn(raw)
+        except Exception:
+            errors.append(f"{section}.{key} must be a valid {type_name}. Got: {raw!r}. Falling back to {fallback}.")
+            return fallback
+    def safe_getint(section, key, fallback):
+        return safe_get(section, key, fallback, int, "integer")
+    def safe_getbool(section, key, fallback):
+        return safe_get(section, key, fallback, config._convert_to_boolean, "boolean (true/false)")
+    def safe_getstr(section, key, fallback, forbidden_substrings=None):
+        value = config.get(section, key, fallback=fallback).strip()
+        if forbidden_substrings:
+            for bad in forbidden_substrings:
+                if bad in value:
+                    errors.append(f"{section}.{key} contains placeholder value {bad!r}.")
+                    return fallback
+        return value
+
+    WAIT_TIME = safe_getint("General", "WAIT_TIME", 30)
+    MAX_RETRIES = safe_getint("General", "MAX_RETRIES", 5)
+    LOG_DAYS = safe_getint("Logging", "LOG_DAYS", 7)
+    LOG_INTERVAL = safe_getint("Logging", "LOG_INTERVAL", 60)
+    SLEEP_TIME = safe_getint("General", "SLEEP_TIME", 300)
+
+    LOG_FILE = safe_getbool("Logging", "LOG_FILE", True)
+    LOG_CONSOLE = safe_getbool("Logging", "LOG_CONSOLE", True)
+    DEBUG_LOGGING = safe_getbool("Logging", "DEBUG_LOGGING", False)
+    ERROR_LOGGING = safe_getbool("Logging", "ERROR_LOGGING", False)
+    ERROR_PRTSCR = safe_getbool("Logging", "ERROR_PRTSCR", False)
+    API = safe_getbool("API", "USE_API", False)
+
+    BROWSER_BINARY = safe_getstr("Browser", "BROWSER_BINARY", fallback="/usr/bin/google-chrome")
+    BROWSER_PROFILE_PATH = safe_getstr("Browser", "BROWSER_PROFILE_PATH", fallback=default_profile_path, forbidden_substrings=["your-user"])
+    BROWSER = (
+        "firefox"   if "firefox"   in BROWSER_BINARY.lower() else
+        "chromium"  if "chromium"  in BROWSER_BINARY.lower() else
+        "chrome"
+    )
+    TIMES = config.get("General", "RESTART_TIMES", fallback="")
+    RESTART_TIMES = []
+    for part in TIMES.split(','):
+        part = part.strip()
+        if part:
+            try:
+                RESTART_TIMES.append(datetime.strptime(part, '%H:%M').time())
+            except ValueError:
+                errors.append(f"Invalid RESTART_TIME: {part!r} (expected HH:MM)")
+
+    # Value constraints
+    if SLEEP_TIME < 60:
+        errors.append("SLEEP_TIME must be ≥ 60.")
+    if WAIT_TIME <= 5:
+        errors.append("WAIT_TIME must be > 5.")
+    if MAX_RETRIES < 3:
+        errors.append("MAX_RETRIES must be ≥ 3.")
+    if LOG_DAYS < 1:
+        errors.append("LOG_DAYS must be ≥ 1.")
+    if LOG_INTERVAL < 1:
+        errors.append("LOG_INTERVAL must be ≥ 1.")
+    if BROWSER not in BROWSER_PROFILE_PATH.lower():
+        errors.append(f"Browser Mismatch: BROWSER_BINARY uses '{BROWSER}', "
+                      f"but BROWSER_PROFILE_PATH does not."
+                      )
+    # .env validation
+    load_dotenv(dotenv_path=env_file)
+    username = os.getenv('USERNAME')
+    password = os.getenv('PASSWORD')
+    url = os.getenv('URL')
+    ALLOWED_ENV_KEYS = {"USERNAME", "PASSWORD", "URL", "FLASK_RUN_HOST", "FLASK_RUN_PORT", "SECRET"}
+    env = dotenv_values(env_file)
+    # 1. Check for invalid keys
+    invalid_keys = [key for key in env.keys() if key not in ALLOWED_ENV_KEYS]
+    for key in invalid_keys:
+        errors.append(f"Unexpected key in .env: {key!r}. Allowed keys are: {', '.join(sorted(ALLOWED_ENV_KEYS))}")
+
+    # 2. Check values only for keys that are present
+    if "USERNAME" in env and not env["USERNAME"].strip():
+        errors.append("USERNAME is present in .env but empty.")
+
+    if "PASSWORD" in env and not env["PASSWORD"].strip():
+        errors.append("PASSWORD is present in .env but empty.")
+
+    if "SECRET" in env and not env["SECRET"].strip():
+        errors.append("SECRET is present in .env but empty.")
+
+    # 3. Check URL specifically
+    EXAMPLE_URL = "http://192.168.100.100/protect/dashboard/multiviewurl"
+    if "URL" in env:
+        url_val = env["URL"].strip()
+        if not url_val:
+            errors.append("URL is present in .env but empty.")
+        elif url_val == EXAMPLE_URL:
+            errors.append("URL is still set to the example value. Please update it.")
+    # Report errors
+    if errors:
+        if strict:
             sys.exit(1)
-if SLEEP_TIME < 60:
-    logging.error("Invalid value for SLEEP_TIME. It should be at least 60 seconds.")
-    sys.exit(1)
-if WAIT_TIME <= 5:
-    logging.error("Invalid value for WAIT_TIME. It should be a positive integer greater than 5.")
-    sys.exit(1)
-if MAX_RETRIES < 3:
-    logging.error("Invalid value for MAX_RETRIES. It should be a positive integer greater than 3.")
-    sys.exit(1)
-if LOG_DAYS < 1:
-    logging.error("Invalid value for LOG_DAYS. It should be a positive integer greater than 0.")
-    sys.exit(1)
-if LOG_INTERVAL < 1:
-    logging.error("Invalid value for LOG_INTERVAL. It should be a positive integer greater than 0.")
-    sys.exit(1)
-if "your-user" in BROWSER_PROFILE_PATH:
-    logging.error(f"'your-user' in the config file should be replaced by {user}")
-    sys.exit(1)
-# -------------------------------------------------------------------
-# .env variables
-# -------------------------------------------------------------------
-global username, password, url
-load_dotenv()
-username = os.getenv('USERNAME')
-password = os.getenv('PASSWORD')
-url = os.getenv('URL')
-EXAMPLE_URL = "http://192.168.100.100/protect/dashboard/multiviewurl"
-if url == EXAMPLE_URL:
-    logging.error("The URL in the .env file is still set to the example value. Please update it to your actual URL.")
-    sys.exit(1)
-if not url:
-    logging.error("No URL detected. Please make sure you have a .env file in the same directory as this script.")
-    sys.exit(1)
+        if print:
+            for e in errors:
+                logging.error(e)
+        return False
+    return True
+validate_config(strict=False)
 # -------------------------------------------------------------------
 # Logging setup
 # -------------------------------------------------------------------
@@ -1203,6 +1266,7 @@ def handle_view(driver, url):
 def main():
     if args_handler(args) != "continue":
         return
+    validate_config(strict=True)
     logging.info(f"===== Fake Viewport {viewport_version} =====")
     if API: api_handler()
     api_status("Starting...")
