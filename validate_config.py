@@ -2,6 +2,7 @@ import sys
 import os
 import ipaddress
 import configparser
+import logging
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, time
@@ -22,7 +23,7 @@ class AppConfig:
     HEADLESS: bool
     BROWSER: str
     # Logging
-    LOG_FILE: bool
+    LOG_FILE_FLAG: bool
     LOG_CONSOLE: bool
     DEBUG_LOGGING: bool
     ERROR_LOGGING: bool
@@ -43,7 +44,8 @@ class AppConfig:
     log_file: Path
     sst_file: Path
     status_file: Path
-
+    # Return
+    state: bool
 
 def check_files(config_file: Path, env_file: Path, errors: list[str]):
     if not config_file.exists():
@@ -110,7 +112,11 @@ def validate_env(env_file: Path, errors: list[str]) -> tuple[str, str, str, str,
     # Presence checks
     for key in ["USERNAME", "PASSWORD", "URL"]:
         if key not in values or not values[key].strip():
-            errors.append(f"{key} is present but empty or missing.")
+            errors.append(f"{key} is empty or missing.")
+    # Default checks
+    for key in ["USERNAME", "PASSWORD", "URL"]:
+        if values[key].strip() in ["YourLocalUsername", "YourLocalPassword", "http://192.168.100.100/protect/dashboard/multiviewurl"]:
+          errors.append(f"{key} is still set to the example value. Please update it.")
     return (
         os.getenv('USERNAME', ''),
         os.getenv('PASSWORD', ''),
@@ -120,10 +126,6 @@ def validate_env(env_file: Path, errors: list[str]) -> tuple[str, str, str, str,
     )
 
 def validate_url(url_val: str, errors: list[str]):
-    example = "http://192.168.100.100/protect/dashboard/multiviewurl"
-    if url_val == example:
-        errors.append("URL is still set to the example value. Please update it.")
-        return
     parsed = urlparse(url_val)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         errors.append(f"URL must start with http:// or https:// and include a host, got: '{url_val}'")
@@ -162,7 +164,7 @@ def validate_config(
     prepare_directories(logs_dir, api_dir)
 
     # Paths
-    mon_file = log_dir / 'monitoring.log'
+    mon_file = logs_dir / 'monitoring.log'
     log_file = logs_dir / 'viewport.log'
     sst_file = api_dir / 'sst.txt'
     status_file = api_dir / 'status.txt'
@@ -192,7 +194,7 @@ def validate_config(
         errors.append(f"Browser mismatch: binary uses '{browser}', but profile path does not.")
 
     # Logging section
-    log_file_flag = safe_getbool(config, 'Logging', 'LOG_FILE', True, errors)
+    log_file_flag = safe_getbool(config, 'Logging', 'LOG_FILE_FLAG', True, errors)
     log_console = safe_getbool(config, 'Logging', 'LOG_CONSOLE', True, errors)
     debug_logging = safe_getbool(config, 'Logging', 'DEBUG_LOGGING', False, errors)
     error_logging = safe_getbool(config, 'Logging', 'ERROR_LOGGING', False, errors)
@@ -229,15 +231,15 @@ def validate_config(
     if log_interval < 1:
         errors.append("LOG_INTERVAL must be ≥ 1.")
 
+    state = True
     # Report or return
     if errors:
         if strict:
             sys.exit(1)
         if print_errors:
             for e in errors:
-                print(e, file=sys.stderr)
-        return False
-
+                logging.error(e)
+        state = False
     return AppConfig(
         SLEEP_TIME=sleep_time,
         WAIT_TIME=wait_time,
@@ -247,7 +249,7 @@ def validate_config(
         BROWSER_BINARY=binary,
         HEADLESS=headless,
         BROWSER=browser,
-        LOG_FILE=log_file_flag,
+        LOG_FILE_FLAG=log_file_flag,
         LOG_CONSOLE=log_console,
         DEBUG_LOGGING=debug_logging,
         ERROR_LOGGING=error_logging,
@@ -264,5 +266,6 @@ def validate_config(
         mon_file=mon_file,
         log_file=log_file,
         sst_file=sst_file,
-        status_file=status_file
+        status_file=status_file,
+        state=state
     )
