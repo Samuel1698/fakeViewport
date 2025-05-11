@@ -251,7 +251,7 @@ def validate_config(
     global SLEEP_TIME, WAIT_TIME, MAX_RETRIES, RESTART_TIMES
     global BROWSER_PROFILE_PATH, BROWSER_BINARY, HEADLESS, BROWSER
     global LOG_FILE, LOG_CONSOLE, DEBUG_LOGGING, ERROR_LOGGING, ERROR_PRTSCR
-    global LOG_DAYS, LOG_INTERVAL, USE_API
+    global LOG_DAYS, LOG_INTERVAL, API
     global username, password, url, log_file, sst_file, status_file
      
     if not config_file.exists():
@@ -304,8 +304,9 @@ def validate_config(
     ERROR_PRTSCR = safe_getbool("Logging", "ERROR_PRTSCR", False)
     API = safe_getbool("API", "USE_API", False)
 
-    BROWSER_BINARY = safe_getstr("Browser", "BROWSER_BINARY", fallback="/usr/bin/google-chrome")
     BROWSER_PROFILE_PATH = safe_getstr("Browser", "BROWSER_PROFILE_PATH", fallback=default_profile_path, forbidden_substrings=["your-user"])
+    BROWSER_BINARY = safe_getstr("Browser", "BROWSER_BINARY", fallback="/usr/bin/google-chrome")
+    HEADLESS = safe_getbool("Browser", "HEADLESS", fallback=False)
     BROWSER = (
         "firefox"   if "firefox"   in BROWSER_BINARY.lower() else
         "chromium"  if "chromium"  in BROWSER_BINARY.lower() else
