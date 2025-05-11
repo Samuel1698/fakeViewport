@@ -287,6 +287,7 @@ def test_args_handler_flag_sst(mock_exit, mock_proc, flag, pre, should_clear, tm
         logs=None,
         background = flag in ("-b", "--background") or flag.startswith("--b"),
         restart    = flag in ("-r", "--restart")    or flag.startswith("--r"),
+        diagnose   = flag in ("-d", "--diagnose"),
         quit       = flag in ("-q", "--quit"),
         api=False
     )

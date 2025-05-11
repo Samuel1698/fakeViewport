@@ -235,13 +235,18 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
 # Config variables validation
 # -------------------------------------------------------------------
 def validate_config(
-    strict=True,
-    print=False, 
-    config_file=config_file, 
-    env_file=env_file, 
-    logs_dir=logs_dir, 
-    api_dir=api_dir
-    ):
+    strict:  bool = True,
+    print:   bool = False,
+    config_file: Path | None = None,
+    env_file:    Path | None = None,
+    logs_dir:    Path | None = None,
+    api_dir:     Path | None = None,
+):
+    # pick up the module‐level paths if no override is given
+    config_file = config_file or globals()["config_file"]
+    env_file    = env_file    or globals()["env_file"]
+    logs_dir    = logs_dir    or globals()["logs_dir"]
+    api_dir     = api_dir     or globals()["api_dir"]
     errors = []
     global SLEEP_TIME, WAIT_TIME, MAX_RETRIES, RESTART_TIMES
     global BROWSER_PROFILE_PATH, BROWSER_BINARY, HEADLESS, BROWSER
