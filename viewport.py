@@ -11,6 +11,7 @@ import logging
 import subprocess
 import math
 import ipaddress
+from urllib.parse import urlparse
 from logging.handlers import TimedRotatingFileHandler
 from logging_config import configure_logging
 from pathlib import Path
@@ -363,18 +364,22 @@ def validate_config(
         errors.append("PASSWORD not present in .env")
     # 3. Check URL specifically
     EXAMPLE_URL = "http://192.168.100.100/protect/dashboard/multiviewurl"
-    if "URL" in env:
+    if "URL" not in env:
+        errors.append("URL not present in .env")
+    else:
         url_val = env["URL"].strip()
         if not url_val:
             errors.append("URL is present in .env but empty.")
         elif url_val == EXAMPLE_URL:
             errors.append("URL is still set to the example value. Please update it.")
-    if "URL" not in env:
-        errors.append("URL not present in .env")
+        else:
+            # Validate structure
+            parsed = urlparse(url_val)
+            if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                errors.append(f"URL must start with http:// or https:// and include a host, got: '{url_val}'")
     # 4. Check API related keys
     if "SECRET" in env and not env["SECRET"].strip():
-        errors.append("SECRET is present in .env but empty. Either remove it or generate a secret.")
-        
+        errors.append("SECRET is present in .env but empty.")
     if "FLASK_RUN_HOST" in env and not env["FLASK_RUN_HOST"].strip():
         errors.append("HOST is present in .env but empty.")
     if "FLASK_RUN_PORT" in env and not env["FLASK_RUN_PORT"].strip():
