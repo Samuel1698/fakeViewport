@@ -290,20 +290,12 @@ def validate_config(
                     errors.append(f"{section}.{key} contains placeholder value {bad!r}.")
                     return fallback
         return value
-
+    # General
+    SLEEP_TIME = safe_getint("General", "SLEEP_TIME", 300)
     WAIT_TIME = safe_getint("General", "WAIT_TIME", 30)
     MAX_RETRIES = safe_getint("General", "MAX_RETRIES", 5)
-    LOG_DAYS = safe_getint("Logging", "LOG_DAYS", 7)
-    LOG_INTERVAL = safe_getint("Logging", "LOG_INTERVAL", 60)
-    SLEEP_TIME = safe_getint("General", "SLEEP_TIME", 300)
-
-    LOG_FILE = safe_getbool("Logging", "LOG_FILE", True)
-    LOG_CONSOLE = safe_getbool("Logging", "LOG_CONSOLE", True)
-    DEBUG_LOGGING = safe_getbool("Logging", "DEBUG_LOGGING", False)
-    ERROR_LOGGING = safe_getbool("Logging", "ERROR_LOGGING", False)
-    ERROR_PRTSCR = safe_getbool("Logging", "ERROR_PRTSCR", False)
-    API = safe_getbool("API", "USE_API", False)
-
+    TIMES = config.get("General", "RESTART_TIMES", fallback="")
+    # Browser
     BROWSER_PROFILE_PATH = safe_getstr("Browser", "BROWSER_PROFILE_PATH", fallback=default_profile_path, forbidden_substrings=["your-user"])
     BROWSER_BINARY = safe_getstr("Browser", "BROWSER_BINARY", fallback="/usr/bin/google-chrome")
     HEADLESS = safe_getbool("Browser", "HEADLESS", fallback=False)
@@ -312,7 +304,17 @@ def validate_config(
         "chromium"  if "chromium"  in BROWSER_BINARY.lower() else
         "chrome"
     )
-    TIMES = config.get("General", "RESTART_TIMES", fallback="")
+    # Logging
+    LOG_FILE = safe_getbool("Logging", "LOG_FILE", True)
+    LOG_CONSOLE = safe_getbool("Logging", "LOG_CONSOLE", True)
+    DEBUG_LOGGING = safe_getbool("Logging", "DEBUG_LOGGING", False)
+    ERROR_LOGGING = safe_getbool("Logging", "ERROR_LOGGING", False)
+    ERROR_PRTSCR = safe_getbool("Logging", "ERROR_PRTSCR", False)
+    LOG_DAYS = safe_getint("Logging", "LOG_DAYS", 7)
+    LOG_INTERVAL = safe_getint("Logging", "LOG_INTERVAL", 60)
+    # Api
+    API = safe_getbool("API", "USE_API", False)
+    
     RESTART_TIMES = []
     for part in TIMES.split(','):
         part = part.strip()
