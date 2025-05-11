@@ -5,8 +5,6 @@ import re
 import signal
 import logging
 import logging.handlers
-# stub out the rotating‐file handler before viewport.py ever sees it
-logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
 
 from datetime import datetime
 from types import SimpleNamespace
@@ -21,6 +19,8 @@ def disable_external_side_effects(monkeypatch):
     monkeypatch.setattr(viewport.time, "sleep", lambda *args, **kwargs: None)
     # never actually fork a process
     monkeypatch.setattr(viewport.subprocess, "Popen", lambda *args, **kwargs: None)
+    # make main() think the config is always valid
+    monkeypatch.setattr(viewport, "validate_config", lambda *args, **kwargs: True)
 # -----------------------------------------------------------------------------
 # Test main function
 # -----------------------------------------------------------------------------

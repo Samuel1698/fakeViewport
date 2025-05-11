@@ -1,13 +1,7 @@
 import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-import logging
-import logging.handlers
-# stub out the rotating‐file handler before viewport.py ever sees it
-logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
-from unittest.mock import patch, mock_open
 import pytest
 import viewport
+from unittest.mock import patch, mock_open
 @pytest.fixture(autouse=True)
 def isolate_sst(tmp_path, monkeypatch):
     # redirect every test’s sst_file into tmp_path/…

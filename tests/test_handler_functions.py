@@ -1,18 +1,12 @@
 import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent.parent))
 import logging
-import logging.handlers
-# stub out the rotating‐file handler before viewport.py ever sees it
-logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
-
 import pytest
+import viewport
 import os
 from io import StringIO
 from datetime import datetime, time as dt_time
 import time 
 from webdriver_manager.core.os_manager import ChromeType
-import viewport
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
 import signal
@@ -566,7 +560,7 @@ def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.api_status")
 @patch("viewport.log_error")
-def test_browser_handler_extended(
+def test_browser_handler(
     mock_log_error,
     mock_api_status,
     mock_sleep,
@@ -614,8 +608,7 @@ def test_browser_handler_extended(
     # Assert kill calls
     assert mock_process_handler.call_count == expected_kill_calls
     mock_process_handler.assert_any_call(browser, action="kill")
-
-    # Assert constructor calls
+    # Assert instantiation attempts = number of retries
     if browser in ("chrome", "chromium"):
         assert mock_chrome.call_count == len(side_effects)
     else:
