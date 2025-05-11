@@ -10,6 +10,7 @@ import getpass
 import logging
 import subprocess
 import math
+import ipaddress
 from logging.handlers import TimedRotatingFileHandler
 from logging_config import configure_logging
 from pathlib import Path
@@ -354,13 +355,12 @@ def validate_config(
     # 2. Check values only for keys that are present
     if "USERNAME" in env and not env["USERNAME"].strip():
         errors.append("USERNAME is present in .env but empty.")
-
+    if "USERNAME" not in env:
+        errors.append("USERNAME not present in .env")
     if "PASSWORD" in env and not env["PASSWORD"].strip():
         errors.append("PASSWORD is present in .env but empty.")
-
-    if "SECRET" in env and not env["SECRET"].strip():
-        errors.append("SECRET is present in .env but empty.")
-
+    if "PASSWORD" not in env:
+        errors.append("PASSWORD not present in .env")
     # 3. Check URL specifically
     EXAMPLE_URL = "http://192.168.100.100/protect/dashboard/multiviewurl"
     if "URL" in env:
@@ -369,6 +369,34 @@ def validate_config(
             errors.append("URL is present in .env but empty.")
         elif url_val == EXAMPLE_URL:
             errors.append("URL is still set to the example value. Please update it.")
+    if "URL" not in env:
+        errors.append("URL not present in .env")
+    # 4. Check API related keys
+    if "SECRET" in env and not env["SECRET"].strip():
+        errors.append("SECRET is present in .env but empty. Either remove it or generate a secret.")
+        
+    if "FLASK_RUN_HOST" in env and not env["FLASK_RUN_HOST"].strip():
+        errors.append("HOST is present in .env but empty.")
+    if "FLASK_RUN_PORT" in env and not env["FLASK_RUN_PORT"].strip():
+        errors.append("PORT is present in .env but empty.")
+        
+    # Validate host is a proper IPv4 or IPv6 address
+    host = os.getenv("FLASK_RUN_HOST", "").strip()
+    if host:
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            errors.append(f"FLASK_RUN_HOST must be a valid IP address, got: '{host}'")
+
+    # Validate port is an integer between 1 and 65535
+    port = os.getenv("FLASK_RUN_PORT", "").strip()
+    if port:
+        if not port.isdigit():
+            errors.append(f"FLASK_RUN_PORT must be an integer, got: '{port}'")
+        else:
+            port_num = int(port)
+            if not (1 <= port_num <= 65535):
+                errors.append(f"FLASK_RUN_PORT must be 1-65535, got: {port_num}")
     # Report errors
     if errors:
         if strict:
