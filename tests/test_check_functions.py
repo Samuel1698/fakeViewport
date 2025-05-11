@@ -5,9 +5,9 @@ from datetime import datetime
 
 import viewport
 
-# ---------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Fixtures
-# ---------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.fixture
 def mock_driver():
     return MagicMock()
@@ -21,9 +21,9 @@ def mock_common(mocker):
         "logging": mocker.patch("viewport.logging"),
     }
     return patches
-# ---------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test: check_crash
-# ---------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "page_source, expected",
     [
@@ -56,9 +56,9 @@ def test_check_crash(page_source, expected):
 
     # Assert that check_crash returns the expected boolean
     assert viewport.check_crash(driver) is expected
-# ---------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test: check_driver should return True on success, otherwise raise
-# ---------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "title_value, side_effect, expected_exception",
     [
@@ -88,9 +88,9 @@ def test_check_driver(mock_driver, title_value, side_effect, expected_exception)
             viewport.check_driver(mock_driver)
     else:
         assert viewport.check_driver(mock_driver) is True
-# ---------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test: check_for_title
-# ---------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "side_effect, title, expected_result, expected_log_error, expected_api_status",
     [
@@ -137,9 +137,9 @@ def test_check_for_title_no_title_given(mock_driver, mock_common):
     mock_common["log_error"].assert_not_called()
     mock_common["api_status"].assert_not_called()
 
-# ---------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test: check_unable_to_stream
-# ---------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "script_result, side_effect, expected_result, expect_log_error, expect_api_status",
     [

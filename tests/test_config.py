@@ -76,18 +76,18 @@ def write_base(tmp_path, ini_overrides=None, env_overrides=None):
         env = "\n".join(f"{k}={v}" for k, v in updated.items()) + "\n"
     (tmp_path / ".env").write_text(env)
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 1) Strict‐mode smoke test
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def test_strict_mode_exits_on_any_error(tmp_path):
     mod = reload_in(tmp_path)
     with pytest.raises(SystemExit):
         mod.validate_config(strict=True)
 
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 2) INI edge‐cases in loose mode
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("ini_overrides,substr", [
     ({"WAIT_TIME":"notanint"},              "must be a valid integer"),
     ({"HEADLESS":"notabool"},               "must be a valid boolean"),
@@ -103,9 +103,9 @@ def test_invalid_ini_values_loose(mock_log, tmp_path, ini_overrides, substr):
     assert any(substr in call.args[0] for call in mock_log.call_args_list)
 
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 3) .env edge‐cases in loose mode
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("env_overrides,substr", [
     ({"URL":"//nohost"},         "URL must start with http:// or https://"),
     ({"URL":"ftp://example"},    "must start with http:// or https://"),
@@ -127,10 +127,9 @@ def test_invalid_env_values_loose(mock_log, tmp_path, monkeypatch, env_overrides
     assert ok is False
     assert any(substr in call.args[0] for call in mock_log.call_args_list)
 
-
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 4) Host/Port edge‐cases in loose mode
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("host,port,substr", [
     ("not_an_ip", "8080",   "FLASK_RUN_HOST must be a valid IP address"),
     ("127.0.0.1", "notnum", "must be an integer"),
@@ -145,6 +144,6 @@ def test_bad_host_port_loose(mock_log, tmp_path, monkeypatch, host, port, substr
     monkeypatch.setenv("FLASK_RUN_PORT", port)
 
     mod = reload_in(tmp_path)
-    ok = mod.validate_config(strict=False, print=True)
+    ok = mod.validate_config(strict=False, print=True, api=True)
     assert ok is False
     assert any(substr in call.args[0] for call in mock_log.call_args_list)

@@ -7,18 +7,18 @@ SCRIPT_PATH="$(pwd)/viewport.py"
 VENV_PYTHON="$(pwd)/venv/bin/python3"
 echo -e "${YELLOW}===== FakeViewport Setup =====${NC}"
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Helper: move $1 → $2 only if $2 doesn’t already exist (analogous to mv -n)
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 ss_mv_if_not_exists() {
     # ensure target directory exists
     command mkdir -p "$(dirname "$2")"
     # if target is missing, do the move
     command test ! -e "$2" && command mv "$1" "$2"
 }
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 1. Verify Python 3 is installed
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 if ! command -v python3 &> /dev/null; then
     echo -e "${RED}Python 3 not found! Installing...${NC}"
     sudo apt update && sudo apt install -y python3
@@ -26,9 +26,9 @@ else
     echo -e "${GREEN}✓ Python 3 is already installed${NC}"
 fi
 
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 2. Verify python3-venv is available
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 if ! python3 -c "import ensurepip; import venv" &> /dev/null; then
     echo -e "${RED}python3-venv not found! Installing...${NC}"
     sudo apt install -y python3-venv
@@ -36,9 +36,9 @@ else
     echo -e "${GREEN}✓ python3-venv is available${NC}"
 fi
 
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 3. Create virtual environment (if doesn't exist)
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 VENV_DIR="venv"
 if [ ! -d "$VENV_DIR" ]; then
     echo -e "${YELLOW}Creating virtual environment...${NC}"
@@ -47,9 +47,9 @@ if [ ! -d "$VENV_DIR" ]; then
 else
     echo -e "${GREEN}✓ Virtual environment already exists${NC}"
 fi
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 4. Install requirements
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 if [ "$1" == "dev" ]; then
     echo -e "${YELLOW}Development mode enabled. Using dev_requirements.txt.${NC}"
     REQUIREMENTS="dev_requirements.txt"
@@ -96,9 +96,9 @@ else
     echo -e "${RED}requirements.txt not found!${NC}"
     exit 1
 fi
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 5. Verify Google Chrome, Chromium, or Firefox
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 if   command -v google-chrome-stable &> /dev/null; then
     echo -e "${GREEN}✓ Google Chrome is installed${NC}"
 elif command -v chromium        &> /dev/null; then
@@ -111,9 +111,9 @@ else
     echo -e "${YELLOW}    sudo apt install -y chromium${NC}"
     echo -e "${YELLOW}    sudo apt install -y firefox${NC}"
 fi
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 6: Rename .env.example to .env
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 if [ -f ".env.example" ]; then
     if [ -f ".env" ]; then
         echo -e "${GREEN}✓ .env already exists. Skipping...${NC}"
@@ -133,9 +133,9 @@ elif [ ! -f ".env" ]; then
     echo -e "${RED}Either .env.example or .env must exist${NC}"
     exit 1
 fi
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 7: Rename config.ini.example to config.ini
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 if [ -f "config.ini.example" ]; then
     if [ -f "config.ini" ]; then
         echo -e "${GREEN}✓ config.ini already exists. Skipping...${NC}"
@@ -152,9 +152,9 @@ elif [ ! -f "config.ini" ]; then
     echo -e "${RED}Missing configuration file!${NC}"
     exit 1
 fi
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 8: Create Desktop Shortcut
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 if [[ -d "$HOME/Desktop" ]]; then
   SHORTCUT_DIR="$HOME/Desktop"
   SHORTCUT_PATH="$SHORTCUT_DIR/Viewport.desktop"
@@ -209,9 +209,9 @@ elif [[ -e "$SHORTCUT_DIR" ]]; then
     fi
   fi
 fi
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 9: Create an alias for running the script
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 ALIAS_NAME="viewport"
 CREATED_ALIAS=false
 # Check if the alias already exists in ~/.bashrc or ~/.zshrc
@@ -237,9 +237,9 @@ else
         CREATED_ALIAS=true
     fi
 fi
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Final Report
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 if [ "$INSTALL_SUCCESS" = false ]; then
     echo -e "\n${RED}SETUP INCOMPLETE - Some steps failed${NC}"
     echo -e "${YELLOW}Check the error messages above and try again.${NC}"

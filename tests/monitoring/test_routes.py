@@ -6,9 +6,9 @@ from pathlib import Path
 import monitoring
 from monitoring import create_app
 
-# ─────────────────────────────────────────────────────
+# ----------------------------------------------------------------------------- 
 # 1) Fake out datetime.now() for determinism
-# ─────────────────────────────────────────────────────
+# ----------------------------------------------------------------------------- 
 class DummyDateTime:
     @classmethod
     def now(cls):
@@ -34,24 +34,18 @@ def restart_times(request):
     # Provides the string value passed via @pytest.mark.parametrize(..., indirect=True)
     return getattr(request, 'param', '')
 
-# ─────────────────────────────────────────────────────
+# ----------------------------------------------------------------------------- 
 # 2) Helper to build a client with a given RESTART_TIMES string
-# ─────────────────────────────────────────────────────
+# ----------------------------------------------------------------------------- 
 @pytest.fixture
 def client(tmp_path, monkeypatch, restart_times):
-    # ─────────────────────────────────────────────────────
     # 1) Stub out all real logging
-    # ─────────────────────────────────────────────────────
     monkeypatch.setattr(monitoring, 'configure_logging', lambda *a, **k: None)
 
-    # ─────────────────────────────────────────────────────
     # 2) Force script_dir → tmp_path so all endpoints read/write there
-    # ─────────────────────────────────────────────────────
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
 
-    # ─────────────────────────────────────────────────────
     # 3) Fake psutil uptime & RAM
-    # ─────────────────────────────────────────────────────
     monkeypatch.setattr(monitoring.psutil, 'boot_time',    lambda: 1000)
     monkeypatch.setattr(monitoring.time,    'time',        lambda: 1010)
     class DummyVM:
@@ -73,16 +67,14 @@ def client(tmp_path, monkeypatch, restart_times):
     cfg_path = tmp_path / "config.ini"
     with cfg_path.open("w") as f:
         cfg.write(f)
-    # ─────────────────────────────────────────────────────
     # 5) Create & return the Flask test client
-    # ─────────────────────────────────────────────────────
     app = create_app(str(cfg_path))
     app.testing = True
     return app.test_client()
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/next_restart
-# -------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize('restart_times', [''], indirect=True)
 def test_no_restart_times(client):
     resp = client.get('/api/next_restart')
@@ -137,9 +129,9 @@ def test_multiple_times_choose_earliest(client):
 
     assert body['data']['next_restart'] == expected_dt
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api index
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_api_index_links(client):
     resp = client.get('/api')
     assert resp.status_code == 200
@@ -159,9 +151,9 @@ def test_api_index_links(client):
     for key, url in data.items():
         assert url.endswith(f'/api/{key}')
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/script_uptime
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_script_uptime_missing(client):
     resp = client.get('/api/script_uptime')
     assert resp.status_code == 404
@@ -210,9 +202,9 @@ def test_script_uptime_ok(client, tmp_path, monkeypatch):
     assert obj['status'] == 'ok'
     assert pytest.approx(obj['data']['script_uptime'], rel=1e-3) == 10
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/system_uptime
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_system_uptime_ok(client):
     resp = client.get('/api/system_uptime')
     assert resp.status_code == 200
@@ -228,9 +220,9 @@ def test_system_uptime_error(monkeypatch, client):
     assert obj['status'] == 'error'
     assert 'Could not determine system uptime' in obj['message']
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/ram
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_ram_endpoint(client):
     resp = client.get('/api/ram')
     assert resp.status_code == 200
@@ -239,9 +231,9 @@ def test_ram_endpoint(client):
     assert obj['data']['ram_used'] == 12345
     assert obj['data']['ram_total'] == 67890
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/health_interval
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_health_interval(client):
     resp = client.get('/api/health_interval')
     assert resp.status_code == 200
@@ -249,9 +241,9 @@ def test_health_interval(client):
     assert obj['status'] == 'ok'
     assert obj['data']['health_interval_sec'] == 300
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/log_interval
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_log_interval(client):
     resp = client.get('/api/log_interval')
     assert resp.status_code == 200
@@ -259,9 +251,9 @@ def test_log_interval(client):
     assert obj['status'] == 'ok'
     assert obj['data']['log_interval_min'] == 15
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/status (last status update)
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_status_missing(client):
     resp = client.get('/api/status')
     assert resp.status_code == 404
@@ -284,9 +276,9 @@ def test_status_ok(client, tmp_path, monkeypatch):
     assert obj['status'] == 'ok'
     assert obj['data']['status'] == 'All Good'
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/log_entry (last log line)
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_log_entry_missing(client, monkeypatch):
 
     # Patch Path.exists to always say the viewport.log doesn't exist
@@ -327,9 +319,9 @@ def test_log_entry_ok(client, monkeypatch):
     assert obj['status'] == 'ok'
     assert obj['data']['log_entry'] == 'third'
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/logs?limit
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_default_limit_returns_100_lines(client, tmp_path, monkeypatch):
     client_app = client
     # 1) point script_dir at tmp

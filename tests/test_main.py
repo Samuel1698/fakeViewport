@@ -21,9 +21,9 @@ def disable_external_side_effects(monkeypatch):
     monkeypatch.setattr(viewport.subprocess, "Popen", lambda *args, **kwargs: None)
     # make main() think the config is always valid
     monkeypatch.setattr(viewport, "validate_config", lambda *args, **kwargs: True)
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test main function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "sst_exists,sst_size,other_running,expected_kill,expected_write",
     [
@@ -140,9 +140,9 @@ def test_main_skip_when_not_continue(
     mock_process.assert_not_called()
     mock_chrome.assert_not_called()
     mock_thread.assert_not_called()
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test log_error function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @patch("viewport.logging")
 @patch("viewport.screenshot_handler")
 @patch("viewport.check_driver")
@@ -207,17 +207,17 @@ def test_log_error_screenshot_webdriver_exception(mock_api, mock_check, mock_sh,
         viewport.log_error("error with driver", driver=mock_driver)
 
         mock_log.warning.assert_called_with("Could not take screenshot: WebDriver not alive (Message: chrome died\n)")
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test api_status function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def test_api_status_writes(tmp_path, monkeypatch):
     status_file = tmp_path / "status.txt"
     monkeypatch.setattr(viewport, "status_file", status_file)
     viewport.api_status("OKAY")
     assert status_file.read_text() == "OKAY"
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test api_handler function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @patch("viewport.process_handler", return_value=False)
 @patch("viewport.subprocess.Popen")
 @patch("viewport.api_status")
@@ -248,11 +248,11 @@ def test_api_handler_already_running(mock_api_status, mock_popen, mock_proc):
     viewport.api_handler()
     mock_popen.assert_not_called()
     mock_api_status.assert_not_called()
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test Script Start Time File
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 1) args_handler: background/restart should leave SST alone; quit must clear it
 @pytest.mark.parametrize(
     "flag, pre, should_clear",
@@ -301,7 +301,7 @@ def test_args_handler_flag_sst(mock_exit, mock_proc, flag, pre, should_clear, tm
     else:
         assert content == pre
 
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 2) main(): initial / crash / normal cases for writing SST
 @pytest.mark.parametrize(
     "pre, other_running, expect_write",
@@ -344,7 +344,7 @@ def test_main_sst_write_logic(mock_thread, mock_chrome, mock_args, pre, other_ru
         # untouched
         assert sst.read_text() == pre
 
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 3) simulate SIGTERM (signal_handler): clears SST, then main() writes again
 @patch("viewport.sys.exit")
 def test_sigterm_clears_and_next_main_writes(mock_exit, tmp_path, monkeypatch):
@@ -368,7 +368,7 @@ def test_sigterm_clears_and_next_main_writes(mock_exit, tmp_path, monkeypatch):
     viewport.main()
     assert sst.read_text().strip() != ""
 
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # 4) simulate a true crash (no SIGTERM cleanup): prefilled SST + no process => main rewrites
 def test_crash_recovery_writes(tmp_path, monkeypatch):
     sst = tmp_path / "sst.txt"

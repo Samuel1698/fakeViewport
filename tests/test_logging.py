@@ -4,13 +4,16 @@ import pytest
 from logging.handlers import TimedRotatingFileHandler
 from logging_config import configure_logging, ColoredFormatter
 import sys
-# ─── Override conftest's autouse isolate_logging ─────────────────────────────
+# ----------------------------------------------------------------------------- 
+# Override conftest's autouse isolate_logging
+# ----------------------------------------------------------------------------- 
 @pytest.fixture(autouse=True)
 def isolate_logging_override():
     # no-op: prevents conftest.py from reconfiguring logging for these tests
     yield
-
-# ─── Clear root handlers before each test ────────────────────────────────────
+# ----------------------------------------------------------------------------- 
+# Clear root handlers before each test
+# ----------------------------------------------------------------------------- 
 @pytest.fixture(autouse=True)
 def clear_root_handlers():
     root = logging.getLogger()

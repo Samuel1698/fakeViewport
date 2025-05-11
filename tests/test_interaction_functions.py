@@ -8,9 +8,9 @@ from selenium.common.exceptions import TimeoutException, WebDriverException, Inv
 from urllib3.exceptions import NewConnectionError
 import viewport 
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test for handle_elements function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def test_handle_elements_executes_both_scripts():
     driver = MagicMock()
     viewport.CSS_CURSOR = "cursor-class"
@@ -29,9 +29,9 @@ def test_handle_elements_executes_both_scripts():
     script2, arg2 = driver.execute_script.call_args_list[1][0]
     assert "hidePlayerOptionsStyle" in script2
     assert arg2 == "player-options-class"
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Tests for handle_loading_issue function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @patch("viewport.WebDriverWait")
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.log_error")
@@ -106,9 +106,9 @@ def test_handle_loading_issue_inspection_error_raises(mock_sleep, mock_log_error
     # And the original exception should bubble out
     assert "boom" in str(excinfo.value)
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test for handle_fullscreen_button function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("throw_exc, expect_return, expect_error_msg, expect_api", [
     (None, True, None, "Fullscreen Activated"),
     (Exception("bad"), False, "Error while clicking the fullscreen button: ", "Error Clicking Fullscreen"),
@@ -161,9 +161,9 @@ def test_handle_fullscreen_button(
         mock_api_status.assert_called_with(expect_api)
         assert result is False
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Tests for handle_login function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("exc, expect_ret, expect_error_msg, expect_api", [
     (None, True, None, None),
     (Exception("oops"), False, "Error during login: ", "Error Logging In"),
@@ -210,9 +210,9 @@ def test_handle_login(
             mock_api_status.assert_called_with(expect_api)
             assert result is False
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Tests for handle_page function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @patch("viewport.handle_elements")
 @patch("viewport.check_for_title")
 @patch("viewport.time.sleep", return_value=None)
@@ -252,9 +252,9 @@ def test_handle_page_timeout_logs_and_returns_false(
     mock_api_status.assert_called_with("Error Loading Page Something Else")
     assert ret is False
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Tests for handle_retry function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("attempt,title,check_driver_ok,login_ok,fullscreen_ok,expected_calls", [
     # 1) normal reload path
     (0, "Some Other", True, None, None, ["Attempting to load page from URL.", "Page successfully reloaded."]),
@@ -368,13 +368,13 @@ def test_handle_retry_detects_driver_crash_and_restarts(
     # 5) finally, the returned driver is the new one
     assert result is new_driver
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Tests for handle_view function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 class BreakLoop(BaseException):
     # Custom exception used to break out of the infinite loop in handle_view.
     pass
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Initial Load Failure
 @patch("viewport.restart_handler", side_effect=SystemExit)
 @patch("viewport.api_status")
@@ -393,7 +393,7 @@ def test_handle_view_initial_load_failure(
     
     mock_api_status.assert_called_with("Error Loading Live View. Restarting...")
     mock_restart.assert_called_once_with(driver)
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Healthy‐path iteration
 @patch("viewport.time.sleep", side_effect=BreakLoop)
 @patch("viewport.get_next_interval", return_value=time.time())
@@ -444,7 +444,7 @@ def test_handle_view_healthy_iteration(
     mock_loading.assert_called_once_with(drv)
     mock_elements.assert_called_once_with(drv)
     mock_api_status.assert_called_with("Feed Healthy")
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Interval Logging Test
 @pytest.mark.parametrize("sleep_time, log_interval, now_minute, now_second, expected_minute", [
     # at hh:16:45, 1-min interval  → next boundary at :17
@@ -549,7 +549,7 @@ def test_handle_view_video_feeds_healthy_logging(
         f"but computed boundary at {datetime(2025,4,27,5, now_minute, now_second) + timedelta(seconds=secs_to_boundary)}"
     )
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Decoding Error
 @patch("viewport.logging.warning")
 @patch("viewport.api_status")
@@ -595,7 +595,7 @@ def test_handle_view_decoding_error_branch(
         "Live view contains cameras that the browser cannot decode."
     )
     mock_api_status.assert_called_with("Decoding Error in some cameras")
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Offline‐status branch
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.handle_retry", side_effect=BreakLoop)
@@ -631,9 +631,9 @@ def test_handle_view_offline_branch(
     mock_api_status.assert_called_with("Console or Protect Offline")
     mock_handle_retry.assert_called_once_with(drv, url, 1, viewport.MAX_RETRIES)
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # All Exceptions branch
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "trigger, expected_log_args, expected_api, recovery_fn, recovery_args",
     [

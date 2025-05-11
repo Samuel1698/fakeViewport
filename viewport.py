@@ -49,7 +49,7 @@ except ImportError:
     CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
     CSS_PLAYER_OPTIONS = "aeugT"
     CSS_CURSOR = "hMbAUy"
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
 driver = None # Declare it globally so that it can be accessed in the signal handler function
@@ -68,7 +68,7 @@ GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
 CYAN = "\033[36m"
 NC="\033[0m"
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Argument Handlers
 # -------------------------------------------------------------------
 def args_helper():
@@ -231,12 +231,13 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
             else:
                 child.extend([f"--{dest}", str(override)])
     return child
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Config variables validation
 # -------------------------------------------------------------------
 def validate_config(
     strict:  bool = True,
     print:   bool = False,
+    api:     bool = False,
     config_file: Path | None = None,
     env_file:    Path | None = None,
     logs_dir:    Path | None = None,
@@ -251,8 +252,8 @@ def validate_config(
     global SLEEP_TIME, WAIT_TIME, MAX_RETRIES, RESTART_TIMES
     global BROWSER_PROFILE_PATH, BROWSER_BINARY, HEADLESS, BROWSER
     global LOG_FILE, LOG_CONSOLE, DEBUG_LOGGING, ERROR_LOGGING, ERROR_PRTSCR
-    global LOG_DAYS, LOG_INTERVAL, API
-    global username, password, url, log_file, sst_file, status_file
+    global LOG_DAYS, LOG_INTERVAL, API, CONTROL_TOKEN
+    global username, password, url, log_file, sst_file, status_file, host, port
      
     if not config_file.exists():
         errors.append("Missing config.ini file.")
@@ -382,18 +383,15 @@ def validate_config(
         errors.append("HOST is present in .env but empty.")
     if "FLASK_RUN_PORT" in env and not env["FLASK_RUN_PORT"].strip():
         errors.append("PORT is present in .env but empty.")
-        
+    CONTROL_TOKEN = os.getenv("SECRET", "").strip()
     # Validate host is a proper IPv4 or IPv6 address
     host = os.getenv("FLASK_RUN_HOST", "").strip()
-    if host:
+    port = os.getenv("FLASK_RUN_PORT", "").strip()
+    if api or print and host or port:
         try:
             ipaddress.ip_address(host)
         except ValueError:
             errors.append(f"FLASK_RUN_HOST must be a valid IP address, got: '{host}'")
-
-    # Validate port is an integer between 1 and 65535
-    port = os.getenv("FLASK_RUN_PORT", "").strip()
-    if port:
         if not port.isdigit():
             errors.append(f"FLASK_RUN_PORT must be an integer, got: '{port}'")
         else:
@@ -410,7 +408,7 @@ def validate_config(
         return False
     return True
 validate_config(strict=False)
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Logging setup
 # -------------------------------------------------------------------
 configure_logging(
@@ -439,7 +437,7 @@ def log_error(message, exception=None, driver=None):
             logging.warning(f"Could not take screenshot: WebDriver not alive ({e})")
         except Exception as e:
             logging.warning(f"Unexpected error taking screenshot: {e}")
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # API setup
 # -------------------------------------------------------------------
 def clear_sst():
@@ -471,7 +469,7 @@ def api_handler():
         except Exception as e:
             log_error("Error starting API: ", e)
             api_status("Error Starting API")
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Signal Handler (Closing gracefully with CTRL+C)
 # -------------------------------------------------------------------
 def signal_handler(signum, frame, driver=None):
@@ -484,7 +482,7 @@ def signal_handler(signum, frame, driver=None):
     sys.exit(0)
 signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, driver))
 signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Helper functions for getting information
 # -------------------------------------------------------------------
 def get_cpu_color(name, pct):
@@ -531,7 +529,7 @@ def get_next_interval(interval_seconds, now=None):
         seconds_until_next_interval += interval_seconds
     next_interval = now + timedelta(seconds=seconds_until_next_interval)
     return next_interval.timestamp()
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Helper Functions for installing packages and handling processes
 # -------------------------------------------------------------------
 def screenshot_handler(logs_dir, max_age_days):
@@ -947,7 +945,7 @@ def restart_handler(driver):
         api_status("Error Restarting, exiting...")
         clear_sst()
         sys.exit(1)
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Helper Functions for main script
 # These functions return true or false but don't interact directly with the webpage
 # -------------------------------------------------------------------
@@ -1010,7 +1008,7 @@ def check_unable_to_stream(driver):
         log_error("Error while checking for 'Unable to Stream' message: ", e, driver)
         api_status("Error Checking Unable to Stream")
         return False
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Interactive Functions for main logic
 # These functions directly interact with the webpage
 # -------------------------------------------------------------------
@@ -1299,7 +1297,7 @@ def handle_view(driver, url):
             time.sleep(WAIT_TIME)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():

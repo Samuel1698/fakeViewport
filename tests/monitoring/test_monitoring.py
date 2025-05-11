@@ -2,30 +2,26 @@ import os
 import configparser
 import pytest
 import subprocess
+import runpy
+import sys
 import pathlib
 from pathlib import Path
 import psutil
 import monitoring
 from monitoring import create_app
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Helper to build an app/client
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    # ─────────────────────────────────────────────────────
     # 1) Stub out all real logging
-    # ─────────────────────────────────────────────────────
     monkeypatch.setattr(monitoring, 'configure_logging', lambda *a, **k: None)
 
-    # ─────────────────────────────────────────────────────
     # 2) Force script_dir → tmp_path so all endpoints read/write there
-    # ─────────────────────────────────────────────────────
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
 
-    # ─────────────────────────────────────────────────────
     # 3) Fake psutil uptime & RAM
-    # ─────────────────────────────────────────────────────
     monkeypatch.setattr(monitoring.psutil, 'boot_time',    lambda: 1000)
     monkeypatch.setattr(monitoring.time,    'time',        lambda: 1010)
     class DummyVM:
@@ -33,9 +29,7 @@ def client(tmp_path, monkeypatch):
         total = 67890
     monkeypatch.setattr(monitoring.psutil, 'virtual_memory', lambda: DummyVM)
 
-    # ─────────────────────────────────────────────────────
     # 4) Write a minimal config.ini into tmp_path
-    # ─────────────────────────────────────────────────────
     cfg = configparser.ConfigParser()
     cfg["General"] = {
         "SLEEP_TIME":   "300",
@@ -53,15 +47,13 @@ def client(tmp_path, monkeypatch):
     with cfg_path.open("w") as f:
         cfg.write(f)
 
-    # ─────────────────────────────────────────────────────
     # 5) Create & return the Flask test client
-    # ─────────────────────────────────────────────────────
     app = create_app(str(cfg_path))
     app.testing = True
     return app.test_client()
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Helper to build an app/client with SECRET in the environment
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def _make_auth_client(tmp_path, monkeypatch):
     # 1) Stub logging so it never writes
     monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
@@ -97,9 +89,9 @@ def _make_auth_client(tmp_path, monkeypatch):
     app = create_app(str(cfg_path))
     app.testing = True
     return app.test_client()
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Helper to build an app/client with NO SECRET in the environment
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def no_secret_client(tmp_path, monkeypatch):
     # 1) Ensure SECRET isn’t set
     monkeypatch.delenv("SECRET", raising=False)
@@ -139,9 +131,27 @@ def no_secret_client(tmp_path, monkeypatch):
     app = create_app(str(cfg_path))
     app.testing = True
     return app.test_client()
-# -------------------------
-# 1. Control endpoint (/api/control/<action>)
-# -------------------------
+# ----------------------------------------------------------------------------- 
+# Helper to write a config file
+# ----------------------------------------------------------------------------- 
+def write_cfg(path, restart_times):
+    cfg = configparser.ConfigParser()
+    cfg["General"] = {
+        "SLEEP_TIME":   "10",
+        "LOG_INTERVAL": "1",
+        "RESTART_TIMES": restart_times,
+    }
+    cfg["Logging"] = {
+        "LOG_FILE":    "False",
+        "LOG_CONSOLE": "False",
+        "LOG_DAYS":    "1",
+    }
+    with open(path, "w") as f:
+        cfg.write(f)
+
+# ----------------------------------------------------------------------------- 
+# Control endpoint (/api/control/<action>)
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "action, expected_message",
     [
@@ -191,9 +201,9 @@ def test_api_control_dispatch_failure(client, monkeypatch, exc_msg):
     data = resp.get_json()
     assert data["status"] == "error"
     assert exc_msg not in data["message"]
-# -------------------------
-# 2. /api/log_entry error path
-# -------------------------
+# ----------------------------------------------------------------------------- 
+# /api/log_entry error path
+# ----------------------------------------------------------------------------- 
 def test_api_log_entry_read_error(client, monkeypatch):
     client_app = client
     # Force .exists() → True and .read_text() → IOError
@@ -204,10 +214,30 @@ def test_api_log_entry_read_error(client, monkeypatch):
     data = resp.get_json()
     assert data["status"] == "error"
     assert data["message"] == "Error reading log file"
+def test_read_api_file_error_logs_and_returns_none(tmp_path, monkeypatch, caplog):
+    # Stub configure_logging so app.logger works
+    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
 
-# -------------------------
-# 3. CORS headers
-# -------------------------
+    # Build app with default SECRET unset
+    cfg_path = tmp_path / "config.ini"
+    write_cfg(cfg_path, restart_times="00:00")
+    app = create_app(str(cfg_path))
+
+    # Now monkeypatch Path.read_text to throw
+    monkeypatch.setattr(Path, "exists", lambda self: True)
+    monkeypatch.setattr(Path, "read_text", lambda self: (_ for _ in ()).throw(IOError("disk error")))
+
+    # Hit the status endpoint, which under the hood calls _read_api_file
+    caplog.set_level("ERROR")
+    client = app.test_client()
+    resp = client.get("/api/status")
+    assert resp.status_code == 404  # raw == None
+    # And we logged the ERROR
+    assert "Error reading" in caplog.text
+
+# ----------------------------------------------------------------------------- 
+# CORS headers
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("route", [
     # Base API endpoint
     "/api",
@@ -220,9 +250,9 @@ def test_cors_headers_for_api_routes(client, route):
     # Flask-CORS should inject this header
     assert resp.headers.get("Access-Control-Allow-Origin") == "*"
 
-# -------------------------
-# 4. Trailing-slash alias for /api index
-# -------------------------
+# ----------------------------------------------------------------------------- 
+# Trailing-slash alias for /api index
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("path", [
     # Without trailing slash
     "/api",
@@ -237,17 +267,17 @@ def test_api_index_trailing_slash_alias(client, path):
     assert resp_alias.status_code == resp_base.status_code
     assert resp_alias.get_json()    == resp_base.get_json()
 
-# -------------------------
-# 5. Generic 404 for unknown API path
-# -------------------------
+# ----------------------------------------------------------------------------- 
+# Generic 404 for unknown API path
+# ----------------------------------------------------------------------------- 
 def test_unknown_api_path_returns_404(client):
     client_app = client
     resp = client_app.get("/api/nonexistent")
     assert resp.status_code == 404
 
-# -------------------------
-# 6. API directory is created by the fixture
-# -------------------------
+# ----------------------------------------------------------------------------- 
+# API directory is created by the fixture
+# ----------------------------------------------------------------------------- 
 def test_api_directory_created_by_fixture(client, tmp_path, monkeypatch):
     # 1) point monitoring.script_dir at a tmp dir
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
@@ -258,9 +288,9 @@ def test_api_directory_created_by_fixture(client, tmp_path, monkeypatch):
 
     assert api_dir.exists() and api_dir.is_dir()
 
-# -------------------------
-# 7. Authentication flows when SECRET is set
-# -------------------------
+# ----------------------------------------------------------------------------- 
+# Authentication flows when SECRET is set
+# ----------------------------------------------------------------------------- 
 def test_dashboard_requires_login(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
     # Unauthenticated GET "/" → redirect to login
@@ -286,7 +316,28 @@ def test_login_post_wrong_key_flashes_error(tmp_path, monkeypatch):
         flashes = sess.get("_flashes", [])
     # flashes is a list of (category, message) tuples
     assert ("danger", "Invalid API key") in flashes
+def test_login_unsafe_next_redirects_to_dashboard(tmp_path, monkeypatch):
+    # No SECRET so login() auto‐populates session and then redirect to dashboard
+    monkeypatch.delenv("SECRET", raising=False)
+    # Stub out configure_logging so create_app won’t break
+    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
 
+    # Write minimal config and build client
+    cfg_path = tmp_path / "config.ini"
+    write_cfg(cfg_path, restart_times="00:00")
+    app = create_app(str(cfg_path))
+    app.testing = True
+    client = app.test_client()
+
+    # POST to /login with a next=external URL
+    resp = client.post(
+        "/login?next=http://evil.com",
+        data={"key": ""},
+        follow_redirects=False
+    )
+    # The code should see an absolute URL and bounce to dashboard
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/")  # same as dashboard()
 def test_login_post_correct_key_redirects(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
     # POST good key → redirect to next ("/")
@@ -300,9 +351,9 @@ def test_logout_clears_session_and_redirects(tmp_path, monkeypatch):
     resp = client_app.get("/logout", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["Location"].endswith("/login")
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # LOGIN SKIP WHEN NO SECRET
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def test_login_redirects_to_dashboard_if_no_secret(tmp_path, monkeypatch):
     # When SECRET is not set, /login should skip auth and redirect straight to dashboard (/).
     client_app = no_secret_client(tmp_path, monkeypatch)
@@ -325,3 +376,36 @@ def test_control_endpoints_allowed_without_login(tmp_path, monkeypatch, action, 
     data = resp.get_json()
     assert data["status"]  == "ok"
     assert data["message"] == expected_msg
+# ----------------------------------------------------------------------------- 
+# COVER the `if __name__ == "__main__": … run(host, port)` block
+# ----------------------------------------------------------------------------- 
+def test_main_invokes_flask_run(tmp_path, monkeypatch):
+    # Prepare a fake script_dir so create_app doesn’t error
+    monkeypatch.setenv("FLASK_RUN_HOST", "1.2.3.4")
+    monkeypatch.setenv("FLASK_RUN_PORT", "2500")
+
+    # Capture calls to Flask.run
+    called = {}
+    monkeypatch.setattr(monitoring.Flask, "run", lambda self, host, port: called.setdefault("args", (host, port)))
+
+    # Re-execute the module as __main__
+    runpy.run_module("monitoring", run_name="__main__", alter_sys=True)
+
+    assert called["args"] == ("1.2.3.4", 2500)
+def test_dashboard_renders_index(tmp_path, monkeypatch):
+    # No SECRET means login is skipped and dashboard is public
+    monkeypatch.delenv("SECRET", raising=False)
+    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
+    # Stub render_template so we can detect the call
+    monkeypatch.setattr(monitoring, "render_template", lambda tpl, **ctx: f"INDEX({tpl})")
+
+    # Minimal config
+    cfg_path = tmp_path / "config.ini"
+    write_cfg(cfg_path, restart_times="00:00")
+    app = create_app(str(cfg_path))
+    app.testing = True
+    client = app.test_client()
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert b"INDEX(index.html)" in resp.data

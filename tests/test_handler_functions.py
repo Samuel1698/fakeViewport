@@ -33,9 +33,9 @@ def isolate_sst(tmp_path, monkeypatch):
     fake = tmp_path / "sst.txt"
     fake.write_text("2025-01-01 00:00:00.000000")  # or leave empty
     monkeypatch.setattr(viewport, "sst_file", fake)
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test for Singal Handler
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @patch("viewport.logging")
 @patch("viewport.api_status")
 @patch("viewport.sys.exit")
@@ -51,9 +51,9 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
     mock_logging.info.assert_any_call("Gracefully shutting down script instance.")
     mock_api_status.assert_called_once_with("Stopped ")
     mock_exit.assert_called_once_with(0)
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Tests for screenshot handler
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("file_ages_days, expected_deleted", [
     ([10, 5, 1], ["screenshot_0.png", "screenshot_1.png"]),  # 10 and 5 days old, delete if cutoff is 2
     ([1, 0.5], []),  # recent files, none deleted
@@ -122,12 +122,9 @@ def test_screenshot_handler_unlink_raises(tmp_path, monkeypatch):
     mock_api_status.assert_not_called()
     mock_log_error.assert_called_once()
     assert "unlink failed" in str(mock_log_error.call_args[0][1])
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test for usage_handler
-# -------------------------------------------------------------------------
-# ---------------------------------------------------------------------
-# Test usage_handler sums CPU and memory for matching processes
-# ---------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def test_usage_handler(monkeypatch):
     # Helper for fake memory info
     class FakeMem:
@@ -201,9 +198,9 @@ def test_usage_handler_ignores_exceptions(mock_process_iter):
     cpu, mem = viewport.usage_handler("target")
     assert cpu == 10.0
     assert mem == 100000
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test for Status Handler
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "sst_exists, status_exists, log_content, process_names, expected_error, expected_output_snippets",
     [
@@ -327,9 +324,9 @@ def test_status_handler_various(
 
     for snippet in expected_output_snippets:
         assert snippet in out
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test for Process Handler
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "proc_list, current_pid, name, action, expected_result, expected_kill_calls, expected_api_calls, expected_log_info",
     [
@@ -482,9 +479,9 @@ def test_process_handler(
         assert mock_api.call_args_list == [call(msg) for msg in expected_api_calls]
     else:
         mock_api.assert_not_called()
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test for Service Handler
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @patch("viewport.ChromeDriverManager")
 def test_service_handler_installs_chrome_driver_google(mock_chrome_driver_manager):
     # Reset the cached path
@@ -528,9 +525,9 @@ def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
 
     assert path == "/already/installed/driver"
     mock_chrome_driver_manager.assert_not_called()
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test for browser_handler  
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "browser, side_effects, expected_driver_get_calls, expected_kill_calls, expect_restart",
     [
@@ -638,9 +635,9 @@ def test_browser_handler(
     error_count = sum(isinstance(e, Exception) for e in side_effects)
     min_errors = error_count - (1 if expect_restart else 0)
     assert mock_log_error.call_count >= min_errors
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Tests for browser_restart_handler
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "chrome_exc,    check_exc,     handle_page_ret, "
     "should_sleep,  should_feed_ok, should_return, "
@@ -750,9 +747,9 @@ def test_browser_restart_handler(
 
     # log_error only on exception paths
     assert mock_log_error.called == should_log_err
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Tests for restart_scheduler
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def test_restart_scheduler_triggers_api_and_restart(monkeypatch):
     # 1) Fix "now" at 2025-05-08 12:00:00
     fixed_now = datetime(2025, 5, 8, 12, 0, 0)
@@ -851,9 +848,9 @@ def test_restart_thread_terminates_on_system_exit(monkeypatch):
     assert api_msgs and api_msgs[0].startswith("Scheduled restart"), \
            "api_status should have been invoked before the exit"
            
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Tests for restart_handler
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("initial_argv, driver_present, expected_flags", [
     # No flags          ⇒ no extra flags
     (["viewport.py"],                         False, []),
