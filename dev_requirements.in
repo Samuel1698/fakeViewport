@@ -8,3 +8,5 @@ flask-cors
 pytest
 pytest-mock
 pip-tools
+pytest-cov
+codecov

@@ -17,6 +17,38 @@ from logging_config import configure_logging
 from pathlib import Path
 from datetime import datetime, timedelta
 from dotenv import load_dotenv, dotenv_values
+import threading
+from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.firefox import GeckoDriverManager
+from webdriver_manager.core.os_manager import ChromeType
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, InvalidSessionIdException, WebDriverException
+from urllib3.exceptions import NewConnectionError
+try:
+    from css_selectors import (
+        CSS_FULLSCREEN_PARENT,
+        CSS_FULLSCREEN_BUTTON,
+        CSS_LOADING_DOTS,
+        CSS_LIVEVIEW_WRAPPER,
+        CSS_PLAYER_OPTIONS,
+        CSS_CURSOR
+    )
+except ImportError:
+    CSS_FULLSCREEN_PARENT = "div[class*='LiveviewControls__ButtonGroup']"
+    CSS_FULLSCREEN_BUTTON = ":nth-child(2) > button"
+    CSS_LOADING_DOTS = "div[class*='TimedDotsLoader']"
+    CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
+    CSS_PLAYER_OPTIONS = "aeugT"
+    CSS_CURSOR = "hMbAUy"
 # -------------------------------------------------------------------
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
@@ -37,7 +69,7 @@ YELLOW="\033[1;33m"
 CYAN = "\033[36m"
 NC="\033[0m"
 # -------------------------------------------------------------------
-# Argument Handlers & Config safe wrapper
+# Argument Handlers
 # -------------------------------------------------------------------
 def args_helper():
     # Parse command-line arguments for the script.
@@ -90,41 +122,7 @@ def args_helper():
         dest="api",
         help="Toggles the API on or off. Requires USA_API=True in config.ini"
     )
-    return parser.parse_args()
-args = args_helper()
-if not any(vars(args).values()) or args.background:
-    import threading
-    from webdriver_manager.chrome import ChromeDriverManager
-    from webdriver_manager.firefox import GeckoDriverManager
-    from webdriver_manager.core.os_manager import ChromeType
-    from selenium import webdriver
-    from selenium.webdriver.chrome.service import Service
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.firefox.service import Service as FirefoxService
-    from selenium.webdriver.firefox.options import Options as FirefoxOptions
-    from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.common.action_chains import ActionChains
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    from selenium.common.exceptions import TimeoutException, NoSuchElementException, InvalidSessionIdException, WebDriverException
-    from urllib3.exceptions import NewConnectionError
-    try:
-        from css_selectors import (
-            CSS_FULLSCREEN_PARENT,
-            CSS_FULLSCREEN_BUTTON,
-            CSS_LOADING_DOTS,
-            CSS_LIVEVIEW_WRAPPER,
-            CSS_PLAYER_OPTIONS,
-            CSS_CURSOR
-        )
-    except ImportError:
-        CSS_FULLSCREEN_PARENT = "div[class*='LiveviewControls__ButtonGroup']"
-        CSS_FULLSCREEN_BUTTON = ":nth-child(2) > button"
-        CSS_LOADING_DOTS = "div[class*='TimedDotsLoader']"
-        CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
-        CSS_PLAYER_OPTIONS = "aeugT"
-        CSS_CURSOR = "hMbAUy"
+    return parser.parse_args() 
 def args_handler(args):
     if args.status:
         status_handler()
@@ -1305,6 +1303,7 @@ def handle_view(driver, url):
 # Main function to start the script
 # -------------------------------------------------------------------
 def main():
+    args = args_helper()
     if args_handler(args) != "continue":
         return
     validate_config(strict=True)
