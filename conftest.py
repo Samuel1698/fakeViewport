@@ -76,14 +76,17 @@ def provide_dummy_config(monkeypatch, tmp_path):
         sst_file=tmp_path / "sst.txt",
         status_file=tmp_path / "status.txt",
     )
-
-    # 2) stub out validate_config to always give the above cfg
+    # Save the real config browser since it changes based on other variables
+    real_browser = viewport.BROWSER
+    # stub out validate_config to always give the above cfg
     monkeypatch.setattr(viewport, "validate_config", lambda *args, **kwargs: cfg)
 
-    # 3) ensure viewport.cfg points at it too
+    # ensure viewport.cfg points at it too
     monkeypatch.setattr(viewport, "cfg", cfg)
 
+    # Assign fake config to global variables
     for name, val in vars(cfg).items():
         setattr(viewport, name, val)
-
+    # Bring back browser from the real config
+    viewport.BROWSER = real_browser
     return cfg

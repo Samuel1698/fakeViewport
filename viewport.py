@@ -52,6 +52,10 @@ config_file = _base / 'config.ini'
 env_file    = _base / '.env'
 logs_dir    = _base / 'logs'
 api_dir     = _base / 'api'
+# Initial non strict config parsing
+cfg = validate_config(strict=False)
+for name, val in vars(cfg).items():
+    setattr(_mod, name, val)
 # Colors
 RED="\033[0;31m"
 GREEN="\033[0;32m"
@@ -226,9 +230,6 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
 # ----------------------------------------------------------------------------- 
 # Logging setup
 # -------------------------------------------------------------------
-cfg = validate_config(strict=False)
-for name, val in vars(cfg).items():
-    setattr(_mod, name, val)
 configure_logging(
     log_file_path=str(log_file),
     log_file=LOG_FILE_FLAG,
