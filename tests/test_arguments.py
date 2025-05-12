@@ -79,7 +79,7 @@ def test_diagnose_flag_success(mock_logging, mock_validate, mock_exit):
     viewport.args_handler(mock_args)
 
     mock_logging.info.assert_any_call("Checking validity of config.ini and .env variables...")
-    mock_validate.assert_called_once_with(strict=False, print=True)
+    mock_validate.assert_called_once_with(strict=False, print_errors=True)
     mock_logging.info.assert_any_call("No errors found.")
     mock_exit.assert_called_once_with(0)
     

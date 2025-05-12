@@ -19,8 +19,6 @@ def disable_external_side_effects(monkeypatch):
     monkeypatch.setattr(viewport.time, "sleep", lambda *args, **kwargs: None)
     # never actually fork a process
     monkeypatch.setattr(viewport.subprocess, "Popen", lambda *args, **kwargs: None)
-    # make main() think the config is always valid
-    monkeypatch.setattr(viewport, "validate_config", lambda *args, **kwargs: True)
 # ----------------------------------------------------------------------------- 
 # Test main function
 # ----------------------------------------------------------------------------- 
@@ -62,15 +60,16 @@ def test_main_various(
 ):
     # Arrange
     viewport.API = False
-
-    # stub out sst_file
-    fake_sst = MagicMock()
-    fake_sst.exists.return_value = sst_exists
-    fake_sst.stat.return_value = SimpleNamespace(st_size=sst_size)
-    viewport.sst_file = fake_sst
-    # stub out status file
-    viewport.status_file = MagicMock()
     dummy_driver = object()
+    # Arrange SST file to match parameters
+    if not sst_exists:
+        # remove it so exists() → False
+        viewport.sst_file.unlink(missing_ok=True)
+    else:
+        # ensure it exists with exactly sst_size bytes
+        data = "" if sst_size == 0 else "x" * sst_size
+        viewport.sst_file.write_text(data)
+
     mock_chrome.return_value = dummy_driver
 
     # process_handler: check → other_running; kill → None
@@ -108,7 +107,7 @@ def test_main_various(
 
     # Chrome launched
     mock_chrome.assert_called_once_with(viewport.url)
-   # handle_view should be spun up as before
+    # handle_view should be spun up as before
     mock_thread.assert_any_call(
         target=viewport.handle_view,
         args=(dummy_driver, viewport.url)

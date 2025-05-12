@@ -5,63 +5,53 @@ import sys
 import time
 import argparse
 import signal
-import configparser
 import getpass
-import logging
 import subprocess
 import math
-import ipaddress
-from urllib.parse import urlparse
-from logging.handlers import TimedRotatingFileHandler
-from logging_config import configure_logging
-from pathlib import Path
-from datetime import datetime, timedelta
-from dotenv import load_dotenv, dotenv_values
 import threading
-from webdriver_manager.chrome import ChromeDriverManager
+import logging
+from logging.handlers          import TimedRotatingFileHandler
+from logging_config            import configure_logging
+from validate_config           import validate_config, AppConfig
+from pathlib                   import Path
+from datetime                  import datetime, timedelta
+from webdriver_manager.chrome  import ChromeDriverManager
 from webdriver_manager.firefox import GeckoDriverManager
-from webdriver_manager.core.os_manager import ChromeType
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.firefox.service import Service as FirefoxService
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from webdriver_manager.core.os_manager   import ChromeType
+from selenium                            import webdriver
+from selenium.webdriver.chrome.service   import Service
+from selenium.webdriver.chrome.options   import Options
+from selenium.webdriver.firefox.service  import Service as FirefoxService
+from selenium.webdriver.firefox.options  import Options as FirefoxOptions
 from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, InvalidSessionIdException, WebDriverException
-from urllib3.exceptions import NewConnectionError
-try:
-    from css_selectors import (
-        CSS_FULLSCREEN_PARENT,
-        CSS_FULLSCREEN_BUTTON,
-        CSS_LOADING_DOTS,
-        CSS_LIVEVIEW_WRAPPER,
-        CSS_PLAYER_OPTIONS,
-        CSS_CURSOR
-    )
-except ImportError:
-    CSS_FULLSCREEN_PARENT = "div[class*='LiveviewControls__ButtonGroup']"
-    CSS_FULLSCREEN_BUTTON = ":nth-child(2) > button"
-    CSS_LOADING_DOTS = "div[class*='TimedDotsLoader']"
-    CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
-    CSS_PLAYER_OPTIONS = "aeugT"
-    CSS_CURSOR = "hMbAUy"
+from selenium.webdriver.common.by        import By
+from selenium.webdriver.common.action_chains    import ActionChains
+from selenium.webdriver.support.ui       import WebDriverWait
+from selenium.webdriver.support          import expected_conditions as EC
+from selenium.common.exceptions          import TimeoutException, NoSuchElementException, InvalidSessionIdException, WebDriverException
+from urllib3.exceptions                  import NewConnectionError
+from css_selectors import (
+    CSS_FULLSCREEN_PARENT,
+    CSS_FULLSCREEN_BUTTON,
+    CSS_LOADING_DOTS,
+    CSS_LIVEVIEW_WRAPPER,
+    CSS_PLAYER_OPTIONS,
+    CSS_CURSOR
+)
 # ----------------------------------------------------------------------------- 
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
+_mod = sys.modules[__name__]
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
 viewport_version = "2.1.7"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
 # Directory and file paths
-script_dir = Path(__file__).resolve().parent
-config_file = Path.cwd() / 'config.ini'
-env_file = script_dir / '.env'
-logs_dir = script_dir / 'logs'
-api_dir = script_dir / 'api'
+_base = Path(__file__).parent
+config_file = _base / 'config.ini'
+env_file    = _base / '.env'
+logs_dir    = _base / 'logs'
+api_dir     = _base / 'api'
 # Colors
 RED="\033[0;31m"
 GREEN="\033[0;32m"
@@ -122,7 +112,8 @@ def args_helper():
         dest="api",
         help="Toggles the API on or off. Requires USA_API=True in config.ini"
     )
-    return parser.parse_args() 
+    args, _ = parser.parse_known_args()
+    return args
 def args_handler(args):
     if args.status:
         status_handler()
@@ -174,8 +165,8 @@ def args_handler(args):
         sys.exit(0)
     if args.diagnose:
         logging.info("Checking validity of config.ini and .env variables...")
-        if validate_config(strict=False, print=True):
-            logging.info("No errors found.")       
+        diag_cfg = validate_config(strict=False, print_errors=True)
+        if diag_cfg: logging.info("No errors found.")       
         sys.exit(0)
     if args.api:
         if process_handler("monitoring.py", action="check"):
@@ -208,6 +199,7 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
         "background": ["--background"],
         "restart":    ["--restart"],
         "quit":       ["--quit"],
+        "diagnose":   ["--diagnose"],
         "api":        ["--api"],
         "logs":       (["--logs", str(args.logs)] if args.logs is not None else []),
     }
@@ -232,188 +224,14 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
                 child.extend([f"--{dest}", str(override)])
     return child
 # ----------------------------------------------------------------------------- 
-# Config variables validation
-# -------------------------------------------------------------------
-def validate_config(
-    strict:  bool = True,
-    print:   bool = False,
-    api:     bool = False,
-    config_file: Path | None = None,
-    env_file:    Path | None = None,
-    logs_dir:    Path | None = None,
-    api_dir:     Path | None = None,
-):
-    # pick up the module‐level paths if no override is given
-    config_file = config_file or globals()["config_file"]
-    env_file    = env_file    or globals()["env_file"]
-    logs_dir    = logs_dir    or globals()["logs_dir"]
-    api_dir     = api_dir     or globals()["api_dir"]
-    errors = []
-    global SLEEP_TIME, WAIT_TIME, MAX_RETRIES, RESTART_TIMES
-    global BROWSER_PROFILE_PATH, BROWSER_BINARY, HEADLESS, BROWSER
-    global LOG_FILE, LOG_CONSOLE, DEBUG_LOGGING, ERROR_LOGGING, ERROR_PRTSCR
-    global LOG_DAYS, LOG_INTERVAL, API, CONTROL_TOKEN
-    global username, password, url, log_file, sst_file, status_file, host, port
-     
-    if not config_file.exists():
-        errors.append("Missing config.ini file.")
-    if not env_file.exists():
-        errors.append("Missing .env file.")
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    log_file = logs_dir / 'viewport.log'
-    api_dir.mkdir(parents=True, exist_ok=True)
-    sst_file = api_dir / 'sst.txt'
-    status_file = api_dir / 'status.txt'
-    
-    config = configparser.ConfigParser()
-    config.read(config_file)
-    user = getpass.getuser()
-    default_profile_path = f"/home/{user}/.config/google-chrome/"
-
-    def safe_get(section, key, fallback, parse_fn, type_name):
-        try:
-            raw = config.get(section, key, fallback=None)
-            if raw is None or str(raw).strip() == "":
-                return fallback  # Empty or missing is fine
-            return parse_fn(raw)
-        except Exception:
-            errors.append(f"{section}.{key} must be a valid {type_name}. Got: {raw!r}. Falling back to {fallback}.")
-            return fallback
-    def safe_getint(section, key, fallback):
-        return safe_get(section, key, fallback, int, "integer")
-    def safe_getbool(section, key, fallback):
-        return safe_get(section, key, fallback, config._convert_to_boolean, "boolean (true/false)")
-    def safe_getstr(section, key, fallback, forbidden_substrings=None):
-        value = config.get(section, key, fallback=fallback).strip()
-        if forbidden_substrings:
-            for bad in forbidden_substrings:
-                if bad in value:
-                    errors.append(f"{section}.{key} contains placeholder value {bad!r}.")
-                    return fallback
-        return value
-    # General
-    SLEEP_TIME = safe_getint("General", "SLEEP_TIME", 300)
-    WAIT_TIME = safe_getint("General", "WAIT_TIME", 30)
-    MAX_RETRIES = safe_getint("General", "MAX_RETRIES", 5)
-    TIMES = config.get("General", "RESTART_TIMES", fallback="")
-    # Browser
-    BROWSER_PROFILE_PATH = safe_getstr("Browser", "BROWSER_PROFILE_PATH", fallback=default_profile_path, forbidden_substrings=["your-user"])
-    BROWSER_BINARY = safe_getstr("Browser", "BROWSER_BINARY", fallback="/usr/bin/google-chrome")
-    HEADLESS = safe_getbool("Browser", "HEADLESS", fallback=False)
-    BROWSER = (
-        "firefox"   if "firefox"   in BROWSER_BINARY.lower() else
-        "chromium"  if "chromium"  in BROWSER_BINARY.lower() else
-        "chrome"
-    )
-    # Logging
-    LOG_FILE = safe_getbool("Logging", "LOG_FILE", True)
-    LOG_CONSOLE = safe_getbool("Logging", "LOG_CONSOLE", True)
-    DEBUG_LOGGING = safe_getbool("Logging", "DEBUG_LOGGING", False)
-    ERROR_LOGGING = safe_getbool("Logging", "ERROR_LOGGING", False)
-    ERROR_PRTSCR = safe_getbool("Logging", "ERROR_PRTSCR", False)
-    LOG_DAYS = safe_getint("Logging", "LOG_DAYS", 7)
-    LOG_INTERVAL = safe_getint("Logging", "LOG_INTERVAL", 60)
-    # Api
-    API = safe_getbool("API", "USE_API", False)
-    
-    RESTART_TIMES = []
-    for part in TIMES.split(','):
-        part = part.strip()
-        if part:
-            try:
-                RESTART_TIMES.append(datetime.strptime(part, '%H:%M').time())
-            except ValueError:
-                errors.append(f"Invalid RESTART_TIME: {part!r} (expected HH:MM)")
-
-    # Value constraints
-    if SLEEP_TIME < 60:
-        errors.append("SLEEP_TIME must be ≥ 60.")
-    if WAIT_TIME <= 5:
-        errors.append("WAIT_TIME must be > 5.")
-    if MAX_RETRIES < 3:
-        errors.append("MAX_RETRIES must be ≥ 3.")
-    if LOG_DAYS < 1:
-        errors.append("LOG_DAYS must be ≥ 1.")
-    if LOG_INTERVAL < 1:
-        errors.append("LOG_INTERVAL must be ≥ 1.")
-    if BROWSER not in BROWSER_PROFILE_PATH.lower():
-        errors.append(f"Browser Mismatch: BROWSER_BINARY uses '{BROWSER}', "
-                      f"but BROWSER_PROFILE_PATH does not."
-                      )
-    # .env validation
-    load_dotenv(dotenv_path=env_file)
-    username = os.getenv('USERNAME')
-    password = os.getenv('PASSWORD')
-    url = os.getenv('URL')
-    ALLOWED_ENV_KEYS = {"USERNAME", "PASSWORD", "URL", "FLASK_RUN_HOST", "FLASK_RUN_PORT", "SECRET"}
-    env = dotenv_values(env_file)
-    # 1. Check for invalid keys
-    invalid_keys = [key for key in env.keys() if key not in ALLOWED_ENV_KEYS]
-    for key in invalid_keys:
-        errors.append(f"Unexpected key in .env: {key!r}. Allowed keys are: {', '.join(sorted(ALLOWED_ENV_KEYS))}")
-
-    # 2. Check values only for keys that are present
-    if "USERNAME" in env and not env["USERNAME"].strip():
-        errors.append("USERNAME is present in .env but empty.")
-    if "USERNAME" not in env:
-        errors.append("USERNAME not present in .env")
-    if "PASSWORD" in env and not env["PASSWORD"].strip():
-        errors.append("PASSWORD is present in .env but empty.")
-    if "PASSWORD" not in env:
-        errors.append("PASSWORD not present in .env")
-    # 3. Check URL specifically
-    EXAMPLE_URL = "http://192.168.100.100/protect/dashboard/multiviewurl"
-    if "URL" not in env:
-        errors.append("URL not present in .env")
-    else:
-        url_val = env["URL"].strip()
-        if not url_val:
-            errors.append("URL is present in .env but empty.")
-        elif url_val == EXAMPLE_URL:
-            errors.append("URL is still set to the example value. Please update it.")
-        else:
-            # Validate structure
-            parsed = urlparse(url_val)
-            if parsed.scheme not in ("http", "https") or not parsed.netloc:
-                errors.append(f"URL must start with http:// or https:// and include a host, got: '{url_val}'")
-    # 4. Check API related keys
-    if "SECRET" in env and not env["SECRET"].strip():
-        errors.append("SECRET is present in .env but empty.")
-    if "FLASK_RUN_HOST" in env and not env["FLASK_RUN_HOST"].strip():
-        errors.append("HOST is present in .env but empty.")
-    if "FLASK_RUN_PORT" in env and not env["FLASK_RUN_PORT"].strip():
-        errors.append("PORT is present in .env but empty.")
-    CONTROL_TOKEN = os.getenv("SECRET", "").strip()
-    # Validate host is a proper IPv4 or IPv6 address
-    host = os.getenv("FLASK_RUN_HOST", "").strip()
-    port = os.getenv("FLASK_RUN_PORT", "").strip()
-    if api or print and host or port:
-        try:
-            ipaddress.ip_address(host)
-        except ValueError:
-            errors.append(f"FLASK_RUN_HOST must be a valid IP address, got: '{host}'")
-        if not port.isdigit():
-            errors.append(f"FLASK_RUN_PORT must be an integer, got: '{port}'")
-        else:
-            port_num = int(port)
-            if not (1 <= port_num <= 65535):
-                errors.append(f"FLASK_RUN_PORT must be 1-65535, got: {port_num}")
-    # Report errors
-    if errors:
-        if strict:
-            sys.exit(1)
-        if print:
-            for e in errors:
-                logging.error(e)
-        return False
-    return True
-validate_config(strict=False)
-# ----------------------------------------------------------------------------- 
 # Logging setup
 # -------------------------------------------------------------------
+cfg = validate_config(strict=False)
+for name, val in vars(cfg).items():
+    setattr(_mod, name, val)
 configure_logging(
     log_file_path=str(log_file),
-    log_file=LOG_FILE,
+    log_file=LOG_FILE_FLAG,
     log_console=LOG_CONSOLE,
     log_days=LOG_DAYS,
     Debug_logging=DEBUG_LOGGING
@@ -455,7 +273,7 @@ def api_status(msg):
 def api_handler():
     if not process_handler('monitoring.py', action="check"):
         logging.info("Starting API...")
-        api_script = script_dir / 'monitoring.py'
+        api_script = _base / 'monitoring.py'
         try:
             subprocess.Popen(
                 [sys.executable, api_script],
@@ -1304,7 +1122,9 @@ def main():
     args = args_helper()
     if args_handler(args) != "continue":
         return
-    validate_config(strict=True)
+    cfg = validate_config(strict=True)
+    for name, val in vars(cfg).items():
+        setattr(_mod, name, val)
     logging.info(f"===== Fake Viewport {viewport_version} =====")
     if API: api_handler()
     api_status("Starting...")

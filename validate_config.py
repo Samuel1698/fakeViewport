@@ -44,8 +44,6 @@ class AppConfig:
     log_file: Path
     sst_file: Path
     status_file: Path
-    # Return
-    state: bool
 
 def check_files(config_file: Path, env_file: Path, errors: list[str]):
     if not config_file.exists():
@@ -113,9 +111,8 @@ def validate_env(env_file: Path, errors: list[str]) -> tuple[str, str, str, str,
     for key in ["USERNAME", "PASSWORD", "URL"]:
         if key not in values or not values[key].strip():
             errors.append(f"{key} is empty or missing.")
-    # Default checks
-    for key in ["USERNAME", "PASSWORD", "URL"]:
-        if values[key].strip() in ["YourLocalUsername", "YourLocalPassword", "http://192.168.100.100/protect/dashboard/multiviewurl"]:
+        # Default checks
+        elif values[key].strip() in ["YourLocalUsername", "YourLocalPassword", "http://192.168.100.100/protect/dashboard/multiviewurl"]:
           errors.append(f"{key} is still set to the example value. Please update it.")
     return (
         os.getenv('USERNAME', ''),
@@ -231,7 +228,6 @@ def validate_config(
     if log_interval < 1:
         errors.append("LOG_INTERVAL must be ≥ 1.")
 
-    state = True
     # Report or return
     if errors:
         if strict:
@@ -239,7 +235,7 @@ def validate_config(
         if print_errors:
             for e in errors:
                 logging.error(e)
-        state = False
+            return False
     return AppConfig(
         SLEEP_TIME=sleep_time,
         WAIT_TIME=wait_time,
@@ -266,6 +262,5 @@ def validate_config(
         mon_file=mon_file,
         log_file=log_file,
         sst_file=sst_file,
-        status_file=status_file,
-        state=state
+        status_file=status_file
     )
