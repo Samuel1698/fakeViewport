@@ -1,29 +1,12 @@
 import os
-import sys
 import re
-import importlib
+import sys
 import pytest
 from pathlib import Path
-from unittest.mock import patch
+from dotenv import load_dotenv
+from validate_config import validate_config
 
-def reload_in(tmp_path):
-    orig_cwd = os.getcwd()
-    orig_mod = sys.modules.pop("viewport", None)
-    try:
-        os.chdir(tmp_path)
-        mod = importlib.import_module("viewport")
-        mod.config_file = tmp_path / "config.ini"
-        mod.env_file    = tmp_path / ".env"
-        mod.logs_dir    = tmp_path / "logs"
-        mod.api_dir     = tmp_path / "api"
-    finally:
-        os.chdir(orig_cwd)
-        if orig_mod is not None:
-            sys.modules["viewport"] = orig_mod
-        else:
-            sys.modules.pop("viewport", None)
-    return mod
-
+# Helpers to write test files
 BASE_INI = """
 [General]
 SLEEP_TIME = 300
@@ -31,17 +14,17 @@ WAIT_TIME = 30
 MAX_RETRIES = 5
 RESTART_TIMES = 03:00
 
-[Logging]
-LOG_FILE = true
-LOG_CONSOLE = true
-ERROR_LOGGING = false
-LOG_DAYS = 7
-LOG_INTERVAL = 60
-
 [Browser]
 BROWSER_BINARY = /usr/bin/google-chrome
 BROWSER_PROFILE_PATH = /home/test/.config/google-chrome
 HEADLESS = false
+
+[Logging]
+LOG_FILE_FLAG = true
+LOG_CONSOLE = true
+ERROR_LOGGING = false
+LOG_DAYS = 7
+LOG_INTERVAL = 60
 
 [API]
 USE_API = true
@@ -56,94 +39,208 @@ FLASK_RUN_HOST=127.0.0.1
 FLASK_RUN_PORT=8080
 """
 
-def write_base(tmp_path, ini_overrides=None, env_overrides=None):
+def write_base(tmp_path: Path, ini_overrides=None, env_overrides=None):
+    # write config.ini
     ini = BASE_INI
     if ini_overrides:
         for key, val in ini_overrides.items():
-            ini = re.sub(
-                rf"^{key}\s*=.*$",
-                f"{key} = {val}",
-                ini,
-                flags=re.MULTILINE
-            )
+            ini = re.sub(rf"^{key}\s*=.*$", f"{key} = {val}", ini, flags=re.MULTILINE)
     (tmp_path / "config.ini").write_text(ini)
 
+    # write .env
     env = BASE_ENV
     if env_overrides:
         lines = env.strip().splitlines()
-        updated = {k: v for k, v in (line.split("=",1) for line in lines)}
-        updated.update(env_overrides)
-        env = "\n".join(f"{k}={v}" for k, v in updated.items()) + "\n"
+        # Create dictionary while preserving empty values
+        kv = {}
+        for line in lines:
+            if line.strip():  # Skip empty lines
+                parts = line.split("=", 1)
+                if len(parts) == 2:
+                    kv[parts[0]] = parts[1]
+                else:
+                    kv[parts[0]] = ""  # Handle case where there's no '='
+        
+        # Update with overrides (including empty values)
+        kv.update(env_overrides)
+        
+        # Rebuild .env content, including empty values
+        env = "\n".join(f"{k}={v}" if v is not None else f"{k}=" for k, v in kv.items()) + "\n"
+    
     (tmp_path / ".env").write_text(env)
 
+    # create dirs
+    (tmp_path / "logs").mkdir(exist_ok=True)  
+    (tmp_path / "api").mkdir(exist_ok=True)
 # ----------------------------------------------------------------------------- 
-# 1) Strict‐mode smoke test
+# Strict mode should exit
 # ----------------------------------------------------------------------------- 
-def test_strict_mode_exits_on_any_error(tmp_path):
-    mod = reload_in(tmp_path)
+def test_strict_mode_exits_on_missing(tmp_path):
+    # no files at all
     with pytest.raises(SystemExit):
-        mod.validate_config(strict=True)
-
-
+        validate_config(strict=True,
+                        config_file=tmp_path / "config.ini",
+                        env_file=tmp_path / ".env",
+                        logs_dir=tmp_path / "logs",
+                        api_dir=tmp_path / "api")
 # ----------------------------------------------------------------------------- 
-# 2) INI edge‐cases in loose mode
+# INI value errors in loose mode
 # ----------------------------------------------------------------------------- 
-@pytest.mark.parametrize("ini_overrides,substr", [
-    ({"WAIT_TIME":"notanint"},              "must be a valid integer"),
-    ({"HEADLESS":"notabool"},               "must be a valid boolean"),
-    ({"BROWSER_PROFILE_PATH":"/home/your-user/foo"}, "placeholder"),
-    ({"RESTART_TIMES":"99:99"},             "Invalid RESTART_TIME"),
+@pytest.mark.parametrize("ini_overrides, expected_msg", [
+    ({"WAIT_TIME":"notanint"},      "General.WAIT_TIME must be a valid integer"),
+    ({"HEADLESS":"notabool"},       "Browser.HEADLESS must be a valid boolean"),
+    ({"BROWSER_PROFILE_PATH":"/home/your-user/foo"}, "placeholder value 'your-user'"),
+    ({"RESTART_TIMES":"99:99"},     "Invalid RESTART_TIME: '99:99'"),
 ])
-@patch("viewport.logging.error")
-def test_invalid_ini_values_loose(mock_log, tmp_path, ini_overrides, substr):
+def test_invalid_ini_loose(tmp_path, caplog, ini_overrides, expected_msg):
     write_base(tmp_path, ini_overrides=ini_overrides)
-    mod = reload_in(tmp_path)
-    ok = mod.validate_config(strict=False, print=True)
+    caplog.set_level("ERROR")
+    ok = validate_config(strict=False,
+                         print_errors=True,
+                         config_file=tmp_path / "config.ini",
+                         env_file=tmp_path / ".env",
+                         logs_dir=tmp_path / "logs",
+                         api_dir=tmp_path / "api")
     assert ok is False
-    assert any(substr in call.args[0] for call in mock_log.call_args_list)
-
-
+    assert any(expected_msg in rec.message for rec in caplog.records)
 # ----------------------------------------------------------------------------- 
-# 3) .env edge‐cases in loose mode
+# .env value errors in loose mode
 # ----------------------------------------------------------------------------- 
-@pytest.mark.parametrize("env_overrides,substr", [
-    ({"URL":"//nohost"},         "URL must start with http:// or https://"),
-    ({"URL":"ftp://example"},    "must start with http:// or https://"),
-    ({"URL":"http:///pathonly"}, "include a host"),
-    ({"SECRET":""},              "SECRET is present in .env but empty"),
-    ({"WRONG_KEY":"value"},      "Unexpected key in .env"),
-    ({"USERNAME":""},            "USERNAME is present in .env but empty"),
-    ({"PASSWORD":""},            "PASSWORD is present in .env but empty"),
+@pytest.mark.parametrize("env_overrides, expected_msg", [
+    ({"URL":"//nohost"},        "URL must start with http:// or https:// and include a host"),
+    ({"URL":"ftp://example"},   "URL must start with http:// or https:// and include a host"),
+    ({"URL":"http:///pathonly"},"URL must start with http:// or https:// and include a host"),
+    ({"WRONG_KEY":"value"},     "Unexpected key in .env: 'WRONG_KEY'"),
+    ({"USERNAME":""},           "USERNAME cannot be empty."),
+    ({"PASSWORD":""},           "PASSWORD cannot be empty."),
 ])
-@patch("viewport.logging.error")
-def test_invalid_env_values_loose(mock_log, tmp_path, monkeypatch, env_overrides, substr):
-    # CLEAR any existing env so load_dotenv overrides
-    for key in ("USERNAME","PASSWORD","URL","SECRET","FLASK_RUN_HOST","FLASK_RUN_PORT"):
-        monkeypatch.delenv(key, raising=False)
-
+def test_invalid_env_loose(tmp_path, caplog, monkeypatch, env_overrides, expected_msg):
+    # clear any inherited env
+    for k in ("USERNAME","PASSWORD","URL","SECRET","FLASK_RUN_HOST","FLASK_RUN_PORT"): monkeypatch.delenv(k, raising=False)
     write_base(tmp_path, env_overrides=env_overrides)
-    mod = reload_in(tmp_path)
-    ok = mod.validate_config(strict=False, print=True)
+    caplog.set_level("ERROR")
+    ok = validate_config(strict=False,
+                         print_errors=True,
+                         config_file=tmp_path / "config.ini",
+                         env_file=tmp_path / ".env",
+                         logs_dir=tmp_path / "logs",
+                         api_dir=tmp_path / "api")
     assert ok is False
-    assert any(substr in call.args[0] for call in mock_log.call_args_list)
-
+    assert any(expected_msg in rec.message for rec in caplog.records)
 # ----------------------------------------------------------------------------- 
-# 4) Host/Port edge‐cases in loose mode
+# .env exception
 # ----------------------------------------------------------------------------- 
-@pytest.mark.parametrize("host,port,substr", [
-    ("not_an_ip", "8080",   "FLASK_RUN_HOST must be a valid IP address"),
-    ("127.0.0.1", "notnum", "must be an integer"),
-    ("::1",       "70000",  "must be 1-65535"),
-])
-@patch("viewport.logging.error")
-def test_bad_host_port_loose(mock_log, tmp_path, monkeypatch, host, port, substr):
-    # 1) write a valid base .env so that all other keys pass
+def test_env_parsing_exception(tmp_path, caplog):
+    #If the .env file is malformed (e.g. a line without “=”)
     write_base(tmp_path)
-    # 2) force the bad host/port into os.environ
+    (tmp_path / ".env").write_text("PASSWORD\n")
+
+    caplog.set_level("ERROR")
+    ok = validate_config(
+        strict=False,
+        print_errors=True,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
+
+    assert ok is False
+    assert any("Failed to validate .env file:" in rec.message for rec in caplog.records)
+    assert any("Format should be KEY=value." in rec.message
+               for rec in caplog.records)
+# ----------------------------------------------------------------------------- 
+# Host/Port parsing in loose mode (no validation errors)
+# ----------------------------------------------------------------------------- 
+@pytest.mark.parametrize(
+    "host,port,expected_errors",
+    [
+        ("not_an_ip", "8080", ["FLASK_RUN_HOST must be a valid IP address"]),
+        ("127.0.0.1", "notnum", ["FLASK_RUN_PORT must be an integer"]),
+        ("::1", "70000", ["FLASK_RUN_PORT must be 1-65535"]),
+    ],
+)
+def test_host_port_validation_api_mode(tmp_path, caplog, monkeypatch, host, port, expected_errors):
+    write_base(tmp_path)
     monkeypatch.setenv("FLASK_RUN_HOST", host)
     monkeypatch.setenv("FLASK_RUN_PORT", port)
+    caplog.set_level("ERROR")
 
-    mod = reload_in(tmp_path)
-    ok = mod.validate_config(strict=False, print=True, api=True)
+    ok = validate_config(
+        strict=False,
+        print_errors=True,
+        api=True,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
+
+    # Should fail in API mode
     assert ok is False
-    assert any(substr in call.args[0] for call in mock_log.call_args_list)
+    # Each expected error must appear in the log
+    for msg in expected_errors:
+        assert any(msg in record.message for record in caplog.records), \
+            f"Expected to find error '{msg}' in:\n" + "\n".join(r.message for r in caplog.records)
+# ----------------------------------------------------------------------------- 
+# Missing host/port should not error
+# ----------------------------------------------------------------------------- 
+def test_missing_host_port_no_errors(tmp_path, caplog, monkeypatch):
+    write_base(tmp_path)
+    # remove host/port
+    monkeypatch.delenv("FLASK_RUN_HOST", raising=False)
+    monkeypatch.delenv("FLASK_RUN_PORT", raising=False)
+    caplog.set_level("ERROR")
+    ok = validate_config(strict=False,
+                         print_errors=True,
+                         api=True,
+                         config_file=tmp_path / "config.ini",
+                         env_file=tmp_path / ".env",
+                         logs_dir=tmp_path / "logs",
+                         api_dir=tmp_path / "api")
+    # should succeed and no FLASK_RUN errors
+    assert ok
+    assert not isinstance(ok, bool)  # returns AppConfig object
+    assert not any("FLASK_RUN_HOST" in rec.message or "FLASK_RUN_PORT" in rec.message for rec in caplog.records)
+
+
+# 6) Optional .env fields missing vs empty
+@pytest.mark.parametrize("field", ["FLASK_RUN_HOST", "FLASK_RUN_PORT", "SECRET"])
+def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, field):
+    """
+    Any optional_fields (FLASK_RUN_HOST, FLASK_RUN_PORT, SECRET):
+      - Missing → should succeed (no error)
+      - Present but empty → should fail with the right message
+    """
+    write_base(tmp_path)
+    caplog.set_level("ERROR")
+
+    # missing field → OK, no error logged
+    monkeypatch.delenv(field, raising=False)
+    ok1 = validate_config(
+        strict=False,
+        print_errors=True,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
+    assert ok1
+    assert not any(field in rec.message for rec in caplog.records)
+
+    # present but empty → should fail with "If <FIELD> is specified, it cannot be empty."
+    caplog.clear()
+    write_base(tmp_path, env_overrides={field: ""})
+    ok2 = validate_config(
+        strict=False,
+        print_errors=True,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
+    assert ok2 is False
+    assert any(
+        f"If {field} is specified, it cannot be empty." in rec.message
+        for rec in caplog.records
+    )

@@ -169,7 +169,7 @@ def args_handler(args):
         sys.exit(0)
     if args.diagnose:
         logging.info("Checking validity of config.ini and .env variables...")
-        diag_cfg = validate_config(strict=False, print_errors=True)
+        diag_cfg = validate_config(strict=False, print_errors=True, api=True)
         if diag_cfg: logging.info("No errors found.")       
         sys.exit(0)
     if args.api:

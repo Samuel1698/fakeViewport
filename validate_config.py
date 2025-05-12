@@ -100,7 +100,7 @@ def parse_restart_times(raw: str, errors: list[str]) -> list[time]:
             errors.append(f"Invalid RESTART_TIME: {part!r} (expected HH:MM)")
     return times
 
-def validate_env(env_file: Path, errors: list[str]) -> tuple[str, str, str, str, str, str, dict]:
+def validate_env(env_file: Path, api: bool, errors: list[str]) -> tuple[str, str, str, str, str, str, dict]:
     try:
         load_dotenv(dotenv_path=env_file)
         values = dotenv_values(env_file)
@@ -131,7 +131,19 @@ def validate_env(env_file: Path, errors: list[str]) -> tuple[str, str, str, str,
         for key in optional_fields:
             if key in values and not values[key].strip():
                 errors.append(f"If {key} is specified, it cannot be empty.")
-        
+        host = os.getenv('FLASK_RUN_HOST', '').strip()
+        port_str = os.getenv('FLASK_RUN_PORT', '').strip()
+        if api:
+            try:
+                ipaddress.ip_address(host)
+            except ValueError:
+                errors.append(f"FLASK_RUN_HOST must be a valid IP address, got: '{host}'")
+            if not port_str.isdigit():
+                errors.append(f"FLASK_RUN_PORT must be an integer, got: '{port_str}'")
+            else:
+                port = int(port_str)
+                if not (1 <= port <= 65535):
+                    errors.append(f"FLASK_RUN_PORT must be 1-65535, got: {port}")
         # Validate URL format if present and non-empty
         if "URL" in values and values["URL"].strip():
             validate_url(values["URL"], errors)
@@ -147,7 +159,7 @@ def validate_env(env_file: Path, errors: list[str]) -> tuple[str, str, str, str,
         )
     except Exception as e:
         errors.append(f"Failed to validate .env file: {str(e)}")
-        errors.append(f"Are you sure you spelled everything correctly?")
+        errors.append("Format should be KEY=value.")
         return ('', '', '', '', '', '', {})
     
 def validate_url(url_val: str, errors: list[str]):
@@ -219,7 +231,7 @@ def validate_config(
     api_flag = safe_getbool(config, 'API', 'USE_API', False, errors)
 
     # Validate .env
-    username, password, url_val, host, port_str, secret, env_values = validate_env(env_file, errors)
+    username, password, url_val, host, port_str, secret, env_values = validate_env(env_file, api, errors)
 
     port = int(port_str) if port_str.isdigit() else 0
     control_token = secret.strip()
