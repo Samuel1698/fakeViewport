@@ -263,7 +263,10 @@ def create_app(config_file=None):
 
 # ----------------------------------------------------------------------------- 
 # Run server when invoked directly
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
+def main():
+    cfg = validate_config(strict=False, api=True)
+    create_app().run(host=cfg.host or None,
+                     port=cfg.port or None)
 if __name__ == '__main__':
-    cfg = validate_config(api=True)
-    create_app().run(host=cfg.host, port=cfg.port)
+    main()

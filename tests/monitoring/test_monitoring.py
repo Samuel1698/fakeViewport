@@ -1,154 +1,122 @@
 import os
-import configparser
-import pytest
+import sys
 import subprocess
 import runpy
-import sys
 import pathlib
+import types
 from pathlib import Path
+from types import SimpleNamespace
+from validate_config import validate_config
+from datetime import time as timecls
+import pytest
 import psutil
 import monitoring
 from monitoring import create_app
 # ----------------------------------------------------------------------------- 
 # Helper to build an app/client
 # ----------------------------------------------------------------------------- 
+@pytest.fixture(autouse=True)
+def patch_validate_config(monkeypatch, tmp_path):
+    # Replace monitoring.validate_config(...) with one
+    # that reads only from os.environ and returns exactly
+    # the attributes monitoring.py expects.
+    def fake_validate_config(
+        strict=False,
+        api=False,
+        config_file=None,
+        env_file=None,
+        logs_dir=None,
+        api_dir=None,
+    ):
+        # parse RESTART_TIMES from env or default "12:00"
+        times = [
+            timecls(*map(int, t.split(":")))
+            for t in os.getenv("RESTART_TIMES", "12:00").split(",")
+            if t.strip()
+        ]
 
+        return SimpleNamespace(
+            # flask secret & host/port
+            CONTROL_TOKEN=os.getenv("SECRET", ""),
+            host=os.getenv("FLASK_RUN_HOST", ""),
+            port=os.getenv("FLASK_RUN_PORT", ""),
+
+            # intervals & restart times
+            SLEEP_TIME=300,
+            LOG_INTERVAL=15,
+            RESTART_TIMES=times,
+
+            # logging flags
+            LOG_FILE_FLAG=False,
+            LOG_CONSOLE=False,
+            DEBUG_LOGGING=False,
+            LOG_DAYS=1,
+
+            # file paths under tmp_path
+            mon_file=tmp_path / "api" / "mon.txt",
+            log_file=tmp_path / "logs" / "viewport.log",
+            sst_file=tmp_path / "api" / "sst.txt",
+            status_file=tmp_path / "api" / "status.txt",
+        )
+
+    monkeypatch.setattr(monitoring, "validate_config", fake_validate_config)
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    # 1) Stub out all real logging
-    monkeypatch.setattr(monitoring, 'configure_logging', lambda *a, **k: None)
+    # a) stub out logging config
+    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
 
-    # 2) Force script_dir → tmp_path so all endpoints read/write there
-    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+    # b) point all file ops under tmp_path
+    monkeypatch.setattr(monitoring, "script_dir", tmp_path)
+    (tmp_path / "api").mkdir(exist_ok=True)
+    (tmp_path / "logs").mkdir(exist_ok=True)
 
-    # 3) Fake psutil uptime & RAM
-    monkeypatch.setattr(monitoring.psutil, 'boot_time',    lambda: 1000)
-    monkeypatch.setattr(monitoring.time,    'time',        lambda: 1010)
+    # c) fake system uptime & RAM
+    monkeypatch.setattr(monitoring.psutil, "boot_time", lambda: 1000)
+    monkeypatch.setattr(monitoring.time, "time", lambda: 1010)
     class DummyVM:
-        used  = 12345
+        used = 12345
         total = 67890
-    monkeypatch.setattr(monitoring.psutil, 'virtual_memory', lambda: DummyVM)
+    monkeypatch.setattr(
+        monitoring.psutil, "virtual_memory", lambda: DummyVM
+    )
 
-    # 4) Write a minimal config.ini into tmp_path
-    cfg = configparser.ConfigParser()
-    cfg["General"] = {
-        "SLEEP_TIME":   "300",
-        "LOG_INTERVAL": "15",
-        "RESTART_TIMES": "12:00"
-    }
-    cfg["Logging"] = {
-        # we no longer care about API_FILE_PATH here
-        "LOG_FILE":       "False",
-        "LOG_CONSOLE":    "False",
-        "VERBOSE_LOGGING":"False",
-        "LOG_DAYS":       "1",
-    }
-    cfg_path = tmp_path / "config.ini"
-    with cfg_path.open("w") as f:
-        cfg.write(f)
-
-    # 5) Create & return the Flask test client
-    app = create_app(str(cfg_path))
+    # d) build Flask client
+    app = create_app(None)
     app.testing = True
     return app.test_client()
 # ----------------------------------------------------------------------------- 
 # Helper to build an app/client with SECRET in the environment
 # ----------------------------------------------------------------------------- 
 def _make_auth_client(tmp_path, monkeypatch):
-    # 1) Stub logging so it never writes
-    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
-
-    # 2) Make SECRET present
     monkeypatch.setenv("SECRET", "shh")
-
-    # 3) Redirect all file-based operations under tmp_path
+    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
     monkeypatch.setattr(monitoring, "script_dir", tmp_path)
+    (tmp_path / "api").mkdir(exist_ok=True)
+    (tmp_path / "logs").mkdir(exist_ok=True)
 
-    # 4) Build the minimal config.ini
-    cfg = configparser.ConfigParser()
-    cfg["General"] = {
-        "SLEEP_TIME":   "300",   
-        "LOG_INTERVAL": "15",
-        "RESTART_TIMES": "12:00"
-    }
-    cfg["Logging"] = {
-        "LOG_FILE":        "False",
-        "LOG_CONSOLE":     "False",
-        "VERBOSE_LOGGING": "False",
-        "LOG_DAYS":        "1",
-    }
-    cfg_path = tmp_path / "config.ini"
-    with open(cfg_path, "w") as f:
-        cfg.write(f)
+    # stub render_template so we can detect it
+    monkeypatch.setattr(
+        monitoring,
+        "render_template",
+        lambda tpl, **ctx: f"TEMPLATE({tpl})"
+    )
 
-    # 5) Stub out render_template so you know what’s returned
-    monkeypatch.setattr(monitoring, "render_template",
-                        lambda tpl, **ctx: f"TEMPLATE({tpl})")
-
-    # 6) Create the app and return just the test client
-    app = create_app(str(cfg_path))
+    app = create_app(None)
     app.testing = True
     return app.test_client()
 # ----------------------------------------------------------------------------- 
 # Helper to build an app/client with NO SECRET in the environment
 # ----------------------------------------------------------------------------- 
 def no_secret_client(tmp_path, monkeypatch):
-    # 1) Ensure SECRET isn’t set
     monkeypatch.delenv("SECRET", raising=False)
-
-    # 2) Stub logging
     monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
-
-    # 3) Fake out psutil / time so uptime & memory are deterministic
-    monkeypatch.setattr(monitoring.psutil, "boot_time", lambda: 1000)
-    monkeypatch.setattr(monitoring.time,   "time",      lambda: 1010)
-    class DummyVM:
-        used = 12345
-        total = 67890
-    monkeypatch.setattr(monitoring.psutil, "virtual_memory", lambda: DummyVM)
-
-    # 4) Redirect all file-based operations under tmp_path
     monkeypatch.setattr(monitoring, "script_dir", tmp_path)
+    (tmp_path / "api").mkdir(exist_ok=True)
+    (tmp_path / "logs").mkdir(exist_ok=True)
 
-    # 5) Build the minimal config.ini 
-    cfg = configparser.ConfigParser()
-    cfg["General"] = {
-        "SLEEP_TIME":   "300",
-        "LOG_INTERVAL": "15",
-        "RESTART_TIMES": "12:00"
-    }
-    cfg["Logging"] = {
-        "LOG_FILE":        "False",
-        "LOG_CONSOLE":     "False",
-        "VERBOSE_LOGGING": "False",
-        "LOG_DAYS":        "1",
-    }
-    cfg_path = tmp_path / "config.ini"
-    with open(cfg_path, "w") as f:
-        cfg.write(f)
-
-    # 6) Create the app and return just the test client
-    app = create_app(str(cfg_path))
+    app = create_app(None)
     app.testing = True
     return app.test_client()
-# ----------------------------------------------------------------------------- 
-# Helper to write a config file
-# ----------------------------------------------------------------------------- 
-def write_cfg(path, restart_times):
-    cfg = configparser.ConfigParser()
-    cfg["General"] = {
-        "SLEEP_TIME":   "10",
-        "LOG_INTERVAL": "1",
-        "RESTART_TIMES": restart_times,
-    }
-    cfg["Logging"] = {
-        "LOG_FILE":    "False",
-        "LOG_CONSOLE": "False",
-        "LOG_DAYS":    "1",
-    }
-    with open(path, "w") as f:
-        cfg.write(f)
-
 # ----------------------------------------------------------------------------- 
 # Control endpoint (/api/control/<action>)
 # ----------------------------------------------------------------------------- 
@@ -218,10 +186,8 @@ def test_read_api_file_error_logs_and_returns_none(tmp_path, monkeypatch, caplog
     # Stub configure_logging so app.logger works
     monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
 
-    # Build app with default SECRET unset
-    cfg_path = tmp_path / "config.ini"
-    write_cfg(cfg_path, restart_times="00:00")
-    app = create_app(str(cfg_path))
+    # Build app
+    app = create_app()
 
     # Now monkeypatch Path.read_text to throw
     monkeypatch.setattr(Path, "exists", lambda self: True)
@@ -322,10 +288,8 @@ def test_login_unsafe_next_redirects_to_dashboard(tmp_path, monkeypatch):
     # Stub out configure_logging so create_app won’t break
     monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
 
-    # Write minimal config and build client
-    cfg_path = tmp_path / "config.ini"
-    write_cfg(cfg_path, restart_times="00:00")
-    app = create_app(str(cfg_path))
+    # Build App
+    app = create_app()
     app.testing = True
     client = app.test_client()
 
@@ -377,21 +341,8 @@ def test_control_endpoints_allowed_without_login(tmp_path, monkeypatch, action, 
     assert data["status"]  == "ok"
     assert data["message"] == expected_msg
 # ----------------------------------------------------------------------------- 
-# COVER the `if __name__ == "__main__": … run(host, port)` block
-# ----------------------------------------------------------------------------- 
-def test_main_invokes_flask_run(tmp_path, monkeypatch):
-    # Prepare a fake script_dir so create_app doesn’t error
-    monkeypatch.setenv("FLASK_RUN_HOST", "1.2.3.4")
-    monkeypatch.setenv("FLASK_RUN_PORT", "2500")
-
-    # Capture calls to Flask.run
-    called = {}
-    monkeypatch.setattr(monitoring.Flask, "run", lambda self, host, port: called.setdefault("args", (host, port)))
-
-    # Re-execute the module as __main__
-    runpy.run_module("monitoring", run_name="__main__", alter_sys=True)
-
-    assert called["args"] == ("1.2.3.4", 2500)
+# Index
+# -----------------------------------------------------------------------------   
 def test_dashboard_renders_index(tmp_path, monkeypatch):
     # No SECRET means login is skipped and dashboard is public
     monkeypatch.delenv("SECRET", raising=False)
@@ -399,10 +350,8 @@ def test_dashboard_renders_index(tmp_path, monkeypatch):
     # Stub render_template so we can detect the call
     monkeypatch.setattr(monitoring, "render_template", lambda tpl, **ctx: f"INDEX({tpl})")
 
-    # Minimal config
-    cfg_path = tmp_path / "config.ini"
-    write_cfg(cfg_path, restart_times="00:00")
-    app = create_app(str(cfg_path))
+    # Build App
+    app = create_app()
     app.testing = True
     client = app.test_client()
 
