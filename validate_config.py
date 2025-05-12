@@ -126,34 +126,42 @@ def validate_env(env_file: Path, api: bool, errors: list[str]) -> tuple[str, str
             elif example_value and values[key].strip() == example_value:
                 errors.append(f"{key} is still set to the example value. Please update it.")
         
-        # Optional fields (if present, must be non-empty)
-        optional_fields = ["FLASK_RUN_HOST", "FLASK_RUN_PORT", "SECRET"]
-        for key in optional_fields:
-            if key in values and not values[key].strip():
-                errors.append(f"If {key} is specified, it cannot be empty.")
+        # Optional fields unless running api (if present, must be non-empty)
+        optional_fields = ["FLASK_RUN_HOST", "FLASK_RUN_PORT"]
+        if not api:
+            for key in optional_fields:
+                if key in values and not values[key].strip():
+                    errors.append(f"If {key} is specified, it cannot be empty.")
+        # Secret is always optional
+        if "SECRET" in values and not values["SECRET"].strip():
+            errors.append("If SECRET is specified, it cannot be empty.")
+        # Validate URL format if present and non-empty
+        if "URL" in values and values["URL"].strip():
+            validate_url(values["URL"], errors)
+        
         host = os.getenv('FLASK_RUN_HOST', '').strip()
-        port_str = os.getenv('FLASK_RUN_PORT', '').strip()
+        port = os.getenv('FLASK_RUN_PORT', '').strip()
         if api:
             try:
                 ipaddress.ip_address(host)
             except ValueError:
                 errors.append(f"FLASK_RUN_HOST must be a valid IP address, got: '{host}'")
-            if not port_str.isdigit():
-                errors.append(f"FLASK_RUN_PORT must be an integer, got: '{port_str}'")
+                errors.append(f"Falling back to 0.0.0.0")
+                host="0.0.0.0"
+            if not port.isdigit():
+                errors.append(f"FLASK_RUN_PORT must be an integer, got: '{port}'")
+                errors.append(f"Falling back to 5000")
+                port=5000
             else:
-                port = int(port_str)
+                port = int(port)
                 if not (1 <= port <= 65535):
                     errors.append(f"FLASK_RUN_PORT must be 1-65535, got: {port}")
-        # Validate URL format if present and non-empty
-        if "URL" in values and values["URL"].strip():
-            validate_url(values["URL"], errors)
-        
         return (
             os.getenv('USERNAME', ''),
             os.getenv('PASSWORD', ''),
             os.getenv('URL', ''),
-            os.getenv('FLASK_RUN_HOST', ''),
-            os.getenv('FLASK_RUN_PORT', ''),
+            host,
+            port,
             os.getenv('SECRET', ''),
             values
         )
@@ -231,9 +239,8 @@ def validate_config(
     api_flag = safe_getbool(config, 'API', 'USE_API', False, errors)
 
     # Validate .env
-    username, password, url_val, host, port_str, secret, env_values = validate_env(env_file, api, errors)
-
-    port = int(port_str) if port_str.isdigit() else 0
+    username, password, url_val, host, port, secret, env_values = validate_env(env_file, api, errors)
+    
     control_token = secret.strip()
 
     # Value constraints
