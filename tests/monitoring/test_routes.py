@@ -5,9 +5,9 @@ import pathlib
 from pathlib import Path
 import monitoring
 from monitoring import create_app
-
+from types import SimpleNamespace
 # ----------------------------------------------------------------------------- 
-# 1) Fake out datetime.now() for determinism
+# Fake out datetime.now() for determinism
 # ----------------------------------------------------------------------------- 
 class DummyDateTime:
     @classmethod
@@ -17,61 +17,77 @@ class DummyDateTime:
     @staticmethod
     def combine(d, t):
         # use the real datetime.combine
+        from datetime import datetime as real_datetime
         return real_datetime.combine(d, t)
 
     @staticmethod
     def strptime(s, fmt):
+        from datetime import datetime as real_datetime
         return real_datetime.strptime(s, fmt)
 
 @pytest.fixture(autouse=True)
 def patch_datetime(monkeypatch):
-    # Replace the module‐level datetime & timedelta
     monkeypatch.setattr(monitoring, 'datetime', DummyDateTime)
     monkeypatch.setattr(monitoring, 'timedelta', timedelta)
     yield
+    # (no teardown needed)
+
 @pytest.fixture
 def restart_times(request):
-    # Provides the string value passed via @pytest.mark.parametrize(..., indirect=True)
+    # Provides the raw string passed via @pytest.mark.parametrize.
     return getattr(request, 'param', '')
 
 # ----------------------------------------------------------------------------- 
-# 2) Helper to build a client with a given RESTART_TIMES string
+# Helper to build a client with a given RESTART_TIMES string
 # ----------------------------------------------------------------------------- 
 @pytest.fixture
 def client(tmp_path, monkeypatch, restart_times):
-    # 1) Stub out all real logging
+    # 1) stub out the shared validate_config(...) to return exactly what we need
+    #    convert the restart_times string into a list of time objects
+    times = [
+        timecls(*map(int, t.split(':')))
+        for t in restart_times.split(',') if t.strip()
+    ]
+    cfg = SimpleNamespace(
+        CONTROL_TOKEN='',
+        host='',
+        port='',
+        SLEEP_TIME=300,                
+        LOG_INTERVAL=15,              
+        RESTART_TIMES=times,
+        LOG_FILE_FLAG=True,
+        LOG_CONSOLE=True,
+        DEBUG_LOGGING=False,
+        LOG_DAYS=7,
+        # Where monitoring will read/write files:
+        mon_file=tmp_path / 'api' / 'mon.txt',
+        log_file=tmp_path / 'logs' / 'viewport.log',
+        sst_file=tmp_path / 'api' / 'sst.txt',
+        status_file=tmp_path / 'api' / 'status.txt',
+    )
+    monkeypatch.setattr(monitoring, 'validate_config', lambda **kw: cfg)
+
+    # 2) stub out configure_logging (so we don't reconfigure pytest's caplog)
     monkeypatch.setattr(monitoring, 'configure_logging', lambda *a, **k: None)
 
-    # 2) Force script_dir → tmp_path so all endpoints read/write there
+    # 3) force script_dir → tmp_path, and create the subdirectories
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+    # make sure the dirs exist so endpoints that write/read them work:
+    (tmp_path / 'api').mkdir(exist_ok=True)
+    (tmp_path / 'logs').mkdir(exist_ok=True)
 
-    # 3) Fake psutil uptime & RAM
+    # 4) fake psutil / time
     monkeypatch.setattr(monitoring.psutil, 'boot_time',    lambda: 1000)
     monkeypatch.setattr(monitoring.time,    'time',        lambda: 1010)
     class DummyVM:
         used  = 12345
         total = 67890
     monkeypatch.setattr(monitoring.psutil, 'virtual_memory', lambda: DummyVM)
-    cfg = configparser.ConfigParser()
-    cfg['General'] = {
-        'SLEEP_TIME':   '300',
-        'LOG_INTERVAL': '15',
-        'RESTART_TIMES': restart_times,        
-    }
-    cfg['Logging'] = {
-        'LOG_FILE':       'False',
-        'LOG_CONSOLE':    'False',
-        'VERBOSE_LOGGING':'False',
-        'LOG_DAYS':       '1',
-    }
-    cfg_path = tmp_path / "config.ini"
-    with cfg_path.open("w") as f:
-        cfg.write(f)
-    # 5) Create & return the Flask test client
-    app = create_app(str(cfg_path))
+
+    # 5) build the Flask client
+    app = monitoring.create_app()
     app.testing = True
     return app.test_client()
-
 # ----------------------------------------------------------------------------- 
 # /api/next_restart
 # ----------------------------------------------------------------------------- 
