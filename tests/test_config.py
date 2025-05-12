@@ -203,15 +203,14 @@ def test_missing_host_port_no_errors(tmp_path, caplog, monkeypatch):
     assert not isinstance(ok, bool)  # returns AppConfig object
     assert not any("FLASK_RUN_HOST" in rec.message or "FLASK_RUN_PORT" in rec.message for rec in caplog.records)
 
-
-# 6) Optional .env fields missing vs empty
+# ----------------------------------------------------------------------------- 
+# Optional .env fields missing vs empty
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("field", ["FLASK_RUN_HOST", "FLASK_RUN_PORT", "SECRET"])
 def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, field):
-    """
-    Any optional_fields (FLASK_RUN_HOST, FLASK_RUN_PORT, SECRET):
-      - Missing → should succeed (no error)
-      - Present but empty → should fail with the right message
-    """
+    # Any optional_fields (FLASK_RUN_HOST, FLASK_RUN_PORT, SECRET):
+    #   - Missing → should succeed (no error)
+    #   - Present but empty → should fail with the right message
     write_base(tmp_path)
     caplog.set_level("ERROR")
 
