@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from validate_config import validate_config
 from datetime import time as timecls
+from flask import url_for
 import pytest
 import psutil
 import monitoring
@@ -282,26 +283,16 @@ def test_login_post_wrong_key_flashes_error(tmp_path, monkeypatch):
         flashes = sess.get("_flashes", [])
     # flashes is a list of (category, message) tuples
     assert ("danger", "Invalid API key") in flashes
-def test_login_unsafe_next_redirects_to_dashboard(tmp_path, monkeypatch):
-    # No SECRET so login() auto‐populates session and then redirect to dashboard
-    monkeypatch.delenv("SECRET", raising=False)
-    # Stub out configure_logging so create_app won’t break
-    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
-
-    # Build App
-    app = create_app()
-    app.testing = True
-    client = app.test_client()
-
-    # POST to /login with a next=external URL
-    resp = client.post(
-        "/login?next=http://evil.com",
-        data={"key": ""},
+def test_login_post_with_secret_and_unsafe_next_redirects_dashboard(tmp_path, monkeypatch):
+    client_app = _make_auth_client(tmp_path, monkeypatch)
+    
+    resp = client_app.post(
+        "/login?next=http://evil.com/steal",
+        data={"key": "shh"},      # matches CONTROL_TOKEN from the fixture
         follow_redirects=False
     )
-    # The code should see an absolute URL and bounce to dashboard
     assert resp.status_code == 302
-    assert resp.headers["Location"].endswith("/")  # same as dashboard()
+    assert resp.headers["Location"] == "/"
 def test_login_post_correct_key_redirects(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
     # POST good key → redirect to next ("/")

@@ -33,12 +33,12 @@ logs_dir    = _base / 'logs'
 api_dir     = _base / 'api'
 # ----------------------------------------------------------------------------- 
 # Application for the monitoring API
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def create_app(config_file=None):
     app = Flask(__name__)
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     # Load and validate everything via our shared validator
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     cfg = validate_config(api=True)
     # pull everything out into locals/globals
     CONTROL_TOKEN   = cfg.CONTROL_TOKEN
@@ -58,9 +58,9 @@ def create_app(config_file=None):
     log_file        = cfg.log_file
     sst_file        = cfg.sst_file
     status_file     = cfg.status_file
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     # Setup Logging
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     configure_logging(
         log_file_path=str(mon_file),
         log_file=LOG_FILE,
@@ -68,13 +68,13 @@ def create_app(config_file=None):
         log_days=LOG_DAYS,
         Debug_logging=DEBUG_LOGGING
     )
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     # Enable CORS
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     CORS(app)
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     # Helper: read and strip text files
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     def _read_api_file(path):
         if not path.exists():
             return None
@@ -96,7 +96,9 @@ def create_app(config_file=None):
                     return redirect(url_for("login", next=request.path))
             return f(*args, **kwargs)
         return decorated
-    # ─────── Routes ───────
+    # ----------------------------------------------------------------------------- 
+    # Routes
+    # ----------------------------------------------------------------------------- 
     @app.route("/login", methods=["GET", "POST"])
     def login():
         # If no SECRET is configured, skip login entirely
