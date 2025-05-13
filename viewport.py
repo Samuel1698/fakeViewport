@@ -955,7 +955,7 @@ def handle_page(driver):
     # Handles the page loading and login process
     # It waits for the page title to load and checks if it contains "Dashboard" or "Ubiquiti Account" (login page)
     # If it contains "Dashboard", it calls the handle_elements function and returns true.
-    check_for_title(driver)
+    check_for_title(driver)   # Check for non-empty title
     start_time = time.time()  # Capture the starting time
     while True:
         if "Dashboard" in driver.title:
