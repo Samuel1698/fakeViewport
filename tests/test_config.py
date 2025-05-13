@@ -5,6 +5,7 @@ import pytest
 from pathlib import Path
 from dotenv import load_dotenv
 from validate_config import validate_config
+import ipaddress 
 
 # Helpers to write test files
 BASE_INI = """
@@ -243,3 +244,41 @@ def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, fi
         f"If {field} is specified, it cannot be empty." in rec.message
         for rec in caplog.records
     )
+# ----------------------------------------------------------------------------- 
+# Error displays INI + env
+# ----------------------------------------------------------------------------- 
+@pytest.mark.parametrize("ini_overrides, env_overrides, expected_msg", [
+    # example‐value still set
+    (None, {"USERNAME": "YourLocalUsername"}, "USERNAME is still set to the example value. Please update it."),
+    (None, {"PASSWORD": "YourLocalPassword"}, "PASSWORD is still set to the example value. Please update it."),
+    (None, {"URL": "http://192.168.100.100/protect/dashboard/multiviewurl"},
+     "URL is still set to the example value. Please update it."),
+    # browser/profile mismatch
+    ({"BROWSER_BINARY": "/usr/bin/firefox"}, {}, 
+     "Browser mismatch: binary uses 'firefox', but profile path does not."),
+    # numeric constraints
+    ({"SLEEP_TIME": "30"}, {},       "SLEEP_TIME must be ≥ 60."),
+    ({"WAIT_TIME": "5"}, {},         "WAIT_TIME must be > 5."),
+    ({"MAX_RETRIES": "2"}, {},       "MAX_RETRIES must be ≥ 3."),
+    ({"LOG_DAYS": "0"}, {},          "LOG_DAYS must be ≥ 1."),
+    ({"LOG_INTERVAL": "0"}, {},      "LOG_INTERVAL must be ≥ 1."),
+])
+def test_additional_validate_config_errors(tmp_path, caplog, monkeypatch,
+                                           ini_overrides, env_overrides, expected_msg):
+    # write base files with overrides
+    write_base(tmp_path,
+               ini_overrides=ini_overrides,
+               env_overrides=env_overrides)
+    caplog.set_level("ERROR")
+    ok = validate_config(
+        strict=False,
+        print_errors=True,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
+    # should fail and log exactly the expected message
+    assert ok is False
+    assert any(expected_msg in rec.message for rec in caplog.records), \
+        f"Expected to see {expected_msg!r} in:\n" + "\n".join(r.message for r in caplog.records)

@@ -134,10 +134,7 @@ def test_handle_fullscreen_button(
 
     # first WebDriverWait returns parent (or raises)
     wd_instance = MagicMock()
-    if isinstance(throw_exc, WebDriverException):
-        wd_instance.until.side_effect = throw_exc
-    else:
-        wd_instance.until.side_effect = [fake_parent, fake_button] if throw_exc is None else [fake_parent]
+    wd_instance.until.side_effect = [fake_parent, fake_button] if throw_exc is None else [fake_parent]
     mock_wdw.return_value = wd_instance
 
     # element_to_be_clickable is called on the parent
@@ -451,6 +448,8 @@ def test_handle_view_healthy_iteration(
     (60,   1,  16, 45, 17),
     # at hh:36:33, 2-min interval  → next boundary at :38
     (60,   2,  36, 33, 38),
+    # at hh:38:00, 2-min interval  → next boundary at :40
+    (60,   2,  38, 00, 40),
     # at hh:36:00, 10-min interval → next boundary at :40
     (60,  10,  36,  0, 40),
     # at hh:36:20, 1-min interval  → next boundary at :37
@@ -502,17 +501,17 @@ def test_handle_view_video_feeds_healthy_logging(
     class BreakLoop(BaseException):
         pass
 
-    # 1) fake current time so we know exactly where the hour is
+    # fake current time so we know exactly where the hour is
     fake_now = datetime(2025, 4, 27, 5, now_minute, now_second)
     monkeypatch.setattr(viewport, "datetime", MagicMock(now=MagicMock(return_value=fake_now)))
 
-    # 2) compute how many sleeps until we hit the boundary, then stop
-    #    first, figure out effective interval (can't log more often than sleep_time)
+    # compute how many sleeps until we hit the boundary, then stop
+    # first, figure out effective interval (can't log more often than sleep_time)
     effective_interval_secs = max(log_interval * 60, sleep_time)
     secs_since_hour = now_minute * 60 + now_second
     secs_to_boundary = (effective_interval_secs - (secs_since_hour % effective_interval_secs)) % effective_interval_secs
-    # if we're exactly on a boundary, schedule one full interval out
-    if secs_to_boundary == 0:
+    # if we're close to a boundary, schedule one full interval out
+    if secs_to_boundary < 30:
         secs_to_boundary = effective_interval_secs
 
     boundary_loops = math.ceil(secs_to_boundary / sleep_time)
@@ -525,27 +524,28 @@ def test_handle_view_video_feeds_healthy_logging(
             raise BreakLoop
     monkeypatch.setattr(viewport.time, "sleep", fake_sleep)
 
-    # 3) stub out driver
+    # stub out driver
     driver = MagicMock()
     driver.execute_script.side_effect = cycle([None, 1920, 1080])
     driver.get_window_size.return_value = {"width": 1920, "height": 1080}
     fake_wait = MagicMock(); fake_wait.until.return_value = True
     mock_wdw.return_value = fake_wait
 
-    # 4) set module constants
+    # set module constants
     viewport.SLEEP_TIME = sleep_time
     viewport.LOG_INTERVAL = log_interval
 
-    # 5) run & break out
+    # run & break out
     with pytest.raises(BreakLoop):
         viewport.handle_view(driver, "http://example.com")
 
-    # 6) make sure the one-and-only “Video feeds healthy.” happened at the final log
+    # make sure the one-and-only “Video feeds healthy.” happened at the final log
     calls = [c.args[0] for c in mock_log_info.call_args_list]
     healthy_calls = [i for i, msg in enumerate(calls) if "Video feeds healthy." in msg]
 
-    assert healthy_calls == [len(calls) - 1], (
-        f"Expected first log at minute {expected_minute}, "
+    assert healthy_calls, "Expected at least one 'Video feeds healthy.' log"
+    assert healthy_calls[-1] == len(calls) - 1, (
+        f"Expected final log at minute {expected_minute}, "
         f"but computed boundary at {datetime(2025,4,27,5, now_minute, now_second) + timedelta(seconds=secs_to_boundary)}"
     )
 

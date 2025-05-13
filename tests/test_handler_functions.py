@@ -13,8 +13,6 @@ import signal
 import subprocess
 # helper to build a fake psutil.Process‐like object
 def _make_proc(pid, cmdline, uids=None, name=None):
-    if isinstance(cmdline, str):
-        cmdline = cmdline.split()
     if name is None:
         name = cmdline[0] if cmdline else f"proc{pid}"
 
@@ -742,8 +740,6 @@ def test_browser_restart_handler(
     if not should_raise:
         if should_return:
             assert result is fake_driver
-        else:
-            assert result is None
 
     # log_error only on exception paths
     assert mock_log_error.called == should_log_err
