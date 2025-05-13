@@ -1,6 +1,7 @@
 import pytest
 import viewport
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
+from selenium.common.exceptions import WebDriverException
 # ----------------------------------------------------------------------------- 
 # Tests for handle_retry function
 # ----------------------------------------------------------------------------- 
@@ -116,3 +117,106 @@ def test_handle_retry_detects_driver_crash_and_restarts(
     mock_api_status.assert_called_with("Feed Healthy")
     # 5) finally, the returned driver is the new one
     assert result is new_driver
+
+# ----------------------------------------------------------------------------- 
+# 1) InvalidSessionIdException path
+# ----------------------------------------------------------------------------- 
+@patch("viewport.log_error")
+@patch("viewport.api_status")
+@patch("viewport.restart_handler")
+@patch("viewport.check_driver", side_effect=viewport.InvalidSessionIdException("bad session"))
+def test_handle_retry_invalid_session(
+    mock_check_driver, mock_restart, mock_api_status, mock_log_error
+):
+    driver = MagicMock(title="Dashboard")
+    url = "http://x"
+    attempt = 1
+    max_retries = 5
+
+    result = viewport.handle_retry(driver, url, attempt=attempt, max_retries=max_retries)
+
+    # api_status should first log the retry, then the branch
+    assert mock_api_status.call_args_list == [
+        call(f"Retrying: {attempt} of {max_retries}"),
+        call("Restarting Program"),
+    ]
+
+    # log_error called once with our InvalidSessionIdException
+    err_call = mock_log_error.call_args[0]
+    assert err_call[0] == f"{viewport.BROWSER} session is invalid. Restarting the program."
+    assert isinstance(err_call[1], viewport.InvalidSessionIdException)
+
+    # restart_handler must be invoked with the original driver
+    mock_restart.assert_called_once_with(driver)
+
+    # return value is whatever restart_handler returned (None by default)
+    assert result is driver
+
+
+# ----------------------------------------------------------------------------- 
+# 2) WebDriverException path
+# ----------------------------------------------------------------------------- 
+@patch("viewport.log_error")
+@patch("viewport.api_status")
+@patch("viewport.browser_restart_handler", return_value="new-driver")
+@patch("viewport.check_driver", return_value=True)
+def test_handle_retry_webdriver_exception(
+    mock_check, mock_browser_restart, mock_api_status, mock_log_error
+):
+    driver = MagicMock(title="Dashboard")
+    driver.get.side_effect = WebDriverException("tab died")
+    url = "http://x"
+    attempt = 0
+    max_retries = 3
+
+    result = viewport.handle_retry(driver, url, attempt=attempt, max_retries=max_retries)
+
+    # api_status first logs retry, then "Tab Crashed"
+    assert mock_api_status.call_args_list == [
+        call(f"Retrying: {attempt} of {max_retries}"),
+        call("Tab Crashed"),
+    ]
+
+    # log_error called once with the WebDriverException
+    err_call = mock_log_error.call_args[0]
+    assert err_call[0] == f"Tab Crashed. Restarting {viewport.BROWSER}..."
+    assert isinstance(err_call[1], WebDriverException)
+
+    # browser_restart_handler should be called once with the URL
+    mock_browser_restart.assert_called_once_with(url)
+    # and return value is what it returned
+    assert result == "new-driver"
+
+
+# ----------------------------------------------------------------------------- 
+# 3) Generic Exception path
+# ----------------------------------------------------------------------------- 
+@patch("viewport.log_error")
+@patch("viewport.api_status")
+@patch("viewport.check_driver", return_value=True)
+def test_handle_retry_generic_exception(
+    mock_check, mock_api_status, mock_log_error
+):
+    driver = MagicMock(title="Dashboard")
+    url = "http://x"
+    attempt = 0
+    max_retries = 2
+
+    # Patch handle_page to throw something unexpected
+    with patch.object(viewport, "handle_page", side_effect=ValueError("oops")):
+        result = viewport.handle_retry(driver, url, attempt=attempt, max_retries=max_retries)
+
+    # api_status should first log retry, then "Error refreshing"
+    assert mock_api_status.call_args_list == [
+        call(f"Retrying: {attempt} of {max_retries}"),
+        call("Error refreshing"),
+    ]
+
+    # log_error should be called once with our ValueError
+    err_call = mock_log_error.call_args[0]
+    assert err_call[0] == "Error while handling retry logic: "
+    assert isinstance(err_call[1], ValueError)
+    assert err_call[2] is driver
+
+    # since this is attempt < max_retries-1, we return the original driver
+    assert result is driver
