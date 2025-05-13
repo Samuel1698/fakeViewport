@@ -5,7 +5,7 @@ import re
 import signal
 import logging
 import logging.handlers
-
+import builtins
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, mock_open, ANY
@@ -221,6 +221,48 @@ def test_log_error_screenshot_webdriver_exception(mock_api, mock_check, mock_sh,
         viewport.log_error("error with driver", driver=mock_driver)
 
         mock_log.warning.assert_called_with("Could not take screenshot: WebDriver not alive (Message: chrome died\n)")
+
+@patch("viewport.screenshot_handler")
+@patch("viewport.check_driver", side_effect=Exception("uh oh"))
+@patch("viewport.logging.warning")
+def test_log_error_screenshot_unexpected_error(mock_warning, mock_check, mock_screenshot):
+    viewport.ERROR_LOGGING = True
+    viewport.ERROR_PRTSCR  = True
+
+    dummy_driver = object()
+    viewport.log_error("oops", exception=Exception("boom"), driver=dummy_driver)
+
+    mock_screenshot.assert_called_once_with(viewport.logs_dir, viewport.LOG_DAYS)
+    # Generic Exception ⇒ hits the second except
+    mock_warning.assert_any_call(
+        f"Unexpected error taking screenshot: uh oh"
+    )
+# --------------------------------------------------------------------------
+# Cover clear_sst() exception branch
+# --------------------------------------------------------------------------
+def test_clear_sst_exception(monkeypatch):
+    # Make sst_file.exists() return True
+    fake_sst = MagicMock()
+    fake_sst.exists.return_value = True
+    monkeypatch.setattr(viewport, "sst_file", fake_sst)
+
+    # Force open() to raise when trying to truncate
+    monkeypatch.setattr(builtins, "open", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("disk full")))
+
+    # Spy on log_error
+    called = {}
+    def fake_log_error(msg, exc=None):
+        called['msg'] = msg
+        called['exc'] = exc
+    monkeypatch.setattr(viewport, "log_error", fake_log_error)
+
+    # Run
+    viewport.clear_sst()
+
+    # Should have logged our error message and exception
+    assert "Error clearing SST file:" in called.get('msg', '')
+    assert isinstance(called.get('exc'), Exception)
+    assert str(called['exc']) == "disk full"
 # ----------------------------------------------------------------------------- 
 # Test api_status function
 # ----------------------------------------------------------------------------- 
