@@ -513,7 +513,7 @@ def status_handler():
                 # Read the status file
                 status_line = f.readlines()[-1].strip()
                 # Conditionally color the status line based on its content
-                if any(keyword in status_line for keyword in ["Error", "Crashed", "Timed Out"]):
+                if any(keyword in status_line for keyword in ["Error", "Crashed", "Timed Out", "Crash"]):
                     colored_status_line = f"{RED}{status_line}{NC}"
                 elif any(keyword in status_line for keyword in ["Restarting", "Starting", "Stopped", "Offline"]):
                     colored_status_line = f"{YELLOW}{status_line}{NC}"
