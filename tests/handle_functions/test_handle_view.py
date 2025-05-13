@@ -26,9 +26,6 @@ def make_driver(window_size, screen_size, offline_status=None):
         # screen.width / screen.height
         if "return screen.width" in script:
             return screen_size["width"]
-        if "return screen.height" in script:
-            return screen_size["height"]
-        return None
 
     driver.execute_script.side_effect = exec_script
     return driver
@@ -367,9 +364,9 @@ def test_handle_view_offline_branch(
         ),
     ],
 )
-@patch("viewport.time.sleep", return_value=None)
-@patch("viewport.browser_restart_handler", side_effect=Exception)  # break loop
-@patch("viewport.handle_retry", side_effect=Exception)
+@patch("viewport.time.sleep")                       # we’ll configure side_effect in the test
+@patch("viewport.browser_restart_handler", side_effect=Exception)
+@patch("viewport.handle_retry")                     # no global exception here
 @patch("viewport.restart_handler", side_effect=Exception)
 @patch("viewport.api_status")
 @patch("viewport.log_error")
@@ -408,8 +405,19 @@ def test_handle_view_all_error_branches(
     # inject the exception scenario
     trigger(driver, fake_wait)
 
-    with pytest.raises(Exception):
-        viewport.handle_view(driver, url)
+    # if the branch under test uses handle_retry, we want the first sleep to pass
+    # and the *second* sleep to raise StopIteration and break the loop.
+    if recovery_fn == "handle_retry":
+        mock_retry.side_effect = None
+        mock_sleep.side_effect = [None, StopIteration()]
+        with pytest.raises(StopIteration):
+            viewport.handle_view(driver, url)
+    else:
+        # for restart_handler / browser_restart_handler cases, we still rely on
+        # their Exceptions to break out immediately
+        mock_sleep.return_value = None
+        with pytest.raises(Exception):
+            viewport.handle_view(driver, url)
 
     # Expected log error is logged
     args, kwargs = mock_log_error.call_args_list[0]
