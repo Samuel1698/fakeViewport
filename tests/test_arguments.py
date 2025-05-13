@@ -149,3 +149,53 @@ def test_args_child_handler_various_cases(args_attrs, drop_flags, add_flags, exp
     args = type("Args", (), args_attrs)()
     result = viewport.args_child_handler(args, drop_flags=drop_flags, add_flags=add_flags)
     assert result == expected
+    
+@patch("viewport.sys.exit")
+def test_logs_file_not_found(mock_exit):
+    # Simulate open() raising FileNotFoundError in the logs branch
+    mock_args = type("Args", (), {
+        "status": False, "logs": 5, "background": False,
+        "quit": False, "diagnose": False, "api": False, "restart": False
+    })()
+    with patch("viewport.open", side_effect=FileNotFoundError), \
+         patch("viewport.print") as mock_print:
+        viewport.args_handler(mock_args)
+    mock_print.assert_called_once_with(
+        f"{viewport.RED}Log file not found: {viewport.log_file}{viewport.NC}"
+    )
+    mock_exit.assert_called_once_with(0)
+
+
+@patch("viewport.sys.exit")
+@patch("viewport.log_error")
+def test_logs_generic_exception(mock_log_error, mock_exit):
+    # Simulate open() raising a generic Exception in the logs branch
+    mock_args = type("Args", (), {
+        "status": False, "logs": 2, "background": False,
+        "quit": False, "diagnose": False, "api": False, "restart": False
+    })()
+    with patch("viewport.open", side_effect=Exception("oops")):
+        viewport.args_handler(mock_args)
+    mock_log_error.assert_called_once()
+    # first arg to log_error should include our message
+    err_msg = mock_log_error.call_args[0][0]
+    assert "Error reading log file: oops" in err_msg
+    mock_exit.assert_called_once_with(0)
+
+
+@patch("viewport.sys.exit")
+@patch("viewport.logging.info")
+def test_api_flag_disabled(mock_info, mock_exit):
+    # Simulate args.api=True but no monitoring process and API flag off
+    mock_args = type("Args", (), {
+        "status": False, "logs": None, "background": False,
+        "quit": False, "diagnose": False, "api": True, "restart": False
+    })()
+    # ensure process_handler returns False for monitoring.py check
+    with patch("viewport.process_handler", return_value=False):
+        viewport.API = False
+        viewport.args_handler(mock_args)
+    mock_info.assert_any_call(
+        "API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature."
+    )
+    mock_exit.assert_called_once_with(0)

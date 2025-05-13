@@ -20,6 +20,21 @@ def disable_external_side_effects(monkeypatch):
     # never actually fork a process
     monkeypatch.setattr(viewport.subprocess, "Popen", lambda *args, **kwargs: None)
 # ----------------------------------------------------------------------------- 
+# Test conftest file handler isolation
+# ----------------------------------------------------------------------------- 
+def test_timed_rotating_file_handler_isolated(tmp_path, monkeypatch, isolate_logging):
+    # Make sure that our isolate_logging fixture’s patched_factory
+    # actually gets invoked when someone instantiates a TimedRotatingFileHandler.
+
+    # instantiate a handler just as production code would do
+    handler = logging.handlers.TimedRotatingFileHandler("ignored.log", when="midnight", interval=1)
+    # it should have been redirected into tmp_path/test.log
+    # confirm the file path ends with test.log
+    assert handler.baseFilename.endswith(str(tmp_path / "test.log"))
+    # ensure it has the rotating attributes we expect
+    assert hasattr(handler, 'rotation_filename')
+    assert callable(handler.doRollover)
+# ----------------------------------------------------------------------------- 
 # Test main function
 # ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
