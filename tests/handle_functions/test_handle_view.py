@@ -7,15 +7,34 @@ from selenium.common.exceptions import TimeoutException, WebDriverException, Inv
 from urllib3.exceptions import NewConnectionError
 from unittest.mock import MagicMock, patch, ANY
 from datetime import datetime, timedelta
-
 # ----------------------------------------------------------------------------- 
-# Tests for handle_view function
+# Helper functions
 # ----------------------------------------------------------------------------- 
 class BreakLoop(BaseException):
     # Custom exception used to break out of the infinite loop in handle_view.
     pass
+def make_driver(window_size, screen_size, offline_status=None):
+    # Returns a fake driver whose get_window_size and execute_script
+    # calls return the given window_size and screen_size values.
+    driver = MagicMock()
+    driver.get_window_size.return_value = window_size
+
+    def exec_script(script):
+        # offline_status check
+        if "Console Offline" in script or "Protect Offline" in script:
+            return offline_status
+        # screen.width / screen.height
+        if "return screen.width" in script:
+            return screen_size["width"]
+        if "return screen.height" in script:
+            return screen_size["height"]
+        return None
+
+    driver.execute_script.side_effect = exec_script
+    return driver
 # ----------------------------------------------------------------------------- 
-# Initial Load Failure
+# Tests for handle_view function
+# ----------------------------------------------------------------------------- 
 @patch("viewport.restart_handler", side_effect=SystemExit)
 @patch("viewport.api_status")
 @patch("viewport.log_error")
@@ -407,3 +426,81 @@ def test_handle_view_all_error_branches(
         rec = mock_chrome_restart
 
     rec.assert_called_once_with(*recovery_args(driver, url, viewport.MAX_RETRIES))
+    
+@pytest.fixture(autouse=True)
+def base_setup(monkeypatch):
+    # handle_page and check_driver always succeed up to our branch
+    monkeypatch.setattr(viewport, "handle_page", lambda d: True)
+    monkeypatch.setattr(viewport, "check_driver", lambda d: True)
+    # disable retry logic
+    monkeypatch.setattr(viewport, "handle_retry", lambda *a, **k: None)
+    # stub out everything after our branch so it won't error
+    monkeypatch.setattr(viewport, "handle_loading_issue", lambda d: None)
+    monkeypatch.setattr(viewport, "handle_elements", lambda d: None)
+    monkeypatch.setattr(viewport, "check_unable_to_stream", lambda d: False)
+    monkeypatch.setattr(viewport, "api_status", lambda msg: None)
+
+def test_handle_view_fullscreen_mismatch(monkeypatch):
+    # Simulate a screen‐size mismatch so that handle_view logs the
+    # 'Attempting to make live-view fullscreen.' info and then
+    # a warning when handle_fullscreen_button returns False.
+
+    # set up driver: window smaller than actual screen
+    driver = make_driver(
+        window_size={"width": 800, "height": 600},
+        screen_size={"width": 1024, "height": 768}
+    )
+
+    # crash branch off
+    monkeypatch.setattr(viewport, "check_crash", lambda d: False)
+    # fullscreen button fails
+    monkeypatch.setattr(viewport, "handle_fullscreen_button", lambda d: False)
+
+    infos = []
+    warns = []
+    monkeypatch.setattr(viewport.logging, "info", lambda msg: infos.append(msg))
+    monkeypatch.setattr(viewport.logging, "warning", lambda msg: warns.append(msg))
+
+    # break out of the infinite loop after first iteration
+    monkeypatch.setattr(viewport.time, "sleep", lambda s: (_ for _ in ()).throw(StopIteration))
+
+    with pytest.raises(StopIteration):
+        viewport.handle_view(driver, "http://example.com")
+
+    assert any("Attempting to make live-view fullscreen." in i for i in infos), \
+        f"Expected an info about fullscreen, got {infos}"
+    assert any("Failed to activate fullscreen" in w for w in warns), \
+        f"Expected a fullscreen-warning, got {warns}"
+
+def test_handle_view_check_crash(monkeypatch):
+    # Force check_crash to return True so that handle_view
+    # calls browser_restart_handler, log_error and api_status.
+
+    # driver pretends to already be fullscreen clean (no size mismatch)
+    driver = make_driver(
+        window_size={"width": 1024, "height": 768},
+        screen_size={"width": 1024, "height": 768}
+    )
+
+    # crash branch on
+    monkeypatch.setattr(viewport, "check_crash", lambda d: True)
+
+    # stub restart to return a new driver
+    new_driver = MagicMock()
+    monkeypatch.setattr(viewport, "browser_restart_handler", lambda url: new_driver)
+
+    errors = []
+    apis = []
+    monkeypatch.setattr(viewport, "log_error", lambda msg, e=None, driver=None: errors.append(msg))
+    monkeypatch.setattr(viewport, "api_status", lambda msg: apis.append(msg))
+
+    # break out of the infinite loop after first iteration
+    monkeypatch.setattr(viewport.time, "sleep", lambda s: (_ for _ in ()).throw(StopIteration))
+
+    with pytest.raises(StopIteration):
+        viewport.handle_view(driver, "http://example.com")
+
+    # verify that we logged the crash and updated the API status
+    assert errors and errors[0].startswith(f"Tab Crashed. Restarting {viewport.BROWSER}"), \
+        f"log_error not called correctly, got: {errors}"
+    assert apis and apis[0] == "Tab Crashed", f"api_status not called, got: {apis}"

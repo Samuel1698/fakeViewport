@@ -1059,7 +1059,7 @@ def handle_view(driver, url):
                     retry_count += 1
                     handle_retry(driver, url, retry_count, max_retries)
                 if check_crash(driver):
-                    log_error(f"Tab Crashed. Restarting {BROWSER}...", e, driver)
+                    log_error(f"Tab Crashed. Restarting {BROWSER}...", e=None, driver=driver)
                     api_status("Tab Crashed")
                     driver = browser_restart_handler(url)
                     continue
