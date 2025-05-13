@@ -308,8 +308,7 @@ def test_api_handler_already_running(mock_api_status, mock_popen, mock_proc):
 # Test Script Start Time File
 # ----------------------------------------------------------------------------- 
 
-# ----------------------------------------------------------------------------- 
-# 1) args_handler: background/restart should leave SST alone; quit must clear it
+# args_handler: background/restart should leave SST alone; quit must clear it
 @pytest.mark.parametrize(
     "flag, pre, should_clear",
     [
@@ -357,8 +356,7 @@ def test_args_handler_flag_sst(mock_exit, mock_proc, flag, pre, should_clear, tm
     else:
         assert content == pre
 
-# ----------------------------------------------------------------------------- 
-# 2) main(): initial / crash / normal cases for writing SST
+# main(): initial / crash / normal cases for writing SST
 @pytest.mark.parametrize(
     "pre, other_running, expect_write",
     [
@@ -400,32 +398,30 @@ def test_main_sst_write_logic(mock_thread, mock_chrome, mock_args, pre, other_ru
         # untouched
         assert sst.read_text() == pre
 
-# ----------------------------------------------------------------------------- 
-# 3) simulate SIGTERM (signal_handler): clears SST, then main() writes again
+# simulate SIGTERM (signal_handler): clears SST, then main() writes again
 @patch("viewport.sys.exit")
 def test_sigterm_clears_and_next_main_writes(mock_exit, tmp_path, monkeypatch):
-    #  a) prepopulate
+    # prepopulate
     sst = tmp_path / "sst.txt"
     viewport.sst_file = sst
     sst.write_text("old")
     monkeypatch.setattr(viewport, "status_file", tmp_path / "status.txt")
 
-    # b) simulate kill by SIGTERM
+    # simulate kill by SIGTERM
     viewport.signal_handler(signum=signal.SIGTERM, frame=None, driver=None)
     assert sst.read_text() == ""
 
-    # c) stub out everything else so main() will actually write
+    # stub out everything else so main() will actually write
     monkeypatch.setattr(viewport, "args_handler", lambda a: "continue")
     monkeypatch.setattr(viewport, "process_handler", lambda n, action="check": False)
     monkeypatch.setattr(viewport, "browser_handler", lambda url: MagicMock())
     monkeypatch.setattr(viewport.threading, "Thread", lambda *args, **kwargs: MagicMock(start=lambda: None))
 
-    # d) call main again
+    # call main again
     viewport.main()
     assert sst.read_text().strip() != ""
 
-# ----------------------------------------------------------------------------- 
-# 4) simulate a true crash (no SIGTERM cleanup): prefilled SST + no process => main rewrites
+# simulate a true crash (no SIGTERM cleanup): prefilled SST + no process => main rewrites
 def test_crash_recovery_writes(tmp_path, monkeypatch):
     sst = tmp_path / "sst.txt"
     viewport.sst_file = sst

@@ -63,15 +63,15 @@ def patch_validate_config(monkeypatch, tmp_path):
     monkeypatch.setattr(monitoring, "validate_config", fake_validate_config)
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    # a) stub out logging config
+    # stub out logging config
     monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
 
-    # b) point all file ops under tmp_path
+    # point all file ops under tmp_path
     monkeypatch.setattr(monitoring, "script_dir", tmp_path)
     (tmp_path / "api").mkdir(exist_ok=True)
     (tmp_path / "logs").mkdir(exist_ok=True)
 
-    # c) fake system uptime & RAM
+    # fake system uptime & RAM
     monkeypatch.setattr(monitoring.psutil, "boot_time", lambda: 1000)
     monkeypatch.setattr(monitoring.time, "time", lambda: 1010)
     class DummyVM:
@@ -81,7 +81,7 @@ def client(tmp_path, monkeypatch):
         monitoring.psutil, "virtual_memory", lambda: DummyVM
     )
 
-    # d) build Flask client
+    # build Flask client
     app = create_app(None)
     app.testing = True
     return app.test_client()

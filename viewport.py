@@ -208,14 +208,14 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
         "logs":       (["--logs", str(args.logs)] if args.logs is not None else []),
     }
     child = []
-    # 1) Re-emit any flags the user originally set,
+    # Re-emit any flags the user originally set,
     #    except those in drop_flags or those we’ll override via add_flags
     for dest, flags in mapping.items():
         if dest in drop or dest in add:
             continue
         if getattr(args, dest, False):
             child.extend(flags)
-    # 2) Force-add any overrides from add_flags (e.g. background after restart)
+    # Force-add any overrides from add_flags (e.g. background after restart)
     for dest, override in add.items():
         if override is None:
             # No explicit value ⇒ use the canonical tokens
@@ -740,7 +740,7 @@ def restart_handler(driver):
     # Reparse args
     args = args_helper()
     try:
-        # 1) notify API & shut down driver if present
+        # notify API & shut down driver if present
         api_status("Restarting script...")
         if driver is not None:
             driver.quit()
