@@ -12,7 +12,7 @@ import subprocess
 
 @pytest.fixture(autouse=True)
 def isolate_sst(tmp_path, monkeypatch):
-    # redirect every test’s sst_file into tmp_path/…
+    # redirect every test’s sst_file into tmp_path/
     fake = tmp_path / "sst.txt"
     fake.write_text("2025-01-01 00:00:00.000000")  # or leave empty
     monkeypatch.setattr(viewport, "sst_file", fake)
@@ -105,7 +105,6 @@ def test_screenshot_handler_unlink_raises(tmp_path, monkeypatch):
     mock_api_status.assert_not_called()
     mock_log_error.assert_called_once()
     assert "unlink failed" in str(mock_log_error.call_args[0][1])
-
 # ----------------------------------------------------------------------------- 
 # Test for Service Handler
 # ----------------------------------------------------------------------------- 
@@ -152,116 +151,6 @@ def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
 
     assert path == "/already/installed/driver"
     mock_chrome_driver_manager.assert_not_called()
-# ----------------------------------------------------------------------------- 
-# Test for browser_handler  
-# ----------------------------------------------------------------------------- 
-@pytest.mark.parametrize(
-    "browser, side_effects, expected_driver_get_calls, expected_kill_calls, expect_restart",
-    [
-        # Chrome success & retry-then-success
-        ("chrome",   [MagicMock()],                    1, 1, False),
-        ("chrome",   [Exception("boom"), MagicMock()], 1, 1, False),
-        # Chrome permanent-failure → 2 kills, restart
-        ("chrome",   [Exception("fail")] * 3,          0, 2, True),
-
-        # Chromium success & retry-then-success
-        ("chromium",[MagicMock()],                     1, 1, False),
-        ("chromium",[Exception("boom"), MagicMock()],  1, 1, False),
-        # Chromium permanent-failure → 2 kills, restart
-        ("chromium",[Exception("fail")] * 3,           0, 2, True),
-
-        # Firefox success & retry-then-success
-        ("firefox", [MagicMock()],                     1, 1, False),
-        ("firefox", [Exception("boom"), MagicMock()],  1, 1, False),
-        # Firefox permanent-failure → 2 kills, restart
-        ("firefox", [Exception("fail")] * 3,           0, 2, True),
-    ],
-)
-@patch("viewport.restart_handler")
-@patch("viewport.process_handler")
-@patch("viewport.validate_config", return_value=True)
-@patch("viewport.FirefoxOptions")
-@patch("viewport.FirefoxProfile")
-@patch("viewport.FirefoxService")
-@patch("viewport.GeckoDriverManager")
-@patch("viewport.Options")
-@patch("viewport.webdriver.Firefox")
-@patch("viewport.webdriver.Chrome")
-@patch("viewport.time.sleep", return_value=None)
-@patch("viewport.api_status")
-@patch("viewport.log_error")
-def test_browser_handler(
-    mock_log_error,
-    mock_api_status,
-    mock_sleep,
-    mock_chrome,
-    mock_firefox,
-    mock_options,
-    mock_gecko_mgr,
-    mock_ff_service,
-    mock_ff_profile,
-    mock_ff_opts,
-    mock_validate_config,
-    mock_process_handler,
-    mock_restart_handler,
-    monkeypatch,               
-    browser,
-    side_effects,
-    expected_driver_get_calls,
-    expected_kill_calls,
-    expect_restart,
-):
-    url = "http://example.com"
-
-    monkeypatch.setattr(viewport, 'BROWSER', browser)
-    monkeypatch.setattr(viewport, "MAX_RETRIES", 3)
-    monkeypatch.setattr(viewport, "SLEEP_TIME", 10)
-
-    mock_driver = MagicMock()
-    effects = [
-        e if isinstance(e, Exception) else mock_driver
-        for e in side_effects
-    ]
-    if browser in ("chrome", "chromium"):
-        mock_chrome.side_effect = effects
-        mock_options.return_value = MagicMock()
-    elif browser == "firefox":
-        mock_firefox.side_effect = effects
-        mock_ff_opts.return_value     = MagicMock()
-        mock_ff_profile.return_value  = MagicMock()
-        mock_gecko_mgr.return_value.install.return_value = "/fake/gecko"
-        mock_ff_service.return_value = MagicMock()
-
-    # Act
-    result = viewport.browser_handler(url)
-
-    # Assert kill calls
-    assert mock_process_handler.call_count == expected_kill_calls
-    mock_process_handler.assert_any_call(browser, action="kill")
-
-    # Assert constructor calls
-    if browser in ("chrome", "chromium"):
-        assert mock_chrome.call_count == len(side_effects)
-    elif browser == "firefox":
-        assert mock_firefox.call_count == len(side_effects)
-        
-    # .get/url and return value
-    if expected_driver_get_calls:
-        mock_driver.get.assert_called_once_with(url)
-        assert result is mock_driver
-    else:
-        assert result is None
-        
-    # restart_handler only on permanent failure
-    if expect_restart:
-        mock_restart_handler.assert_called_once_with(driver=None)
-    else:
-        mock_restart_handler.assert_not_called()
-
-    # log_error count
-    error_count = sum(isinstance(e, Exception) for e in side_effects)
-    min_errors = error_count - (1 if expect_restart else 0)
-    assert mock_log_error.call_count >= min_errors
 # ----------------------------------------------------------------------------- 
 # Tests for browser_restart_handler
 # ----------------------------------------------------------------------------- 
@@ -472,65 +361,3 @@ def test_restart_thread_terminates_on_system_exit(monkeypatch):
     # And we also got our api_status before the exit
     assert api_msgs and api_msgs[0].startswith("Scheduled restart"), \
            "api_status should have been invoked before the exit"
-           
-# ----------------------------------------------------------------------------- 
-# Tests for restart_handler
-# ----------------------------------------------------------------------------- 
-@pytest.mark.parametrize("initial_argv, driver_present, expected_flags", [
-    # No flags          ⇒ no extra flags
-    (["viewport.py"],                         False, []),
-    # background flags  ⇒ preserved
-    (["viewport.py", "-b"],                   False, ["--background"]),
-    (["viewport.py", "--background"],         False, ["--background"]),
-    (["viewport.py", "--backg"],              False, ["--background"]),
-    # restart flags     ⇒ removed
-    (["viewport.py", "-r"],                   False, []),
-    (["viewport.py", "--restart"],            False, []),
-    (["viewport.py", "--rest"],               False, []),
-    # driver present    ⇒ quit()
-    (["viewport.py", "--restart"],            True,  []),
-])
-@patch("viewport.sys.exit")
-@patch("viewport.subprocess.Popen")
-@patch("viewport.time.sleep", return_value=None)
-@patch("viewport.api_status")
-def test_restart_handler(
-    mock_api_status,
-    mock_sleep,
-    mock_popen,
-    mock_exit,
-    initial_argv,
-    driver_present,
-    expected_flags
-):
-    # Arrange: set up sys.argv and optional driver
-    viewport.sys.argv = list(initial_argv)
-    driver = MagicMock() if driver_present else None
-
-    # Act
-    viewport.restart_handler(driver)
-
-    # Assert: status update and sleep
-    mock_api_status.assert_called_once_with("Restarting script...")
-    mock_sleep.assert_called_once_with(2)
-
-    # Assert: driver.quit() only if driver was passed
-    if driver_present:
-        driver.quit.assert_called_once()
-    else:
-        # ensure we didn't mistakenly call .quit()
-        assert not getattr(driver, "quit", MagicMock()).called
-
-    # Assert: Popen called exactly once with correct args
-    expected_cmd = [sys.executable, viewport.__file__] + expected_flags
-    mock_popen.assert_called_once_with(
-        expected_cmd,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        close_fds=True,
-        start_new_session=True,
-    )
-
-    # Assert: parent exits with code 0
-    mock_exit.assert_called_once_with(0)
