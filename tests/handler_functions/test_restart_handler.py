@@ -1,3 +1,4 @@
+import os
 import sys
 import subprocess
 import pytest
@@ -5,12 +6,32 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
 import viewport
 
+class DummyDriver:
+    def __init__(self):
+        self.quit = MagicMock()
 @pytest.fixture(autouse=True)
 def isolate_sst(tmp_path, monkeypatch):
     # redirect every test’s sst_file into tmp_path/
     fake = tmp_path / "sst.txt"
     fake.write_text("2025-01-01 00:00:00.000000")  # or leave empty
     monkeypatch.setattr(viewport, "sst_file", fake)
+@pytest.fixture
+def patch_time_and_paths(monkeypatch):
+    # No actual sleep
+    monkeypatch.setattr(viewport.time, "sleep", lambda s: None)
+    # Make script_path reproducible
+    monkeypatch.setattr(viewport.os.path, "realpath", lambda p: "script.py")
+    # Control python executable and argv
+    monkeypatch.setattr(sys, "executable", "/usr/bin/py")
+    monkeypatch.setattr(sys, "argv", ["script.py"])
+
+@pytest.fixture
+def patch_args_and_api(monkeypatch):
+    # Stub out argument helpers
+    monkeypatch.setattr(viewport, "args_helper", lambda: "ARGS")
+    monkeypatch.setattr(viewport, "args_child_handler", lambda args, drop_flags: ["--child"])
+    # Spy on api_status
+    monkeypatch.setattr(viewport, "api_status", MagicMock())
 # ----------------------------------------------------------------------------- 
 # Tests for restart_handler
 # ----------------------------------------------------------------------------- 
@@ -115,3 +136,62 @@ def test_restart_handler_exception(
     mock_sleep.assert_called_once_with(2)
     # no popen on error
     mock_popen.assert_not_called()
+
+def test_restart_handler_exec_replace_failure(monkeypatch,
+                                              patch_time_and_paths,
+                                              patch_args_and_api):
+    # Simulate interactive terminal
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+
+    # Make execv throw, so we exercise the exception branch
+    def bad_execv(exe, argv):
+        raise RuntimeError("execv failed")
+    monkeypatch.setattr(os, "execv", bad_execv)
+
+    # Spy on log_error and clear_sst
+    fake_log_error = MagicMock()
+    fake_clear_sst = MagicMock()
+    monkeypatch.setattr(viewport, "log_error", fake_log_error)
+    monkeypatch.setattr(viewport, "clear_sst", fake_clear_sst)
+
+    driver = DummyDriver()
+    with pytest.raises(SystemExit) as se:
+        viewport.restart_handler(driver)
+
+    # It should exit with code 1
+    assert se.value.code == 1
+
+    # It should have shut down the driver
+    driver.quit.assert_called_once()
+
+    # And logged the error, updated the API, and cleared SST
+    fake_log_error.assert_called_once()
+    viewport.api_status.assert_called_with("Error Restarting, exiting...")
+    fake_clear_sst.assert_called_once()
+
+def test_restart_handler_detach(monkeypatch,
+                                patch_time_and_paths,
+                                patch_args_and_api):
+    # Simulate background (no TTY)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
+
+    fake_popen = MagicMock()
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(sys, "exit", lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
+
+    driver = DummyDriver()
+    with pytest.raises(SystemExit) as se:
+        viewport.restart_handler(driver)
+
+    # detach path always exits 0
+    assert se.value.code == 0
+    driver.quit.assert_called_once()
+    viewport.api_status.assert_called_with("Restarting script...")
+    fake_popen.assert_called_once()
+    args, kwargs = fake_popen.call_args
+    assert args[0] == ["/usr/bin/py", "script.py", "--child"]
+    assert kwargs["stdin"]  == subprocess.DEVNULL
+    assert kwargs["stdout"] == subprocess.DEVNULL
+    assert kwargs["stderr"] == subprocess.DEVNULL
+    assert kwargs["close_fds"]         is True
+    assert kwargs["start_new_session"] is True

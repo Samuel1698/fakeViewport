@@ -180,9 +180,28 @@ def args_handler(args):
         else: logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
         sys.exit(0)
     if args.restart:
-        logging.info("Restarting the Fake Viewport script in the background")
-        restart_handler(driver=None)
-    else: return "continue"
+        # --restart from the CLI should kill the existing daemon
+        # and spawn a fresh background instance, then exit immediately.
+        logging.info("Stopping existing Viewport instance for restart…")
+        process_handler("viewport.py", action="kill")
+        logging.info("Starting new Viewport instance in background…")
+        child_argv = args_child_handler(
+            args,
+            drop_flags={"restart"},
+            add_flags={"background": None},  # force --background on the child
+        )
+        script_path = os.path.realpath(sys.argv[0])
+        subprocess.Popen(
+            [sys.executable, script_path] + child_argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True,
+        )
+        sys.exit(0)
+    else:
+        return "continue"
 def args_child_handler(args, *, drop_flags=(), add_flags=None):
     # Returns a list of flags for a child invocation.
     # If we're dropping 'restart', force-add '--background'.
@@ -750,15 +769,21 @@ def restart_handler(driver):
             drop_flags={"restart"},  # don’t re-daemonize when the child starts
         )
         script_path = os.path.realpath(sys.argv[0])
-        subprocess.Popen(
-            [sys.executable, script_path] + child_argv,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            close_fds=True,
-            start_new_session=True,
-        )
-        sys.exit(0)
+        # If we're in a real terminal, replace ourselves (and keep stdout/stderr)
+        if sys.stdout.isatty():
+            os.execv(sys.executable, [sys.executable, script_path] + child_argv)
+            # (os.execv never returns on success)
+        else:
+            # otherwise, truly detach into the background
+            subprocess.Popen(
+                [sys.executable, script_path] + child_argv,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                start_new_session=True,
+            )
+            sys.exit(0)
     except Exception as e:
         log_error("Error during restart process:", e, driver)
         api_status("Error Restarting, exiting...")
@@ -964,8 +989,7 @@ def handle_page(driver):
             return True
         elif "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
             logging.info("Log-in page found. Inputting credentials...")
-            if not handle_login(driver):
-                return False
+            return handle_login(driver)
         elif time.time() - start_time > WAIT_TIME * 2:  # If timeout limit is reached
             log_error("Unexpected page loaded. The page title is: " + driver.title, e=None, driver=driver)
             api_status(f"Error Loading Page {driver.title}")
