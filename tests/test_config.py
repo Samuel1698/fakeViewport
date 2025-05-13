@@ -57,10 +57,7 @@ def write_base(tmp_path: Path, ini_overrides=None, env_overrides=None):
         for line in lines:
             if line.strip():  # Skip empty lines
                 parts = line.split("=", 1)
-                if len(parts) == 2:
-                    kv[parts[0]] = parts[1]
-                else:
-                    kv[parts[0]] = ""  # Handle case where there's no '='
+                kv[parts[0]] = parts[1]
         
         # Update with overrides (including empty values)
         kv.update(env_overrides)

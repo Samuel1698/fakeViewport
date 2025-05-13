@@ -305,7 +305,6 @@ def test_status_handler_various(
             if log_content is None:
                 raise FileNotFoundError
             return StringIO(log_content)
-        raise FileNotFoundError
 
     mock_open.side_effect = open_side_effect
     mock_process_handler.side_effect = lambda name, action="check": name in process_names

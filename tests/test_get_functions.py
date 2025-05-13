@@ -8,10 +8,6 @@ import viewport
 # ----------------------------------------------------------------------------- 
 # Fixtures
 # ----------------------------------------------------------------------------- 
-@pytest.fixture
-def mock_driver():
-    return MagicMock()
-
 @pytest.fixture(autouse=True)
 def mock_common(mocker):
     patches = {

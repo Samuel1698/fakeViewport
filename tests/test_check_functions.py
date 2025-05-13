@@ -120,10 +120,7 @@ def test_check_for_title(mock_driver, mock_common, side_effect, title, expected_
     else:
         mock_common["log_error"].assert_not_called()
         
-    if expected_api_status:
-        mock_common["api_status"].assert_called_with(expected_api_status)
-    else:
-        mock_common["api_status"].assert_not_called()
+    mock_common["api_status"].assert_called_with(expected_api_status)
 
     if expected_result and title:
         mock_common["logging"].info.assert_called_with(f"Loaded page: '{title}'")
