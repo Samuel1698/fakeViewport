@@ -915,14 +915,14 @@ def handle_loading_issue(driver):
                 trouble_loading_start_time = time.time()
             # If it’s been persisting 15 s or more, handle refresh
             elif time.time() - trouble_loading_start_time >= 15:
-                log_error("Video feed trouble persisting for 15 seconds, refreshing the page.", e=None, driver=driver)
+                log_error("Video feed trouble persisting for 15 seconds, refreshing the page.", None, driver=driver)
                 api_status("Loading Issue Detected")
                 driver.refresh()
                 time.sleep(5)  # let it load
 
                 # Validate after refresh
                 if not handle_page(driver):
-                    log_error("Unexpected page loaded after refresh. Waiting before retrying...", e=None, driver=driver)
+                    log_error("Unexpected page loaded after refresh. Waiting before retrying...", None, driver=driver)
                     api_status("Error Reloading")
                     time.sleep(SLEEP_TIME)
                     return
@@ -1002,7 +1002,7 @@ def handle_page(driver):
             logging.info("Log-in page found. Inputting credentials...")
             return handle_login(driver)
         elif time.time() - start_time > WAIT_TIME * 2:  # If timeout limit is reached
-            log_error("Unexpected page loaded. The page title is: " + driver.title, e=None, driver=driver)
+            log_error("Unexpected page loaded. The page title is: " + driver.title, None, driver=driver)
             api_status(f"Error Loading Page {driver.title}")
             return False
         time.sleep(3)
@@ -1075,12 +1075,12 @@ def handle_view(driver, url):
     if handle_page(driver):
         logging.info(f"Checking health of page every {SLEEP_TIME} seconds...")
     else:
-        log_error("Error loading the live view. Restarting the program.", e=None, driver=driver)
+        log_error("Error loading the live view. Restarting the program.", None, driver=driver)
         api_status("Error Loading Live View. Restarting...")
         restart_handler(driver)
     while True:
         try:
-            if check_driver(driver):   
+            if check_driver(driver):
                 # Check for "Console Offline" or "Protect Offline"
                 offline_status = driver.execute_script("""
                     return Array.from(document.querySelectorAll('span')).find(el => 
@@ -1094,7 +1094,7 @@ def handle_view(driver, url):
                     retry_count += 1
                     handle_retry(driver, url, retry_count, max_retries)
                 if check_crash(driver):
-                    log_error(f"Tab Crashed. Restarting {BROWSER}...", e=None, driver=driver)
+                    log_error(f"Tab Crashed. Restarting {BROWSER}...", None, driver=driver)
                     api_status("Tab Crashed")
                     driver = browser_restart_handler(url)
                     continue
