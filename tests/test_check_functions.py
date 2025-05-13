@@ -134,6 +134,51 @@ def test_check_for_title_no_title_given(mock_driver, mock_common):
     mock_common["log_error"].assert_not_called()
     mock_common["api_status"].assert_not_called()
 
+def test_check_for_title_no_title_timeout(mock_driver, mock_common):
+    # Arrange: no title ⇒ wait.until raises TimeoutException
+    mock_common["wait"].return_value.until.side_effect = TimeoutException("no title")
+
+    # Act
+    result = viewport.check_for_title(mock_driver)
+
+    # Assert
+    assert result is False
+
+    # The error message for empty‐title timeout must be logged
+    mock_common["log_error"].assert_called_once_with(
+        "Timed out waiting for the page title to not be empty.",
+        mock_common["wait"].return_value.until.side_effect,
+        mock_driver,
+    )
+
+    # And the API gets the "Paged Timed Out" status
+    mock_common["api_status"].assert_called_once_with("Paged Timed Out")
+
+    # No generic logging.info should have been called
+    mock_common["logging"].info.assert_not_called()
+def test_check_for_title_generic_exception(mock_driver, mock_common):
+    # Arrange: wait.until raises a generic Exception (not TimeoutException/WebDriverException)
+    generic_exc = Exception("something went wrong")
+    mock_common["wait"].return_value.until.side_effect = generic_exc
+
+    # Act
+    result = viewport.check_for_title(mock_driver, title="MyTitle")
+
+    # Assert
+    assert result is False
+
+    # log_error should be called with the formatted message, the exception, and the driver
+    mock_common["log_error"].assert_called_once_with(
+        "Error while waiting for title 'MyTitle': ",
+        generic_exc,
+        mock_driver,
+    )
+
+    # api_status should be called with the corresponding error status
+    mock_common["api_status"].assert_called_once_with("Error Waiting for Title 'MyTitle'")
+
+    # No info‐level logging on this path
+    mock_common["logging"].info.assert_not_called()
 # ----------------------------------------------------------------------------- 
 # Test: check_unable_to_stream
 # ----------------------------------------------------------------------------- 
