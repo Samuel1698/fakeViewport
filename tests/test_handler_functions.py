@@ -258,7 +258,7 @@ def test_usage_handler_ignores_exceptions(mock_process_iter):
 @patch("viewport.process_handler")
 @patch("builtins.open")
 @patch("viewport.log_error")
-def test_status_handler_various(
+def test_status_handler(
     mock_log_error,
     mock_open,
     mock_process_handler,
@@ -321,6 +321,77 @@ def test_status_handler_various(
 
     for snippet in expected_output_snippets:
         assert snippet in out
+
+@patch("viewport.time.time", return_value=0)
+@patch("viewport.get_next_interval", return_value=60)
+@patch("viewport.psutil.virtual_memory", return_value=MagicMock(total=1024**3))
+@patch("viewport.psutil.process_iter", return_value=[MagicMock(name='viewport')])
+@patch("builtins.open")
+def test_status_handler_prints_scheduled_restart(
+    mock_open,
+    mock_proc_iter,
+    mock_mem,
+    mock_interval,
+    mock_time,
+    capsys,
+    monkeypatch
+):
+    # point files to simple names
+    monkeypatch.setattr(viewport, "sst_file", "sst.txt")
+    monkeypatch.setattr(viewport, "status_file", "status.txt")
+    monkeypatch.setattr(viewport, "log_file", "viewport.log")
+
+    # stub SST, status, and log contents
+    files = {
+        "sst.txt": "2025-01-01 00:00:00.000000\n",
+        "status.txt": "OK\n",
+        "viewport.log": "[INFO]\n",
+    }
+    mock_open.side_effect = lambda path, *args, **kwargs: StringIO(files.get(path, ""))
+
+    # stub process_handler so script is “running”
+    monkeypatch.setattr(viewport, "process_handler", lambda name, action="check": True)
+    # enable restart and stub get_next_restart
+    monkeypatch.setitem(viewport.__dict__, "RESTART_TIMES", ["23:00"])
+    monkeypatch.setitem(viewport.__dict__, "get_next_restart", lambda now: "2025-05-12 23:00:00")
+
+    viewport.status_handler()
+    out = capsys.readouterr().out
+    assert "Scheduled Restart:" in out
+
+@patch("viewport.time.time", return_value=0)
+@patch("viewport.get_next_interval", return_value=60)
+@patch("viewport.psutil.virtual_memory", return_value=MagicMock(total=1024**3))
+@patch("viewport.psutil.process_iter", return_value=[MagicMock(name='viewport')])
+@patch("builtins.open")
+def test_status_handler_bare_error_coloring(
+    mock_open,
+    mock_proc_iter,
+    mock_mem,
+    mock_interval,
+    mock_time,
+    capsys,
+    monkeypatch
+):
+    # point files to simple names
+    monkeypatch.setattr(viewport, "sst_file", "sst.txt")
+    monkeypatch.setattr(viewport, "status_file", "status.txt")
+    monkeypatch.setattr(viewport, "log_file", "viewport.log")
+
+    # stub all file contents
+    files = {
+        "sst.txt": "2025-01-01 00:00:00.000000\n",
+        "status.txt": "OK\n",
+        "viewport.log": "Error occurred\n",
+    }
+    mock_open.side_effect = lambda path, *args, **kwargs: StringIO(files.get(path, ""))
+    monkeypatch.setattr(viewport, "process_handler", lambda name, action="check": True)
+
+    viewport.status_handler()
+    out = capsys.readouterr().out
+    expected = f"{viewport.NC}Error occurred{viewport.NC}"
+    assert expected in out
+
 # ----------------------------------------------------------------------------- 
 # Test for Process Handler
 # ----------------------------------------------------------------------------- 

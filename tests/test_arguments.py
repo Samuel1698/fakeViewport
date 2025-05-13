@@ -149,7 +149,51 @@ def test_args_child_handler_various_cases(args_attrs, drop_flags, add_flags, exp
     args = type("Args", (), args_attrs)()
     result = viewport.args_child_handler(args, drop_flags=drop_flags, add_flags=add_flags)
     assert result == expected
-    
+def test_args_child_handler_override_list_and_single_value():
+    args = type("Args", (), {
+        "status": False, "background": False, "restart": False,
+        "quit": False, "diagnose": False, "api": False, "logs": None
+    })()
+
+    # 1) list‐style override ⇒ should extend exactly the list
+    flags = viewport.args_child_handler(args, add_flags={"status": ["--status", "--extra"]})
+    assert flags == ["--status", "--extra"]
+
+    # 2) single‐value override ⇒ should produce ["--logs", "<value>"]
+    flags2 = viewport.args_child_handler(args, add_flags={"logs": 42})
+    assert flags2 == ["--logs", "42"]
+
+
+def test_args_child_handler_override_none_value():
+    args = type("Args", (), {
+        "status": False, "background": False, "restart": False,
+        "quit": False, "diagnose": False, "api": False, "logs": None
+    })()
+
+    # override None uses mapping tokens for known dest
+    flags = viewport.args_child_handler(args, add_flags={"api": None})
+    assert flags == ["--api"]
+
+    # unknown dest falls back to "--<dest>"
+    flags2 = viewport.args_child_handler(args, add_flags={"foo": None})
+    assert flags2 == ["--foo"]
+
+
+def test_args_child_handler_add_flags_as_list_or_tuple():
+    args = type("Args", (), {
+        "status": False, "background": False, "restart": False,
+        "quit": False, "diagnose": False, "api": False, "logs": None
+    })()
+
+    # add_flags as list ⇒ triggers else-branch at line 198
+    flags_list = viewport.args_child_handler(args, add_flags=["status", "foo"])
+    # 'status' maps to ['--status'], 'foo' falls back to ['--foo']
+    assert flags_list == ["--status", "--foo"]
+
+    # same with tuple
+    flags_tuple = viewport.args_child_handler(args, add_flags=("quit",))
+    assert flags_tuple == ["--quit"]
+
 @patch("viewport.sys.exit")
 def test_logs_file_not_found(mock_exit):
     # Simulate open() raising FileNotFoundError in the logs branch
@@ -164,7 +208,6 @@ def test_logs_file_not_found(mock_exit):
         f"{viewport.RED}Log file not found: {viewport.log_file}{viewport.NC}"
     )
     mock_exit.assert_called_once_with(0)
-
 
 @patch("viewport.sys.exit")
 @patch("viewport.log_error")
@@ -182,6 +225,31 @@ def test_logs_generic_exception(mock_log_error, mock_exit):
     assert "Error reading log file: oops" in err_msg
     mock_exit.assert_called_once_with(0)
 
+@patch("viewport.sys.exit")
+@patch("viewport.open", new_callable=mock_open, read_data="[DEBUG] debug message\n")
+def test_logs_debug_flag(mock_file, mock_exit):
+    mock_args = type("Args", (), {
+        "status": False, "logs": 1, "background": False,
+        "quit": False, "diagnose": False, "api": False, "restart": False
+    })()
+    with patch("viewport.print") as mock_print:
+        viewport.args_handler(mock_args)
+    # should strip the "[DEBUG]" and color via CYAN
+    mock_print.assert_called_once_with(f"{viewport.CYAN}[DEBUG] debug message{viewport.NC}")
+    mock_exit.assert_called_once_with(0)
+
+@patch("viewport.sys.exit")
+@patch("viewport.open", new_callable=mock_open, read_data="plain line without tag\n")
+def test_logs_default_flag(mock_file, mock_exit):
+    mock_args = type("Args", (), {
+        "status": False, "logs": 1, "background": False,
+        "quit": False, "diagnose": False, "api": False, "restart": False
+    })()
+    with patch("viewport.print") as mock_print:
+        viewport.args_handler(mock_args)
+    # no INFO/WARNING/DEBUG/ERROR ⇒ falls back to NC…NC
+    mock_print.assert_called_once_with(f"{viewport.NC}plain line without tag{viewport.NC}")
+    mock_exit.assert_called_once_with(0)
 
 @patch("viewport.sys.exit")
 @patch("viewport.logging.info")
