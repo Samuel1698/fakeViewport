@@ -1,4 +1,5 @@
 import pytest
+from urllib3.exceptions import MaxRetryError, NameResolutionError, NewConnectionError
 from unittest.mock import MagicMock, patch
 import viewport
 
@@ -9,23 +10,41 @@ import viewport
     "browser, side_effects, expected_driver_get_calls, expected_kill_calls, expect_restart",
     [
         # Chrome success & retry-then-success
-        ("chrome",   [MagicMock()],                    1, 1, False),
-        ("chrome",   [Exception("boom"), MagicMock()], 1, 1, False),
+        ("chrome",   [MagicMock()],                                                    1, 1, False),
+        ("chrome",   [Exception("boom"), MagicMock()],                                 1, 1, False),
         # Chrome permanent-failure → 2 kills, restart
-        ("chrome",   [Exception("fail")] * 3,          0, 2, True),
-
+        ("chrome",   [Exception("fail")] * 3,                                          0, 2, True),
+        # Chrome network issue & retry-then-success
+        ("chrome",   [MaxRetryError(None, "http://example.com"), MagicMock()],         1, 1, False),
+        # Chrome DNS issue & retry-then-success
+        ("chrome",   [NameResolutionError("example.com", 80, None), MagicMock()],      1, 1, False),
+        # Chrome new-connection issue & retry-then-success
+        ("chrome",   [NewConnectionError(None, "conn refused"), MagicMock()],          1, 1, False),
+        
         # Chromium success & retry-then-success
-        ("chromium",[MagicMock()],                     1, 1, False),
-        ("chromium",[Exception("boom"), MagicMock()],  1, 1, False),
+        ("chromium",[MagicMock()],                                                     1, 1, False),
+        ("chromium",[Exception("boom"), MagicMock()],                                  1, 1, False),
         # Chromium permanent-failure → 2 kills, restart
-        ("chromium",[Exception("fail")] * 3,           0, 2, True),
-
+        ("chromium",[Exception("fail")] * 3,                                           0, 2, True),
+        # Chromium network issue & retry-then-success
+        ("chromium",[MaxRetryError(None, "http://example.com"), MagicMock()],          1, 1, False),
+        # Chromium DNS issue & retry-then-success
+        ("chromium",[NameResolutionError("example.com", 80, None), MagicMock()],       1, 1, False),
+        # Chromium new-connection issue & retry-then-success
+        ("chromium",[NewConnectionError(None, "conn refused"), MagicMock()],           1, 1, False),
+        
         # Firefox success & retry-then-success
-        ("firefox", [MagicMock()],                     1, 1, False),
-        ("firefox", [Exception("boom"), MagicMock()],  1, 1, False),
+        ("firefox", [MagicMock()],                                                     1, 1, False),
+        ("firefox", [Exception("boom"), MagicMock()],                                  1, 1, False),
         # Firefox permanent-failure → 2 kills, restart
-        ("firefox", [Exception("fail")] * 3,           0, 2, True),
-    ],
+        ("firefox", [Exception("fail")] * 3,                                           0, 2, True),
+        # Firefox network issue & retry-then-success
+        ("firefox", [MaxRetryError(None, "http://example.com"), MagicMock()],          1, 1, False),
+        # Firefox DNS issue & retry-then-success
+        ("firefox", [NameResolutionError("example.com", 80, None), MagicMock()],       1, 1, False),
+        # Firefox new-connection issue & retry-then-success
+        ("firefox",   [NewConnectionError(None, "conn refused"), MagicMock()],         1, 1, False),
+    ]
 )
 @patch("viewport.restart_handler")
 @patch("viewport.process_handler")
@@ -72,7 +91,7 @@ def test_browser_handler(
     mock_installer = MagicMock()
     mock_installer.install.return_value = "/fake/path/to/chromedriver"
     mock_chrome_driver_manager.return_value = mock_installer
-    
+
     mock_driver = MagicMock()
     effects = [
         e if isinstance(e, Exception) else mock_driver
@@ -100,14 +119,14 @@ def test_browser_handler(
         assert mock_chrome.call_count == len(side_effects)
     elif browser == "firefox":
         assert mock_firefox.call_count == len(side_effects)
-   
+
     # .get/url and return value
     if expected_driver_get_calls:
         mock_driver.get.assert_called_once_with(url)
         assert result is mock_driver
     else:
         assert result is None
-        
+
     # restart_handler only on permanent failure
     if expect_restart:
         mock_restart_handler.assert_called_once_with(driver=None)

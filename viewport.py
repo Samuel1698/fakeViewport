@@ -29,7 +29,7 @@ from selenium.webdriver.common.action_chains    import ActionChains
 from selenium.webdriver.support.ui       import WebDriverWait
 from selenium.webdriver.support          import expected_conditions as EC
 from selenium.common.exceptions          import TimeoutException, NoSuchElementException, InvalidSessionIdException, WebDriverException
-from urllib3.exceptions                  import NewConnectionError
+from urllib3.exceptions                  import NewConnectionError, MaxRetryError, NameResolutionError
 from css_selectors import (
     CSS_FULLSCREEN_PARENT,
     CSS_FULLSCREEN_BUTTON,
@@ -711,16 +711,27 @@ def browser_handler(url):
                 driver  = webdriver.Firefox(service=service, options=opts)
             driver.get(url)
             return driver
+        except NewConnectionError as e:
+            # Connection refused
+            log_error(f"Connection refused while starting {BROWSER}; regtrying in {int(SLEEP_TIME/2)}s", e)
+            time.sleep(SLEEP_TIME/2)
+        except MaxRetryError as e:
+            # network issue resolving or fetching metadata
+            log_error(f"Network issue while starting {BROWSER}; retrying in {int(SLEEP_TIME/2)}s", e)
+            time.sleep(SLEEP_TIME/2)
+        except NameResolutionError as e:
+            # catch lower-level DNS failures
+            log_error(f"DNS resolution failed when starting {BROWSER}; retrying in {int(SLEEP_TIME/2)}s", e)
+            time.sleep(SLEEP_TIME/2)
         except Exception as e:
             log_error(f"Error starting {BROWSER}: ", e)
             api_status(f"Error Starting {BROWSER}")
-            retry_count += 1
-            logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
-            # If this is the final attempt, kill all existing browser processes
-            if retry_count == max_retries:
-                logging.info(f"Killing existing {BROWSER} processes...")
-                process_handler(BROWSER, action="kill")
-            time.sleep(5)
+        retry_count += 1
+        logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
+        # If this is the final attempt, kill all existing browser processes
+        if retry_count == max_retries:
+            logging.info(f"Killing existing {BROWSER} processes...")
+            process_handler(BROWSER, action="kill")
     log_error(f"Failed to start {BROWSER} after maximum retries.")
     logging.info(f"Starting Script again in {int(SLEEP_TIME/2)} seconds.")
     api_status(f"Restarting Script in {int(SLEEP_TIME/2)} seconds.")
@@ -1123,7 +1134,7 @@ def handle_view(driver, url):
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
             time.sleep(WAIT_TIME)
-        except NewConnectionError as e:
+        except (NewConnectionError, NameResolutionError, MaxRetryError) as e:
             log_error("Connection error occurred. Retrying...", e, driver)
             api_status("Connection Error")
             time.sleep(SLEEP_TIME/2)
