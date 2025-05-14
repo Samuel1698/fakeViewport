@@ -711,6 +711,10 @@ def browser_handler(url):
                 driver  = webdriver.Firefox(service=service, options=opts)
             driver.get(url)
             return driver
+        except NameResolutionError as e:
+            # catch lower-level DNS failures
+            log_error(f"DNS resolution failed while starting {BROWSER}; retrying in {int(SLEEP_TIME/2)}s", e)
+            time.sleep(SLEEP_TIME/2)
         except NewConnectionError as e:
             # Connection refused
             log_error(f"Connection refused while starting {BROWSER}; regtrying in {int(SLEEP_TIME/2)}s", e)
@@ -718,10 +722,6 @@ def browser_handler(url):
         except MaxRetryError as e:
             # network issue resolving or fetching metadata
             log_error(f"Network issue while starting {BROWSER}; retrying in {int(SLEEP_TIME/2)}s", e)
-            time.sleep(SLEEP_TIME/2)
-        except NameResolutionError as e:
-            # catch lower-level DNS failures
-            log_error(f"DNS resolution failed when starting {BROWSER}; retrying in {int(SLEEP_TIME/2)}s", e)
             time.sleep(SLEEP_TIME/2)
         except Exception as e:
             log_error(f"Error starting {BROWSER}: ", e)

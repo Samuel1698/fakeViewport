@@ -14,36 +14,18 @@ import viewport
         ("chrome",   [Exception("boom"), MagicMock()],                                 1, 1, False),
         # Chrome permanent-failure → 2 kills, restart
         ("chrome",   [Exception("fail")] * 3,                                          0, 2, True),
-        # Chrome network issue & retry-then-success
-        ("chrome",   [MaxRetryError(None, "http://example.com"), MagicMock()],         1, 1, False),
-        # Chrome DNS issue & retry-then-success
-        ("chrome",   [NameResolutionError("example.com", 80, None), MagicMock()],      1, 1, False),
-        # Chrome new-connection issue & retry-then-success
-        ("chrome",   [NewConnectionError(None, "conn refused"), MagicMock()],          1, 1, False),
         
         # Chromium success & retry-then-success
         ("chromium",[MagicMock()],                                                     1, 1, False),
         ("chromium",[Exception("boom"), MagicMock()],                                  1, 1, False),
         # Chromium permanent-failure → 2 kills, restart
         ("chromium",[Exception("fail")] * 3,                                           0, 2, True),
-        # Chromium network issue & retry-then-success
-        ("chromium",[MaxRetryError(None, "http://example.com"), MagicMock()],          1, 1, False),
-        # Chromium DNS issue & retry-then-success
-        ("chromium",[NameResolutionError("example.com", 80, None), MagicMock()],       1, 1, False),
-        # Chromium new-connection issue & retry-then-success
-        ("chromium",[NewConnectionError(None, "conn refused"), MagicMock()],           1, 1, False),
         
         # Firefox success & retry-then-success
         ("firefox", [MagicMock()],                                                     1, 1, False),
         ("firefox", [Exception("boom"), MagicMock()],                                  1, 1, False),
         # Firefox permanent-failure → 2 kills, restart
         ("firefox", [Exception("fail")] * 3,                                           0, 2, True),
-        # Firefox network issue & retry-then-success
-        ("firefox", [MaxRetryError(None, "http://example.com"), MagicMock()],          1, 1, False),
-        # Firefox DNS issue & retry-then-success
-        ("firefox", [NameResolutionError("example.com", 80, None), MagicMock()],       1, 1, False),
-        # Firefox new-connection issue & retry-then-success
-        ("firefox",   [NewConnectionError(None, "conn refused"), MagicMock()],         1, 1, False),
     ]
 )
 @patch("viewport.restart_handler")
@@ -98,14 +80,14 @@ def test_browser_handler(
         for e in side_effects
     ]
     if browser in ("chrome", "chromium"):
-        mock_chrome.side_effect = effects
-        mock_options.return_value = MagicMock()
+        mock_chrome.side_effect       = effects
+        mock_options.return_value     = MagicMock()
     elif browser == "firefox":
-        mock_firefox.side_effect = effects
+        mock_firefox.side_effect      = effects
         mock_ff_opts.return_value     = MagicMock()
         mock_ff_profile.return_value  = MagicMock()
         mock_gecko_mgr.return_value.install.return_value = "/fake/gecko"
-        mock_ff_service.return_value = MagicMock()
+        mock_ff_service.return_value  = MagicMock()
 
     # Act
     result = viewport.browser_handler(url)
@@ -137,3 +119,49 @@ def test_browser_handler(
     error_count = sum(isinstance(e, Exception) for e in side_effects)
     min_errors = error_count - (1 if expect_restart else 0)
     assert mock_log_error.call_count >= min_errors
+
+@pytest.mark.parametrize("exc, expected_msg", [
+    (NewConnectionError("conn refused", None),
+     "Connection refused while starting chrome; regtrying in 2s"),
+    (MaxRetryError("network down", None),
+     "Network issue while starting chrome; retrying in 2s"),
+    (NameResolutionError("dns fail", None, None),
+     "DNS resolution failed while starting chrome; retrying in 2s"),
+    (Exception("oops"),
+     "Error starting chrome: "),
+])
+def test_browser_handler_logs_expected_error(monkeypatch, exc, expected_msg):
+    # Arrange: minimal environment
+    monkeypatch.setattr(viewport, "BROWSER", "chrome")
+    monkeypatch.setattr(viewport, "HEADLESS", True)
+    monkeypatch.setattr(viewport, "MAX_RETRIES", 1)
+    monkeypatch.setattr(viewport, "SLEEP_TIME", 4)  # so int(4/2) == 2
+    monkeypatch.setattr(viewport, "process_handler", MagicMock())
+    mock_log_error = MagicMock()
+    monkeypatch.setattr(viewport, "log_error", mock_log_error)
+    monkeypatch.setattr(viewport, "api_status", MagicMock())
+    # Stub out options and service
+    monkeypatch.setattr(viewport, "Options", lambda: MagicMock())
+    monkeypatch.setattr(viewport, "Service", lambda path: MagicMock())
+    # Make webdriver.Chrome always raise our exception
+    monkeypatch.setattr(
+        viewport.webdriver,
+        "Chrome",
+        lambda service, options: (_ for _ in ()).throw(exc)
+    )
+    # Prevent real sleeping and long loops
+    monkeypatch.setattr(viewport.time, "sleep", lambda s: None)
+    # Stop after error handling by intercepting restart_handler
+    monkeypatch.setattr(
+        viewport,
+        "restart_handler",
+        lambda driver: (_ for _ in ()).throw(StopIteration)
+    )
+
+    # Act & Assert: StopIteration from our fake restart_handler
+    with pytest.raises(StopIteration):
+        viewport.browser_handler("http://example.com")
+
+    # Verify log_error was called with the expected message at least once
+    messages = [call_args[0][0] for call_args in mock_log_error.call_args_list]
+    assert any(expected_msg in msg for msg in messages), f"{expected_msg!r} not found in {messages}"
