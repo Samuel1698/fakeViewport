@@ -177,7 +177,6 @@ def validate_url(url_val: str, errors: list[str]):
 
 def validate_config(
     strict:       bool = True,
-    print_errors: bool = False,
     api:          bool = False,
     config_file: Path | None = None,
     env_file: Path | None = None,
@@ -257,12 +256,11 @@ def validate_config(
 
     # Report or return
     if errors:
+        for e in errors:
+            logging.error(e)
         if strict:
             sys.exit(1)
-        if print_errors:
-            for e in errors:
-                logging.error(e)
-            return False
+        return False
     return AppConfig(
         SLEEP_TIME=sleep_time,
         WAIT_TIME=wait_time,
