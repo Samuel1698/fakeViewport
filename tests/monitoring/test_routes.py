@@ -1,21 +1,14 @@
-import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 import pytest
 import configparser
-import logging
-import logging.handlers
-# stub out the rotating‐file handler before viewport.py ever sees it
-logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
 from datetime import datetime as real_datetime, time as timecls, timedelta
 import pathlib
 from pathlib import Path
 import monitoring
 from monitoring import create_app
-
-# ─────────────────────────────────────────────────────
-# 1) Fake out datetime.now() for determinism
-# ─────────────────────────────────────────────────────
+from types import SimpleNamespace
+# ----------------------------------------------------------------------------- 
+# Fake out datetime.now() for determinism
+# ----------------------------------------------------------------------------- 
 class DummyDateTime:
     @classmethod
     def now(cls):
@@ -24,72 +17,80 @@ class DummyDateTime:
     @staticmethod
     def combine(d, t):
         # use the real datetime.combine
+        from datetime import datetime as real_datetime
         return real_datetime.combine(d, t)
 
     @staticmethod
     def strptime(s, fmt):
+        from datetime import datetime as real_datetime
         return real_datetime.strptime(s, fmt)
 
 @pytest.fixture(autouse=True)
 def patch_datetime(monkeypatch):
-    # Replace the module‐level datetime & timedelta
     monkeypatch.setattr(monitoring, 'datetime', DummyDateTime)
     monkeypatch.setattr(monitoring, 'timedelta', timedelta)
     yield
+    # (no teardown needed)
+
 @pytest.fixture
 def restart_times(request):
-    # Provides the string value passed via @pytest.mark.parametrize(..., indirect=True)
+    # Provides the raw string passed via @pytest.mark.parametrize.
     return getattr(request, 'param', '')
 
-# ─────────────────────────────────────────────────────
-# 2) Helper to build a client with a given RESTART_TIMES string
-# ─────────────────────────────────────────────────────
+# ----------------------------------------------------------------------------- 
+# Helper to build a client with a given RESTART_TIMES string
+# ----------------------------------------------------------------------------- 
 @pytest.fixture
 def client(tmp_path, monkeypatch, restart_times):
-    # ─────────────────────────────────────────────────────
-    # 1) Stub out all real logging
-    # ─────────────────────────────────────────────────────
+    # 1) stub out the shared validate_config(...) to return exactly what we need
+    #    convert the restart_times string into a list of time objects
+    times = [
+        timecls(*map(int, t.split(':')))
+        for t in restart_times.split(',') if t.strip()
+    ]
+    cfg = SimpleNamespace(
+        CONTROL_TOKEN='',
+        host='',
+        port='',
+        SLEEP_TIME=300,                
+        LOG_INTERVAL=15,              
+        RESTART_TIMES=times,
+        LOG_FILE_FLAG=True,
+        LOG_CONSOLE=True,
+        DEBUG_LOGGING=False,
+        LOG_DAYS=7,
+        # Where monitoring will read/write files:
+        mon_file=tmp_path / 'api' / 'mon.txt',
+        log_file=tmp_path / 'logs' / 'viewport.log',
+        sst_file=tmp_path / 'api' / 'sst.txt',
+        status_file=tmp_path / 'api' / 'status.txt',
+    )
+    monkeypatch.setattr(monitoring, 'validate_config', lambda **kw: cfg)
+
+    # 2) stub out configure_logging (so we don't reconfigure pytest's caplog)
     monkeypatch.setattr(monitoring, 'configure_logging', lambda *a, **k: None)
 
-    # ─────────────────────────────────────────────────────
-    # 2) Force script_dir → tmp_path so all endpoints read/write there
-    # ─────────────────────────────────────────────────────
+    # 3) force script_dir → tmp_path, and create the subdirectories
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+    # make sure the dirs exist so endpoints that write/read them work:
+    (tmp_path / 'api').mkdir(exist_ok=True)
+    (tmp_path / 'logs').mkdir(exist_ok=True)
 
-    # ─────────────────────────────────────────────────────
-    # 3) Fake psutil uptime & RAM
-    # ─────────────────────────────────────────────────────
+    # 4) fake psutil / time
     monkeypatch.setattr(monitoring.psutil, 'boot_time',    lambda: 1000)
     monkeypatch.setattr(monitoring.time,    'time',        lambda: 1010)
     class DummyVM:
         used  = 12345
         total = 67890
     monkeypatch.setattr(monitoring.psutil, 'virtual_memory', lambda: DummyVM)
-    cfg = configparser.ConfigParser()
-    cfg['General'] = {
-        'SLEEP_TIME':   '300',
-        'LOG_INTERVAL': '15',
-        'RESTART_TIMES': restart_times,        
-    }
-    cfg['Logging'] = {
-        'LOG_FILE':       'False',
-        'LOG_CONSOLE':    'False',
-        'VERBOSE_LOGGING':'False',
-        'LOG_DAYS':       '1',
-    }
-    cfg_path = tmp_path / "config.ini"
-    with cfg_path.open("w") as f:
-        cfg.write(f)
-    # ─────────────────────────────────────────────────────
-    # 5) Create & return the Flask test client
-    # ─────────────────────────────────────────────────────
-    app = create_app(str(cfg_path))
+
+    # 5) build the Flask client
+    app = monitoring.create_app()
     app.testing = True
     return app.test_client()
-
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/next_restart
-# -------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize('restart_times', [''], indirect=True)
 def test_no_restart_times(client):
     resp = client.get('/api/next_restart')
@@ -144,9 +145,9 @@ def test_multiple_times_choose_earliest(client):
 
     assert body['data']['next_restart'] == expected_dt
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api index
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_api_index_links(client):
     resp = client.get('/api')
     assert resp.status_code == 200
@@ -166,9 +167,9 @@ def test_api_index_links(client):
     for key, url in data.items():
         assert url.endswith(f'/api/{key}')
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/script_uptime
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_script_uptime_missing(client):
     resp = client.get('/api/script_uptime')
     assert resp.status_code == 404
@@ -217,9 +218,9 @@ def test_script_uptime_ok(client, tmp_path, monkeypatch):
     assert obj['status'] == 'ok'
     assert pytest.approx(obj['data']['script_uptime'], rel=1e-3) == 10
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/system_uptime
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_system_uptime_ok(client):
     resp = client.get('/api/system_uptime')
     assert resp.status_code == 200
@@ -235,9 +236,9 @@ def test_system_uptime_error(monkeypatch, client):
     assert obj['status'] == 'error'
     assert 'Could not determine system uptime' in obj['message']
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/ram
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_ram_endpoint(client):
     resp = client.get('/api/ram')
     assert resp.status_code == 200
@@ -246,9 +247,9 @@ def test_ram_endpoint(client):
     assert obj['data']['ram_used'] == 12345
     assert obj['data']['ram_total'] == 67890
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/health_interval
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_health_interval(client):
     resp = client.get('/api/health_interval')
     assert resp.status_code == 200
@@ -256,9 +257,9 @@ def test_health_interval(client):
     assert obj['status'] == 'ok'
     assert obj['data']['health_interval_sec'] == 300
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/log_interval
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_log_interval(client):
     resp = client.get('/api/log_interval')
     assert resp.status_code == 200
@@ -266,9 +267,9 @@ def test_log_interval(client):
     assert obj['status'] == 'ok'
     assert obj['data']['log_interval_min'] == 15
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/status (last status update)
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_status_missing(client):
     resp = client.get('/api/status')
     assert resp.status_code == 404
@@ -291,9 +292,9 @@ def test_status_ok(client, tmp_path, monkeypatch):
     assert obj['status'] == 'ok'
     assert obj['data']['status'] == 'All Good'
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/log_entry (last log line)
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_log_entry_missing(client, monkeypatch):
 
     # Patch Path.exists to always say the viewport.log doesn't exist
@@ -301,7 +302,6 @@ def test_log_entry_missing(client, monkeypatch):
     def fake_exists(self):
         if self.name == 'viewport.log':
             return False
-        return orig_exists(self)
     monkeypatch.setattr(pathlib.Path, 'exists', fake_exists)
 
     resp = client.get('/api/log_entry')
@@ -317,7 +317,6 @@ def test_log_entry_ok(client, monkeypatch):
     def fake_exists(self):
         if self.name == 'viewport.log':
             return True
-        return orig_exists(self)
     monkeypatch.setattr(pathlib.Path, 'exists', fake_exists)
 
     # Patch Path.read_text to return our fake log contents
@@ -325,7 +324,6 @@ def test_log_entry_ok(client, monkeypatch):
     def fake_read_text(self, *args, **kwargs):
         if self.name == 'viewport.log':
             return "first\nsecond\nthird"
-        return orig_read(self, *args, **kwargs)
     monkeypatch.setattr(pathlib.Path, 'read_text', fake_read_text)
 
     resp = client.get('/api/log_entry')
@@ -334,9 +332,9 @@ def test_log_entry_ok(client, monkeypatch):
     assert obj['status'] == 'ok'
     assert obj['data']['log_entry'] == 'third'
 
-# -------------------------
+# ----------------------------------------------------------------------------- 
 # /api/logs?limit
-# -------------------------
+# ----------------------------------------------------------------------------- 
 def test_default_limit_returns_100_lines(client, tmp_path, monkeypatch):
     client_app = client
     # 1) point script_dir at tmp

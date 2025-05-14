@@ -1,6 +1,10 @@
-[![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
-[![CodeQL](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml)
+[![Python Tests](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg?branch=snapshot)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
 
+# SNAPSHOT
+You are currently seeing the snapshot branch. This is where I make rapid changes and experiment with new code. If this branch is ahead of main, it is most likely broken. 
+Check the [latest release](https://github.com/Samuel1698/fakeViewport/releases) or go to [main](https://github.com/Samuel1698/fakeViewport/tree/main) for a stable version of the code.
+
+---
 # Fake Viewport
 
 Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. With this setup, you can automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
@@ -76,15 +80,22 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 
    Open the `config.ini` file and check what options there are available for customization of how the script runs.
    
-   If running chrome or chromium, navigate to `chrome://version/` and check the **Profile Path.** It should say something along the lines of:
-   `/home/your-user/.config/google-chrome/Default` or `/home/your-user/.config/chromium/Default`. Drop the `Default` and copy the parent folder, in this case it would be `/home/your-user/.config/google-chrome/`. That path goes in your `BROWSER_PROFILE_PATH=` config.
+   The script will default to using Chrome for **Profile Path** and **Browser Binary**. If you are okay with this, you do not need to change those variables in the config file. Still, might be useful to go through this step to make sure the script executes the browser from the correct path.
+
+   ### Chrome or Chromium
+   Navigate to `chrome://version/` and check the **Profile Path.** It should say something along the lines of:
+
+   `/home/your-user/.config/chromium/Default`. 
+   
+   Drop the `Default` and copy the parent folder, in this case it would be `/home/your-user/.config/chromium/`. That path goes in your `BROWSER_PROFILE_PATH=` config.
 
    Next, look for **Command Line** in `chrome://version/` and copy the executable path without the `--flags`. For instance:
    `/usr/lib/chromium/chromium` or `/usr/bin/google-chrome-stable` and paste it next to `BROWSER_BINARY=`.
+   ### Firefox
 
-   For Firefox, navigate to `about:support`, copying the **Profile Folder** path as well as the **Application Binary** path, respectively.
+   Navigate to `about:support`, copying the **Profile Folder** path as well as the **Application Binary** path into `BROWSER_PROFILE_PATH=` and `BROWSER_BINARY=`, dropping the `Default` and the `--flags` as well.
 
-   This is how they would look like by default. 
+   This is how that might look like: 
    ```ini
    # Firefox
    BROWSER_PROFILE_PATH=/home/your-user/.mozilla/firefox/
@@ -92,7 +103,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    # Chromium
    BROWSER_PROFILE_PATH=/home/your-user/.config/chromium/
    BROWSER_BINARY=/usr/lib/chromium/chromium
-   # Chrome
+   # Chrome | This is what the script will default to if unchanged
    BROWSER_PROFILE_PATH=/home/your-user/.config/google-chrome/
    BROWSER_BINARY=/usr/bin/google-chrome-stable
    ```
@@ -103,6 +114,11 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    viewport -h
    ```
 
+   This command will validate the variables you have in your `.env` and `config.ini` files.
+   ```bash
+   viewport -d
+   ```
+   
    Start the script using the following command:
    ```bash
    viewport

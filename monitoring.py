@@ -16,69 +16,65 @@ from flask import (
 )
 from flask_cors import CORS
 from collections import deque
+import viewport
 from logging_config import configure_logging
+from validate_config import validate_config
 from dotenv import load_dotenv, find_dotenv
+global host, port
+
 dotenv_file = find_dotenv()
 load_dotenv(dotenv_file, override=True)
-script_dir = Path(__file__).resolve().parent
-# -------------------------------------------------------------------
-# Application for the monitoring API
-# -------------------------------------------------------------------
-def create_app(config_path=None):
-    app = Flask(__name__)
 
-    # -----------------------------
-    # Load configuration
-    # -----------------------------
-    config = configparser.ConfigParser()
-    config.read(config_path or 'config.ini')
-    LOG_FILE = config.getboolean('Logging', 'LOG_FILE', fallback=True)
-    LOG_CONSOLE = config.getboolean('Logging', 'LOG_CONSOLE', fallback=True)
-    DEBUG_LOGGING = config.getboolean('Logging', 'DEBUG_LOGGING', fallback=False)
-    LOG_DAYS = config.getint('Logging', 'LOG_DAYS', fallback=7)
-    # Health check interval (seconds)
-    SLEEP_TIME = config.getint('General', 'SLEEP_TIME', fallback=300)
-    # Log interval (minutes)
-    LOG_INTERVAL = config.getint('General', 'LOG_INTERVAL', fallback=60)
-     # ─────── Secret & Sessions ───────
-    CONTROL_TOKEN = os.getenv("SECRET", "").strip()
-    # always give Flask a non-empty secret_key so session/flash() work
-    app.secret_key = CONTROL_TOKEN or os.urandom(24)
-    raw = config.get('General', 'RESTART_TIMES', fallback='')
-    RESTART_TIMES = []
-    for part in raw.split(','):
-        if part := part.strip():
-            try:
-                RESTART_TIMES.append(datetime.strptime(part, '%H:%M').time())
-            except ValueError:
-                app.logger.error(f"Bad RESTART_TIMES entry: {part!r} (must be HH:MM)")
-                sys.exit(1)
-    # -----------------------------
-    # Prepare API directory and files
-    # -----------------------------
-    api_dir = script_dir / 'api'
-    if not api_dir.exists():
-        api_dir.mkdir(parents=True, exist_ok=True)
-    sst_file = api_dir / 'sst.txt'
-    status_file = api_dir / 'status.txt'
-    log_file = script_dir / 'logs' / 'viewport.log'
-    # -----------------------------
+script_dir = Path(__file__).resolve().parent
+_base = Path(__file__).parent
+config_file = _base / 'config.ini'
+env_file    = _base / '.env'
+logs_dir    = _base / 'logs'
+api_dir     = _base / 'api'
+# ----------------------------------------------------------------------------- 
+# Application for the monitoring API
+# ----------------------------------------------------------------------------- 
+def create_app(config_file=None):
+    app = Flask(__name__)
+    # ----------------------------------------------------------------------------- 
+    # Load and validate everything via our shared validator
+    # ----------------------------------------------------------------------------- 
+    cfg = validate_config(api=True)
+    # pull everything out into locals/globals
+    CONTROL_TOKEN   = cfg.CONTROL_TOKEN
+    app.secret_key  = CONTROL_TOKEN or os.urandom(24)
+
+    SLEEP_TIME      = cfg.SLEEP_TIME
+    LOG_INTERVAL    = cfg.LOG_INTERVAL
+    RESTART_TIMES   = cfg.RESTART_TIMES
+
+    LOG_FILE        = cfg.LOG_FILE_FLAG
+    LOG_CONSOLE     = cfg.LOG_CONSOLE
+    DEBUG_LOGGING   = cfg.DEBUG_LOGGING
+    LOG_DAYS        = cfg.LOG_DAYS
+
+    # file paths for status/u ptime
+    mon_file        = cfg.mon_file
+    log_file        = cfg.log_file
+    sst_file        = cfg.sst_file
+    status_file     = cfg.status_file
+    # ----------------------------------------------------------------------------- 
     # Setup Logging
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     configure_logging(
-        log_file_path=str(script_dir / 'logs' / 'monitoring.log'),
+        log_file_path=str(mon_file),
         log_file=LOG_FILE,
         log_console=LOG_CONSOLE,
         log_days=LOG_DAYS,
         Debug_logging=DEBUG_LOGGING
     )
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     # Enable CORS
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     CORS(app)
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     # Helper: read and strip text files
-    # -----------------------------
+    # ----------------------------------------------------------------------------- 
     def _read_api_file(path):
         if not path.exists():
             return None
@@ -87,9 +83,9 @@ def create_app(config_path=None):
         except Exception as e:
             app.logger.error(f"Error reading {path}: {e}")
             return None
-    # ─────────────────────────────────────────────────────
+    # ----------------------------------------------------------------------------- 
     # Protect routes if SECRET is set
-    # ─────────────────────────────────────────────────────
+    # ----------------------------------------------------------------------------- 
     def login_required(f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -100,7 +96,9 @@ def create_app(config_path=None):
                     return redirect(url_for("login", next=request.path))
             return f(*args, **kwargs)
         return decorated
-    # ─────── Routes ───────
+    # ----------------------------------------------------------------------------- 
+    # Routes
+    # ----------------------------------------------------------------------------- 
     @app.route("/login", methods=["GET", "POST"])
     def login():
         # If no SECRET is configured, skip login entirely
@@ -265,10 +263,12 @@ def create_app(config_path=None):
 
     return app
 
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Run server when invoked directly
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
+def main():
+    cfg = validate_config(strict=False, api=True)
+    create_app().run(host=cfg.host or None,
+                     port=cfg.port or None)
 if __name__ == '__main__':
-    host = os.getenv('FLASK_RUN_HOST', '0.0.0.0')
-    port = int(os.getenv('FLASK_RUN_PORT', 5000))
-    create_app().run(host=host, port=port)
+    main()

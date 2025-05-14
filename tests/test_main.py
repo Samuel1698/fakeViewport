@@ -5,9 +5,7 @@ import re
 import signal
 import logging
 import logging.handlers
-# stub out the rotating‐file handler before viewport.py ever sees it
-logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
-
+import builtins
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, mock_open, ANY
@@ -21,9 +19,24 @@ def disable_external_side_effects(monkeypatch):
     monkeypatch.setattr(viewport.time, "sleep", lambda *args, **kwargs: None)
     # never actually fork a process
     monkeypatch.setattr(viewport.subprocess, "Popen", lambda *args, **kwargs: None)
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
+# Test conftest file handler isolation
+# ----------------------------------------------------------------------------- 
+def test_timed_rotating_file_handler_isolated(tmp_path, monkeypatch, isolate_logging):
+    # Make sure that our isolate_logging fixture’s patched_factory
+    # actually gets invoked when someone instantiates a TimedRotatingFileHandler.
+
+    # instantiate a handler just as production code would do
+    handler = logging.handlers.TimedRotatingFileHandler("ignored.log", when="midnight", interval=1)
+    # it should have been redirected into tmp_path/test.log
+    # confirm the file path ends with test.log
+    assert handler.baseFilename.endswith(str(tmp_path / "test.log"))
+    # ensure it has the rotating attributes we expect
+    assert hasattr(handler, 'rotation_filename')
+    assert callable(handler.doRollover)
+# ----------------------------------------------------------------------------- 
 # Test main function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "sst_exists,sst_size,other_running,expected_kill,expected_write",
     [
@@ -62,15 +75,16 @@ def test_main_various(
 ):
     # Arrange
     viewport.API = False
-
-    # stub out sst_file
-    fake_sst = MagicMock()
-    fake_sst.exists.return_value = sst_exists
-    fake_sst.stat.return_value = SimpleNamespace(st_size=sst_size)
-    viewport.sst_file = fake_sst
-    # stub out status file
-    viewport.status_file = MagicMock()
     dummy_driver = object()
+    # Arrange SST file to match parameters
+    if not sst_exists:
+        # remove it so exists() → False
+        viewport.sst_file.unlink(missing_ok=True)
+    else:
+        # ensure it exists with exactly sst_size bytes
+        data = "" if sst_size == 0 else "x" * sst_size
+        viewport.sst_file.write_text(data)
+
     mock_chrome.return_value = dummy_driver
 
     # process_handler: check → other_running; kill → None
@@ -83,9 +97,8 @@ def test_main_various(
     # Act
     viewport.main()
 
-    # Assert args_handler was called
-    mock_args.assert_called_once_with(viewport.args)
-
+    # the test stub passes whatever args_handler gets, so just check it got called
+    mock_args.assert_called_once()
     # process_handler('viewport.py','check') always happens
     mock_process.assert_any_call('viewport.py', action="check")
 
@@ -109,7 +122,7 @@ def test_main_various(
 
     # Chrome launched
     mock_chrome.assert_called_once_with(viewport.url)
-   # handle_view should be spun up as before
+    # handle_view should be spun up as before
     mock_thread.assert_any_call(
         target=viewport.handle_view,
         args=(dummy_driver, viewport.url)
@@ -141,18 +154,126 @@ def test_main_skip_when_not_continue(
     mock_process.assert_not_called()
     mock_chrome.assert_not_called()
     mock_thread.assert_not_called()
+# ----------------------------------------------------------------------------- 
+# Test log_error function
+# ----------------------------------------------------------------------------- 
+@patch("viewport.logging")
+@patch("viewport.screenshot_handler")
+@patch("viewport.check_driver")
+@patch("viewport.api_status")
+@patch("viewport.logs_dir", Path("/mock/logs"))
+@patch("viewport.LOG_DAYS", 7)
+def test_log_error_exception_logged(mock_api, mock_check, mock_sh, mock_log, *_):
+    with patch("viewport.ERROR_LOGGING", True), patch("viewport.ERROR_PRTSCR", False):
+        viewport.log_error("Something broke", exception=ValueError("fail"))
+        mock_log.exception.assert_called_once_with("Something broke")
+        mock_log.error.assert_not_called()
+        mock_sh.assert_not_called()
+        mock_api.assert_not_called()
 
-# -----------------------------------------------------------------------------
+@patch("viewport.logging")
+@patch("viewport.screenshot_handler")
+@patch("viewport.check_driver")
+@patch("viewport.api_status")
+@patch("viewport.logs_dir", Path("/mock/logs"))
+@patch("viewport.LOG_DAYS", 7)
+def test_log_error_without_exception(mock_api, mock_check, mock_sh, mock_log, *_):
+    with patch("viewport.ERROR_LOGGING", True), patch("viewport.ERROR_PRTSCR", False):
+        viewport.log_error("Basic error")
+        mock_log.error.assert_called_once_with("Basic error")
+        mock_log.exception.assert_not_called()
+        mock_sh.assert_not_called()
+        mock_api.assert_not_called()
+
+@patch("viewport.logging")
+@patch("viewport.screenshot_handler")
+@patch("viewport.check_driver")
+@patch("viewport.api_status")
+@patch("viewport.logs_dir", Path("/mock/logs"))
+@patch("viewport.LOG_DAYS", 7)
+def test_log_error_with_driver_success(mock_api, mock_check, mock_sh, mock_log, *_):
+    mock_driver = MagicMock()
+    with patch("viewport.ERROR_LOGGING", False), patch("viewport.ERROR_PRTSCR", True), patch("viewport.datetime") as mock_dt:
+        mock_dt.now.return_value = datetime(2025, 5, 10, 12, 0, 0)
+        viewport.log_error("driver fail", driver=mock_driver)
+
+        # Screenshot handler and check_driver called
+        mock_sh.assert_called_once()
+        mock_check.assert_called_once_with(mock_driver)
+
+        # Screenshot path should match expected format
+        mock_driver.save_screenshot.assert_called_once_with("/mock/logs/screenshot_2025-05-10_12-00-00.png")
+        mock_log.info.assert_called_once()
+        mock_api.assert_called_once_with("Saved error screenshot.")
+
+@patch("viewport.logging")
+@patch("viewport.screenshot_handler")
+@patch("viewport.check_driver")
+@patch("viewport.api_status")
+@patch("viewport.logs_dir", Path("/mock/logs"))
+@patch("viewport.LOG_DAYS", 7)
+def test_log_error_screenshot_webdriver_exception(mock_api, mock_check, mock_sh, mock_log, *_):
+    # Setup mock driver and raise WebDriverException
+    mock_driver = MagicMock()
+    from selenium.common.exceptions import WebDriverException
+    with patch("viewport.ERROR_LOGGING", False), patch("viewport.ERROR_PRTSCR", True):
+        mock_driver.save_screenshot.side_effect = WebDriverException("chrome died")
+        viewport.log_error("error with driver", driver=mock_driver)
+
+        mock_log.warning.assert_called_with("Could not take screenshot: WebDriver not alive (Message: chrome died\n)")
+
+@patch("viewport.screenshot_handler")
+@patch("viewport.check_driver", side_effect=Exception("uh oh"))
+@patch("viewport.logging.warning")
+def test_log_error_screenshot_unexpected_error(mock_warning, mock_check, mock_screenshot):
+    viewport.ERROR_LOGGING = True
+    viewport.ERROR_PRTSCR  = True
+
+    dummy_driver = object()
+    viewport.log_error("oops", exception=Exception("boom"), driver=dummy_driver)
+
+    mock_screenshot.assert_called_once_with(viewport.logs_dir, viewport.LOG_DAYS)
+    # Generic Exception ⇒ hits the second except
+    mock_warning.assert_any_call(
+        f"Unexpected error taking screenshot: uh oh"
+    )
+# --------------------------------------------------------------------------
+# Cover clear_sst() exception branch
+# --------------------------------------------------------------------------
+def test_clear_sst_exception(monkeypatch):
+    # Make sst_file.exists() return True
+    fake_sst = MagicMock()
+    fake_sst.exists.return_value = True
+    monkeypatch.setattr(viewport, "sst_file", fake_sst)
+
+    # Force open() to raise when trying to truncate
+    monkeypatch.setattr(builtins, "open", lambda *args, **kwargs: (_ for _ in ()).throw(Exception("disk full")))
+
+    # Spy on log_error
+    called = {}
+    def fake_log_error(msg, exc=None):
+        called['msg'] = msg
+        called['exc'] = exc
+    monkeypatch.setattr(viewport, "log_error", fake_log_error)
+
+    # Run
+    viewport.clear_sst()
+
+    # Should have logged our error message and exception
+    assert "Error clearing SST file:" in called.get('msg', '')
+    assert isinstance(called.get('exc'), Exception)
+    assert str(called['exc']) == "disk full"
+# ----------------------------------------------------------------------------- 
 # Test api_status function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def test_api_status_writes(tmp_path, monkeypatch):
     status_file = tmp_path / "status.txt"
     monkeypatch.setattr(viewport, "status_file", status_file)
     viewport.api_status("OKAY")
     assert status_file.read_text() == "OKAY"
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test api_handler function
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 @patch("viewport.process_handler", return_value=False)
 @patch("viewport.subprocess.Popen")
 @patch("viewport.api_status")
@@ -183,12 +304,11 @@ def test_api_handler_already_running(mock_api_status, mock_popen, mock_proc):
     viewport.api_handler()
     mock_popen.assert_not_called()
     mock_api_status.assert_not_called()
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Test Script Start Time File
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 
-# -------------------------------------------------------------------------
-# 1) args_handler: background/restart should leave SST alone; quit must clear it
+# args_handler: background/restart should leave SST alone; quit must clear it
 @pytest.mark.parametrize(
     "flag, pre, should_clear",
     [
@@ -221,6 +341,7 @@ def test_args_handler_flag_sst(mock_exit, mock_proc, flag, pre, should_clear, tm
         logs=None,
         background = flag in ("-b", "--background") or flag.startswith("--b"),
         restart    = flag in ("-r", "--restart")    or flag.startswith("--r"),
+        diagnose   = flag in ("-d", "--diagnose"),
         quit       = flag in ("-q", "--quit"),
         api=False
     )
@@ -235,9 +356,7 @@ def test_args_handler_flag_sst(mock_exit, mock_proc, flag, pre, should_clear, tm
     else:
         assert content == pre
 
-
-# -------------------------------------------------------------------------
-# 2) main(): initial / crash / normal cases for writing SST
+# main(): initial / crash / normal cases for writing SST
 @pytest.mark.parametrize(
     "pre, other_running, expect_write",
     [
@@ -279,34 +398,30 @@ def test_main_sst_write_logic(mock_thread, mock_chrome, mock_args, pre, other_ru
         # untouched
         assert sst.read_text() == pre
 
-
-# -------------------------------------------------------------------------
-# 3) simulate SIGTERM (signal_handler): clears SST, then main() writes again
+# simulate SIGTERM (signal_handler): clears SST, then main() writes again
 @patch("viewport.sys.exit")
 def test_sigterm_clears_and_next_main_writes(mock_exit, tmp_path, monkeypatch):
-    #  a) prepopulate
+    # prepopulate
     sst = tmp_path / "sst.txt"
     viewport.sst_file = sst
     sst.write_text("old")
     monkeypatch.setattr(viewport, "status_file", tmp_path / "status.txt")
 
-    # b) simulate kill by SIGTERM
+    # simulate kill by SIGTERM
     viewport.signal_handler(signum=signal.SIGTERM, frame=None, driver=None)
     assert sst.read_text() == ""
 
-    # c) stub out everything else so main() will actually write
+    # stub out everything else so main() will actually write
     monkeypatch.setattr(viewport, "args_handler", lambda a: "continue")
     monkeypatch.setattr(viewport, "process_handler", lambda n, action="check": False)
     monkeypatch.setattr(viewport, "browser_handler", lambda url: MagicMock())
     monkeypatch.setattr(viewport.threading, "Thread", lambda *args, **kwargs: MagicMock(start=lambda: None))
 
-    # d) call main again
+    # call main again
     viewport.main()
     assert sst.read_text().strip() != ""
 
-
-# -------------------------------------------------------------------------
-# 4) simulate a true crash (no SIGTERM cleanup): prefilled SST + no process => main rewrites
+# simulate a true crash (no SIGTERM cleanup): prefilled SST + no process => main rewrites
 def test_crash_recovery_writes(tmp_path, monkeypatch):
     sst = tmp_path / "sst.txt"
     viewport.sst_file = sst

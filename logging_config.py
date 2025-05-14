@@ -23,7 +23,6 @@ class ColoredFormatter(logging.Formatter):
         record.msg = f"{color}{record.msg}{self.NC}"
         return super().format(record)
 
-
 def configure_logging(
     log_file_path: str,
     log_file: bool,

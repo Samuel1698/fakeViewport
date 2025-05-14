@@ -1,104 +1,281 @@
-import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-import logging
-import logging.handlers
-# stub out the rotating‐file handler before viewport.py ever sees it
-logging.handlers.TimedRotatingFileHandler = lambda *args, **kwargs: logging.NullHandler()
 import os
-import importlib
+import re
+import sys
 import pytest
 from pathlib import Path
-def reload_in(tmp_path):
-    # 1) Save state
-    orig_cwd = os.getcwd()
-    orig_mod = sys.modules.get("viewport")
+from dotenv import load_dotenv
+from validate_config import validate_config
+import ipaddress 
 
-    # 2) Remove any existing viewport
-    sys.modules.pop("viewport", None)
-
-    try:
-        # 3) Switch into test folder and import fresh
-        os.chdir(tmp_path)
-        mod = importlib.import_module("viewport")
-    finally:
-        # 4a) Go back where you were
-        os.chdir(orig_cwd)
-        # 4b) Restore the real viewport module
-        if orig_mod is not None:
-            sys.modules["viewport"] = orig_mod
-        else:
-            sys.modules.pop("viewport", None)
-
-    return mod
-
+# Helpers to write test files
 BASE_INI = """
 [General]
-SLEEP_TIME = {sleep}
-WAIT_TIME = {wait}
-MAX_RETRIES = {retries}
+SLEEP_TIME = 300
+WAIT_TIME = 30
+MAX_RETRIES = 5
+RESTART_TIMES = 03:00
+
+[Browser]
+BROWSER_BINARY = /usr/bin/google-chrome
+BROWSER_PROFILE_PATH = /home/test/.config/google-chrome
+HEADLESS = false
 
 [Logging]
-LOG_FILE = true
-LOG_CONSOLE = false
+LOG_FILE_FLAG = true
+LOG_CONSOLE = true
 ERROR_LOGGING = false
-LOG_DAYS = {log_days}
-LOG_INTERVAL = {log_interval}
+LOG_DAYS = 7
+LOG_INTERVAL = 60
 
 [API]
-USE_API = false
+USE_API = true
 """
 
-ENV_CONTENT = """
-USERNAME=user
-PASSWORD=pass
-URL={url}
+BASE_ENV = """
+USERNAME=admin
+PASSWORD=secret
+URL=http://example.com
+SECRET=somesecret
+FLASK_RUN_HOST=127.0.0.1
+FLASK_RUN_PORT=8080
 """
-def write_config(tmp_path, **kwargs):
-    ini = BASE_INI.format(
-        sleep=kwargs.get("sleep", 300),
-        wait=kwargs.get("wait", 30),
-        retries=kwargs.get("retries", 5),
-        log_days=kwargs.get("log_days", 7),
-        log_interval=kwargs.get("log_interval", 60)
-    )
+
+def write_base(tmp_path: Path, ini_overrides=None, env_overrides=None):
+    # write config.ini
+    ini = BASE_INI
+    if ini_overrides:
+        for key, val in ini_overrides.items():
+            ini = re.sub(rf"^{key}\s*=.*$", f"{key} = {val}", ini, flags=re.MULTILINE)
     (tmp_path / "config.ini").write_text(ini)
 
-def test_valid_config(tmp_path):
-    write_config(tmp_path)
-    # should import without errors
-    mod = reload_in(tmp_path)
-    # config constants should match
-    assert mod.SLEEP_TIME == 300
-    assert mod.WAIT_TIME == 30
-    assert mod.MAX_RETRIES == 5
+    # write .env
+    env = BASE_ENV
+    if env_overrides:
+        lines = env.strip().splitlines()
+        # Create dictionary while preserving empty values
+        kv = {}
+        for line in lines:
+            if line.strip():  # Skip empty lines
+                parts = line.split("=", 1)
+                kv[parts[0]] = parts[1]
+        
+        # Update with overrides (including empty values)
+        kv.update(env_overrides)
+        
+        # Rebuild .env content, including empty values
+        env = "\n".join(f"{k}={v}" if v is not None else f"{k}=" for k, v in kv.items()) + "\n"
+    
+    (tmp_path / ".env").write_text(env)
 
-@pytest.mark.parametrize("sleep", [30, 59])
-def test_invalid_sleep_time(tmp_path, sleep):
-    write_config(tmp_path, sleep=sleep)
+    # create dirs
+    (tmp_path / "logs").mkdir(exist_ok=True)  
+    (tmp_path / "api").mkdir(exist_ok=True)
+# ----------------------------------------------------------------------------- 
+# Strict mode should exit
+# ----------------------------------------------------------------------------- 
+def test_strict_mode_exits_on_missing(tmp_path):
+    # no files at all
     with pytest.raises(SystemExit):
-        reload_in(tmp_path)
+        validate_config(strict=True,
+                        config_file=tmp_path / "config.ini",
+                        env_file=tmp_path / ".env",
+                        logs_dir=tmp_path / "logs",
+                        api_dir=tmp_path / "api")
+# ----------------------------------------------------------------------------- 
+# INI value errors in loose mode
+# ----------------------------------------------------------------------------- 
+@pytest.mark.parametrize("ini_overrides, expected_msg", [
+    ({"WAIT_TIME":"notanint"},      "General.WAIT_TIME must be a valid integer"),
+    ({"HEADLESS":"notabool"},       "Browser.HEADLESS must be a valid boolean"),
+    ({"BROWSER_PROFILE_PATH":"/home/your-user/foo"}, "placeholder value 'your-user'"),
+    ({"RESTART_TIMES":"99:99"},     "Invalid RESTART_TIME: '99:99'"),
+])
+def test_invalid_ini_loose(tmp_path, caplog, ini_overrides, expected_msg):
+    write_base(tmp_path, ini_overrides=ini_overrides)
+    caplog.set_level("ERROR")
+    ok = validate_config(strict=False,
+                         print_errors=True,
+                         config_file=tmp_path / "config.ini",
+                         env_file=tmp_path / ".env",
+                         logs_dir=tmp_path / "logs",
+                         api_dir=tmp_path / "api")
+    assert ok is False
+    assert any(expected_msg in rec.message for rec in caplog.records)
+# ----------------------------------------------------------------------------- 
+# .env value errors in loose mode
+# ----------------------------------------------------------------------------- 
+@pytest.mark.parametrize("env_overrides, expected_msg", [
+    ({"URL":"//nohost"},        "URL must start with http:// or https:// and include a host"),
+    ({"URL":"ftp://example"},   "URL must start with http:// or https:// and include a host"),
+    ({"URL":"http:///pathonly"},"URL must start with http:// or https:// and include a host"),
+    ({"WRONG_KEY":"value"},     "Unexpected key in .env: 'WRONG_KEY'"),
+    ({"USERNAME":""},           "USERNAME cannot be empty."),
+    ({"PASSWORD":""},           "PASSWORD cannot be empty."),
+])
+def test_invalid_env_loose(tmp_path, caplog, monkeypatch, env_overrides, expected_msg):
+    # clear any inherited env
+    for k in ("USERNAME","PASSWORD","URL","SECRET","FLASK_RUN_HOST","FLASK_RUN_PORT"): monkeypatch.delenv(k, raising=False)
+    write_base(tmp_path, env_overrides=env_overrides)
+    caplog.set_level("ERROR")
+    ok = validate_config(strict=False,
+                         print_errors=True,
+                         config_file=tmp_path / "config.ini",
+                         env_file=tmp_path / ".env",
+                         logs_dir=tmp_path / "logs",
+                         api_dir=tmp_path / "api")
+    assert ok is False
+    assert any(expected_msg in rec.message for rec in caplog.records)
+# ----------------------------------------------------------------------------- 
+# .env exception
+# ----------------------------------------------------------------------------- 
+def test_env_parsing_exception(tmp_path, caplog):
+    #If the .env file is malformed (e.g. a line without “=”)
+    write_base(tmp_path)
+    (tmp_path / ".env").write_text("PASSWORD\n")
 
-@pytest.mark.parametrize("wait", [0, 5])
-def test_invalid_wait_time(tmp_path, wait):
-    write_config(tmp_path, wait=wait)
-    with pytest.raises(SystemExit):
-        reload_in(tmp_path)
+    caplog.set_level("ERROR")
+    ok = validate_config(
+        strict=False,
+        print_errors=True,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
 
-@pytest.mark.parametrize("retries", [0, 1, 2])
-def test_invalid_max_retries(tmp_path, retries):
-    write_config(tmp_path, retries=retries)
-    with pytest.raises(SystemExit):
-        reload_in(tmp_path)
+    assert ok is False
+    assert any("Failed to validate .env file:" in rec.message for rec in caplog.records)
+    assert any("Format should be KEY=value." in rec.message
+               for rec in caplog.records)
+# ----------------------------------------------------------------------------- 
+# Host/Port parsing in loose mode (no validation errors)
+# ----------------------------------------------------------------------------- 
+@pytest.mark.parametrize(
+    "host,port,expected_errors",
+    [
+        ("not_an_ip", "8080", ["FLASK_RUN_HOST must be a valid IP address"]),
+        ("127.0.0.1", "notnum", ["FLASK_RUN_PORT must be an integer"]),
+        ("::1", "70000", ["FLASK_RUN_PORT must be 1-65535"]),
+    ],
+)
+def test_host_port_validation_api_mode(tmp_path, caplog, monkeypatch, host, port, expected_errors):
+    write_base(tmp_path)
+    monkeypatch.setenv("FLASK_RUN_HOST", host)
+    monkeypatch.setenv("FLASK_RUN_PORT", port)
+    caplog.set_level("ERROR")
 
-@pytest.mark.parametrize("log_days", [0])
-def test_invalid_log_days(tmp_path, log_days):
-    write_config(tmp_path, log_days=log_days)
-    with pytest.raises(SystemExit):
-        reload_in(tmp_path)
+    ok = validate_config(
+        strict=False,
+        print_errors=True,
+        api=True,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
 
-@pytest.mark.parametrize("log_interval", [0])
-def test_invalid_log_interval(tmp_path, log_interval):
-    write_config(tmp_path, log_interval=log_interval)
-    with pytest.raises(SystemExit):
-        reload_in(tmp_path)
+    # Should fail in API mode
+    assert ok is False
+    # Each expected error must appear in the log
+    for msg in expected_errors:
+        assert any(msg in record.message for record in caplog.records), \
+            f"Expected to find error '{msg}' in:\n" + "\n".join(r.message for r in caplog.records)
+# ----------------------------------------------------------------------------- 
+# Missing host/port should not error
+# ----------------------------------------------------------------------------- 
+def test_missing_host_port_no_errors(tmp_path, caplog, monkeypatch):
+    write_base(tmp_path)
+    # remove host/port
+    monkeypatch.delenv("FLASK_RUN_HOST", raising=False)
+    monkeypatch.delenv("FLASK_RUN_PORT", raising=False)
+    caplog.set_level("ERROR")
+    ok = validate_config(strict=False,
+                         print_errors=True,
+                         api=True,
+                         config_file=tmp_path / "config.ini",
+                         env_file=tmp_path / ".env",
+                         logs_dir=tmp_path / "logs",
+                         api_dir=tmp_path / "api")
+    # should succeed and no FLASK_RUN errors
+    assert ok
+    assert not isinstance(ok, bool)  # returns AppConfig object
+    assert not any("FLASK_RUN_HOST" in rec.message or "FLASK_RUN_PORT" in rec.message for rec in caplog.records)
+
+# ----------------------------------------------------------------------------- 
+# Optional .env fields missing vs empty
+# ----------------------------------------------------------------------------- 
+@pytest.mark.parametrize("field", ["FLASK_RUN_HOST", "FLASK_RUN_PORT", "SECRET"])
+def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, field):
+    # Any optional_fields (FLASK_RUN_HOST, FLASK_RUN_PORT, SECRET):
+    #   - Missing → should succeed (no error)
+    #   - Present but empty → should fail with the right message
+    write_base(tmp_path)
+    caplog.set_level("ERROR")
+
+    # missing field → OK, no error logged
+    monkeypatch.delenv(field, raising=False)
+    ok1 = validate_config(
+        strict=False,
+        print_errors=True,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
+    assert ok1
+    assert not any(field in rec.message for rec in caplog.records)
+
+    # present but empty → should fail with "If <FIELD> is specified, it cannot be empty."
+    caplog.clear()
+    write_base(tmp_path, env_overrides={field: ""})
+    ok2 = validate_config(
+        strict=False,
+        print_errors=True,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
+    assert ok2 is False
+    assert any(
+        f"If {field} is specified, it cannot be empty." in rec.message
+        for rec in caplog.records
+    )
+# ----------------------------------------------------------------------------- 
+# Error displays INI + env
+# ----------------------------------------------------------------------------- 
+@pytest.mark.parametrize("ini_overrides, env_overrides, expected_msg", [
+    # example‐value still set
+    (None, {"USERNAME": "YourLocalUsername"}, "USERNAME is still set to the example value. Please update it."),
+    (None, {"PASSWORD": "YourLocalPassword"}, "PASSWORD is still set to the example value. Please update it."),
+    (None, {"URL": "http://192.168.100.100/protect/dashboard/multiviewurl"},
+     "URL is still set to the example value. Please update it."),
+    # browser/profile mismatch
+    ({"BROWSER_BINARY": "/usr/bin/firefox"}, {}, 
+     "Browser mismatch: binary uses 'firefox', but profile path does not."),
+    # numeric constraints
+    ({"SLEEP_TIME": "30"}, {},       "SLEEP_TIME must be ≥ 60."),
+    ({"WAIT_TIME": "5"}, {},         "WAIT_TIME must be > 5."),
+    ({"MAX_RETRIES": "2"}, {},       "MAX_RETRIES must be ≥ 3."),
+    ({"LOG_DAYS": "0"}, {},          "LOG_DAYS must be ≥ 1."),
+    ({"LOG_INTERVAL": "0"}, {},      "LOG_INTERVAL must be ≥ 1."),
+])
+def test_additional_validate_config_errors(tmp_path, caplog, monkeypatch,
+                                           ini_overrides, env_overrides, expected_msg):
+    # write base files with overrides
+    write_base(tmp_path,
+               ini_overrides=ini_overrides,
+               env_overrides=env_overrides)
+    caplog.set_level("ERROR")
+    ok = validate_config(
+        strict=False,
+        print_errors=True,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
+    # should fail and log exactly the expected message
+    assert ok is False
+    assert any(expected_msg in rec.message for rec in caplog.records), \
+        f"Expected to see {expected_msg!r} in:\n" + "\n".join(r.message for r in caplog.records)

@@ -6,3 +6,4 @@ logs/
 api/
 venv/
 __pycache__/
+.coverage

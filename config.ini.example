@@ -1,59 +1,52 @@
 [General]
-# How long the script will wait before checking the health of the live view page, or refreshing if the console is offline.
-# Don't recommend reducing this number too much unless you're troubleshooting
+# Time (seconds) between health checks or page refreshes. Don’t set too low unless troubleshooting.
 SLEEP_TIME=300
-# How long the script will wait for elements to appear
-# This include loading the page, waiting for the cameras to load, waiting for buttons before clicking them, etc
-# This is the max time before it throws an error.
+
+# Max seconds to wait for page elements (loads, camera feeds, buttons) before error.
 WAIT_TIME=30
-# Amount of retries the script will attempt of launching chrome, or handling
-# different kinds of errors with the cameras not loading correctly.
-# Increasing is useful for when you have connectivity issues, and waiting 2-3 minutes before a refresh is the solution.
-# First amount of attempts will just reload the page. Second to last attempt will restart chrome, and the last attempt will restart the script. 
-# Must be 3 or greater.
+
+# Number of retry attempts on failures (page reloads → browser restart → script restart). Minimum 3.
 MAX_RETRIES=3
-# Comma-separated list of 24h times (HH:MM) when the script should automatically restart
-# I noticed that chrome seems to crash consistently after being loaded for ~14 hours, so 12 hour interval should be plenty
-# This is not strictly needed since the script will restart itself if it notices an error, this is more of a failsafe for convenience and in case the error-handling breaks in the future. Might also be helpful to prevent the worst-case scenario where the tab crashes just *after* the script checked it's own health, leading to up to SLEEP_TIME of downtime before the script notices it's broken.
+
+# Comma-separated 24h times (HH:MM) for automatic script restart (optional failsafe).
 # RESTART_TIMES=11:00, 23:00 
 [Browser]
-# Chrome/Chromium profile directory found by navigating to chrome://version/ and copying the "Profile Path"
-# Firefox         profile directory found by navigating to about:support and copying the "Profile Folder"
-# Then remove the 'Default' as we want the parent directory where all profiles live
-# The script will default to the path location in Linux for chrome. 
-# These profiles paths below are placeholders and might not work. Please get the real profile paths before running the script
-# BROWSER_PROFILE_PATH=/home/your-user/snap/firefox/common/.mozilla/firefox/
-# BROWSER_PROFILE_PATH=/home/your-user/.mozilla/firefox/
-# BROWSER_PROFILE_PATH=/home/your-user/.config/chromium/
+# Optional: Custom profile directory (omit to use chrome's default)
+# • Go to chrome://version and copy "Profile Path" without the trailing "Default"
 # BROWSER_PROFILE_PATH=/home/your-user/.config/google-chrome/
+# BROWSER_PROFILE_PATH=/home/your-user/.config/chromium/
+# • Go to about:support for firefox and copy the "Profile Folder" without the trailing "Default"
+# BROWSER_PROFILE_PATH=/home/your-user/.mozilla/firefox/
+# BROWSER_PROFILE_PATH=/home/your-user/snap/firefox/common/.mozilla/firefox/
 
-# Path of your browser binary. Depends on your OS and browser
-# Find it by navigating to chrome://version/ and copying "Command Line"
-# or if using firefox, about:support and copying "Application Binary"
-# BROWSER_BINARY=/snap/firefox/6103/usr/lib/firefox/firefox
-# BROWSER_BINARY=/usr/lib/firefox-esr/firefox-esr
+# Optional: Executable Path
+# • Go to chrome://version and copy "Command Line" without the trailing "--flags"
 # BROWSER_BINARY=/usr/lib/chromium/chromium
 BROWSER_BINARY=/usr/bin/google-chrome-stable
-# Headless mode is only useful for development/testing other parts of the code
-# It will launch the script and run the browser without actually displaying it
+# • Go to about:support and copy "Application Binary" without the trailing "--flags"
+# BROWSER_BINARY=/usr/lib/firefox-esr/firefox-esr
+# BROWSER_BINARY=/snap/firefox/6103/usr/lib/firefox/firefox
+
+# Run in headless mode (True/False). Useful only for testing.
 # HEADLESS=True
 [Logging]
-# Put False if you don't want a specific kind of logging.
-# By default, it will log in the console and a logfile, but you can toggle it off
+# Enable writing to logfile and/or console.
 LOG_FILE=True
 LOG_CONSOLE=True
-# Sets the logger level to DEBUG instead of INFO. Recommend leaving False unless troubleshooting
+
+# Use DEBUG level instead of INFO.
 DEBUG_LOGGING=False
-# If True, errors will raise an Exception instead of an Error which makes them more verbose and traceable.
+
+# On errors, raise exception (more verbose) and/or capture screenshot.
 ERROR_LOGGING=False
-# How many log files to keeps. It will keep the last 7 days of logs by default.
+ERROR_PRTSCR=False
+
+# Retain this many days of logs (and error screenshots).
 LOG_DAYS=7
-# Interval of how often the script will log the status of the cameras, in minutes. 
-# You should see "Feed Healthy" if everything is working once every 60 minutes by default.
+
+# Minutes between status log entries. Defaults to 60.
 LOG_INTERVAL=60
 
 [API]
-# The API is something I made for myself. It allows me to remotely monitor
-# The status of the webpage, as well as giving me the script and system
-# uptime. It's turned off by default.
+# Enable built-in monitoring API (False to disable).
 USE_API=False
