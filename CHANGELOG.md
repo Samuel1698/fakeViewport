@@ -2,7 +2,28 @@
 
 Note: Entries marked with "💥" indicate crucial or breaking changes that might affect your current setup. Entries marked with "🐛" indicate a bug fix, "✨" indicates an improvement,
 and "🔥" indicates a non-breaking change.
-## 💥🔥✨ v2.1.6: Firefox Support
+## 🐛🔥✨ v2.2.1: Config validation
+### ✨ Added
+- `viewport --diagnose` argument will look at your current `.env` and `config.ini` and look for errors.
+- `browser_handler` can now deal with dropped/lost connection while attempting to download the ChromeDrivers/GeckoDrivers. 
+- Option to take screenshot on errors (Deleted after `LOG_DAYS`).
+- Test coverage now at `99%` with 300 tests.
+
+### 🔥Changed
+- `config` and `env` validation now a separate `validate_config.py` file.
+- Rewrite `config.ini` comments for brevity.
+- `restart_handler` now checks if invoked from within a terminal and replaces itself, otherwise it will detach into the background. `viewport --restart` still detaches into the background.
+- `viewport -r` will only restart if there's already a script running.
+- Fully validate relevant `.env` variables when using the `monitoring` api.
+### 🐛 Fixed
+- Argument parsing now exclusively parses expected arguments.
+- log_error bad function call with `e=None` now correctly uses `None` instead. 
+
+**[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.1.6...v2.2.1)**
+
+---
+
+## 💥🔥✨ v2.2.0: Firefox Support
 
 💥 **If you were using a previous version of `config.ini`, the category previously known as `[Chrome]` has been changed to `[Browser]`. Either delete the old config file and re-run `./setup.sh` or edit that category manually.**
 ### ✨ Added
@@ -21,6 +42,9 @@ and "🔥" indicates a non-breaking change.
     `/api/next_restart` Displays the next scheduled restart.
 - Added `logfile` button to control panel to fetch `/api/logs` and display the last 100 log entries.
 
+**[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.1.5...v2.1.6)**
+
+
 ---
 
 ## ✨🐛 v2.1.5: Bug Fix & Website
@@ -31,6 +55,8 @@ and "🔥" indicates a non-breaking change.
 
 ### 🐛 Fixed
 - Fix a bug where an exception would lead to an infinite restart loop instead of being handled correctly
+
+**[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.1.4...v2.1.5)**
 
 ---
 
@@ -54,6 +80,8 @@ and "🔥" indicates a non-breaking change.
       Ex: if interval is 30, every 30 minutes at `hh:30` and `hh:00`, 
       Ex: if interval is 15, every 15 minutes at `hh:15`, `hh:30`, `hh:45`, `hh:00`
 
+**[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.1.3...v2.1.4)**
+
 ---
 
 ## ✨🔥🐛 v2.1.3: Introducing tests
@@ -73,6 +101,8 @@ and "🔥" indicates a non-breaking change.
 ### 🐛 Fixed
 - Catch WebDriverException error when the tab crashes for faster restart of the browser instance rather than attempting to refresh the page
 - Fix desktop shortcut not executing correctly in certain cases
+
+**[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.1.0...v2.1.3)**
 
 ---
 
@@ -105,6 +135,7 @@ Toggles the API on or off. Requires `USE_API=True` in `config.ini`
 - Conditional importing of `webdriver_manager` to avoid it being imported when called with arguments that don't require it.
 - `api_status` is now used in the `--status` handler and is capable of displaying all the errors that can get caught by code execution.
 
+**[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.0.3...v2.1.0)**
 
 ---
 
@@ -122,6 +153,8 @@ Toggles the API on or off. Requires `USE_API=True` in `config.ini`
 - Script will self-start a virtual environment if it detects it's not running in one.
 - Logs are now more accurate in terms of when they get called and what they dispaly.
 - Kill other `viewport.py` and `chrome` processes when script initializes. 
+
+**[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.0.0...v2.0.3)**
 
 ---
  
