@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import pytest
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from validate_config import validate_config
@@ -48,24 +49,16 @@ def write_base(tmp_path: Path, ini_overrides=None, env_overrides=None):
             ini = re.sub(rf"^{key}\s*=.*$", f"{key} = {val}", ini, flags=re.MULTILINE)
     (tmp_path / "config.ini").write_text(ini)
 
-    # write .env
-    env = BASE_ENV
+    # write .env, allowing removal if override value is None
+    base_kv = dict(line.split("=", 1) for line in BASE_ENV.strip().splitlines())
     if env_overrides:
-        lines = env.strip().splitlines()
-        # Create dictionary while preserving empty values
-        kv = {}
-        for line in lines:
-            if line.strip():  # Skip empty lines
-                parts = line.split("=", 1)
-                kv[parts[0]] = parts[1]
-        
-        # Update with overrides (including empty values)
-        kv.update(env_overrides)
-        
-        # Rebuild .env content, including empty values
-        env = "\n".join(f"{k}={v}" if v is not None else f"{k}=" for k, v in kv.items()) + "\n"
-    
-    (tmp_path / ".env").write_text(env)
+        for k, v in env_overrides.items():
+            if v is None:
+                base_kv.pop(k, None)
+            else:
+                base_kv[k] = v
+    out = "\n".join(f"{k}={v}" for k, v in base_kv.items()) + "\n"
+    (tmp_path / ".env").write_text(out)
 
     # create dirs
     (tmp_path / "logs").mkdir(exist_ok=True)  
@@ -151,19 +144,20 @@ def test_env_parsing_exception(tmp_path, caplog):
     "host,port,expected_errors",
     [
         ("not_an_ip", "8080", ["FLASK_RUN_HOST must be a valid IP address"]),
-        ("127.0.0.1", "notnum", ["FLASK_RUN_PORT must be an integer"]),
-        ("::1", "70000", ["FLASK_RUN_PORT must be 1-65535"]),
+        ("127.0.0.1", "notnum",      ["FLASK_RUN_PORT must be an integer"]),
+        ("::1",       "70000",       ["FLASK_RUN_PORT must be 1–65535"]),
     ],
 )
 def test_host_port_validation_api_mode(tmp_path, caplog, monkeypatch, host, port, expected_errors):
-    write_base(tmp_path)
-    monkeypatch.setenv("FLASK_RUN_HOST", host)
-    monkeypatch.setenv("FLASK_RUN_PORT", port)
+    # override the .env file, not just the env‐vars
+    write_base(tmp_path, env_overrides={
+        "FLASK_RUN_HOST": host,
+        "FLASK_RUN_PORT": port,
+    })
     caplog.set_level("ERROR")
 
     ok = validate_config(
         strict=False,
-        api=True,
         config_file=tmp_path / "config.ini",
         env_file=tmp_path / ".env",
         logs_dir=tmp_path / "logs",
@@ -186,7 +180,6 @@ def test_missing_host_port_no_errors(tmp_path, caplog, monkeypatch):
     monkeypatch.delenv("FLASK_RUN_PORT", raising=False)
     caplog.set_level("ERROR")
     ok = validate_config(strict=False,
-                         api=True,
                          config_file=tmp_path / "config.ini",
                          env_file=tmp_path / ".env",
                          logs_dir=tmp_path / "logs",
@@ -204,11 +197,11 @@ def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, fi
     # Any optional_fields (FLASK_RUN_HOST, FLASK_RUN_PORT, SECRET):
     #   - Missing → should succeed (no error)
     #   - Present but empty → should fail with the right message
-    write_base(tmp_path)
     caplog.set_level("ERROR")
 
-    # missing field → OK, no error logged
-    monkeypatch.delenv(field, raising=False)
+    # missing field in .env → still OK
+    write_base(tmp_path, env_overrides={field: None})
+    caplog.clear()
     ok1 = validate_config(
         strict=False,
         config_file=tmp_path / "config.ini",
@@ -219,7 +212,7 @@ def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, fi
     assert ok1
     assert not any(field in rec.message for rec in caplog.records)
 
-    # present but empty → should fail with "If <FIELD> is specified, it cannot be empty."
+    # present but empty → should fail with "<FIELD> is specified but empty."
     caplog.clear()
     write_base(tmp_path, env_overrides={field: ""})
     ok2 = validate_config(
@@ -231,7 +224,7 @@ def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, fi
     )
     assert ok2 is False
     assert any(
-        f"If {field} is specified, it cannot be empty." in rec.message
+        f"{field} is specified but empty." in rec.message
         for rec in caplog.records
     )
 # ----------------------------------------------------------------------------- 
@@ -271,3 +264,44 @@ def test_additional_validate_config_errors(tmp_path, caplog, monkeypatch,
     assert ok is False
     assert any(expected_msg in rec.message for rec in caplog.records), \
         f"Expected to see {expected_msg!r} in:\n" + "\n".join(r.message for r in caplog.records)
+        
+def test_validate_config_logs_errors_and_returns_false(tmp_path, caplog):
+    # Arrange: produce at least one error (SECRET empty)
+    write_base(tmp_path, env_overrides={"SECRET": ""})
+    caplog.set_level(logging.ERROR)
+
+    # Act
+    ok = validate_config(
+        strict=False,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
+
+    # Assert
+    assert ok is False
+    # Should have logged one error per entry in errors[]
+    messages = [rec.message for rec in caplog.records]
+    assert any("SECRET is specified but empty." in m for m in messages)
+
+def test_validate_config_strict_mode_exits_after_logging(tmp_path, caplog):
+    # Arrange: again force an error
+    write_base(tmp_path, env_overrides={"SECRET": ""})
+    caplog.set_level(logging.ERROR)
+
+    # Act & Assert
+    with pytest.raises(SystemExit) as exc:
+        validate_config(
+            strict=True,
+            config_file=tmp_path / "config.ini",
+            env_file=tmp_path / ".env",
+            logs_dir=tmp_path / "logs",
+            api_dir=tmp_path / "api",
+        )
+    # exit code 1 on errors
+    assert exc.value.code == 1
+
+    # And verify we still logged our errors before exiting
+    messages = [rec.message for rec in caplog.records]
+    assert any("SECRET is specified but empty." in m for m in messages)
