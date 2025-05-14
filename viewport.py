@@ -982,6 +982,27 @@ def handle_login(driver):
         )
         submit_button.click()
         # Verify successful login
+        if check_for_title(driver, "Dashboard"):
+            return True
+         # If not logged in yet, look for a "Trust This Device" prompt
+        try:
+            trust_span = WebDriverWait(driver, WAIT_TIME).until(
+                EC.element_to_be_clickable((
+                    By.XPATH,
+                    "//span[translate(normalize-space(.), "
+                    "'ABCDEFGHIJKLMNOPQRSTUVWXYZ',"
+                    "'abcdefghijklmnopqrstuvwxyz')="
+                    "'trust this device']"
+                ))
+            )
+            # click its parent <button>
+            btn = trust_span.find_element(By.XPATH, "./ancestor::button")
+            btn.click()
+            time.sleep(1)
+        except TimeoutException:
+            # no trust-device prompt appeared
+            pass
+        # One more shot at Dashboard
         return check_for_title(driver, "Dashboard")
     except Exception as e: 
         log_error("Error during login: ", e, driver)

@@ -1,6 +1,7 @@
 import pytest
 import viewport
 from unittest.mock import MagicMock, patch, call
+from selenium.common.exceptions import TimeoutException
 # ----------------------------------------------------------------------------- 
 # Tests for handle_login function
 # ----------------------------------------------------------------------------- 
@@ -27,7 +28,7 @@ def test_handle_login(
         # build three calls: username field, password field, submit button
         username_el = MagicMock()
         password_el = MagicMock()
-        submit_el = MagicMock()
+        submit_el   = MagicMock()
         wd = MagicMock()
         if exc is None:
             wd.until.side_effect = [username_el, password_el, submit_el]
@@ -155,3 +156,118 @@ def test_handle_page_loops_then_dashboard(mock_sleep, mock_check_for_title, mock
     #   Inner sleep call gets a different MagicMock ID
     assert mock_sleep.call_count == 2
     assert mock_sleep.call_args_list == [call(3), call(3)]
+    
+def test_handle_login_trust_prompt_not_found(monkeypatch):
+    driver = MagicMock()
+
+    # Stub credentials
+    monkeypatch.setattr(viewport, "username", "testuser")
+    monkeypatch.setattr(viewport, "password", "testpass")
+
+    # Prepare fake fields
+    username_field = MagicMock()
+    password_field = MagicMock()
+    submit_button = MagicMock()
+
+    # WebDriverWait.until should return username, password, submit, then raise TimeoutException
+    seq = [username_field, password_field, submit_button]
+    def fake_until(cond):
+        if seq:
+            return seq.pop(0)
+        raise TimeoutException()
+    monkeypatch.setattr(viewport, "WebDriverWait", lambda drv, t: MagicMock(until=fake_until))
+
+    # check_for_title returns False on first call, True on second
+    calls = []
+    def fake_check(drv, title="Dashboard"):
+        calls.append(title)
+        return False if len(calls) == 1 else True
+    monkeypatch.setattr(viewport, "check_for_title", fake_check)
+
+    # No real sleeping
+    monkeypatch.setattr(viewport.time, "sleep", lambda s: None)
+
+    # Act
+    result = viewport.handle_login(driver)
+
+    # Assert
+    assert result is True
+
+    # Credentials were entered
+    username_field.clear.assert_called_once()
+    username_field.send_keys.assert_called_once_with("testuser")
+    password_field.clear.assert_called_once()
+    password_field.send_keys.assert_called_once_with("testpass")
+
+    # Login button was clicked
+    submit_button.click.assert_called_once()
+
+    # check_for_title was called twice (before and after trust‐block)
+    assert len(calls) == 2
+
+
+def test_handle_login_with_trust_device(monkeypatch):
+    driver = MagicMock()
+
+    # stub credentials
+    monkeypatch.setattr(viewport, "username", "testuser")
+    monkeypatch.setattr(viewport, "password", "testpass")
+
+    # create the elements returned by WebDriverWait.until()
+    username_el   = MagicMock()
+    password_el   = MagicMock()
+    submit_btn    = MagicMock()
+    trust_span    = MagicMock()
+    trust_button  = MagicMock()
+
+    # When we do trust_span.find_element(...), return our fake button
+    trust_span.find_element.return_value = trust_button
+
+    # WebDriverWait.until should return username, password, submit, then trust_span
+    seq = [username_el, password_el, submit_btn, trust_span]
+    def fake_until(cond):
+        return seq.pop(0)
+    monkeypatch.setattr(
+        viewport,
+        "WebDriverWait",
+        lambda drv, t: MagicMock(until=fake_until)
+    )
+
+    # check_for_title: first call False (login not yet complete),
+    # second call True (after trusting device)
+    calls = {"n": 0}
+    def fake_check_for_title(drv, title="Dashboard"):
+        calls["n"] += 1
+        return calls["n"] > 1
+    monkeypatch.setattr(viewport, "check_for_title", fake_check_for_title)
+
+    # Spy on time.sleep so we can assert the 1s pause after clicking
+    sleep_calls = []
+    monkeypatch.setattr(viewport.time, "sleep", lambda s: sleep_calls.append(s))
+
+    # Stub out error handlers to avoid side effects
+    monkeypatch.setattr(viewport, "log_error", MagicMock())
+    monkeypatch.setattr(viewport, "api_status", MagicMock())
+
+    # Act
+    result = viewport.handle_login(driver)
+
+    # Assert
+    assert result is True
+
+    # Credentials flow
+    username_el.clear.assert_called_once()
+    username_el.send_keys.assert_called_once_with("testuser")
+    password_el.clear.assert_called_once()
+    password_el.send_keys.assert_called_once_with("testpass")
+    submit_btn.click.assert_called_once()
+
+    # Trust‐this‐device flow
+    trust_span.find_element.assert_called_once_with(
+        viewport.By.XPATH,
+        "./ancestor::button"
+    )
+    trust_button.click.assert_called_once()
+
+    # We should sleep 1 second after clicking "Trust This Device"
+    assert 1 in sleep_calls
