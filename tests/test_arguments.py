@@ -3,7 +3,7 @@ import pytest
 import viewport
 import subprocess
 from types import SimpleNamespace as Namespace
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch, mock_open, call
 @pytest.fixture(autouse=True)
 def isolate_sst(tmp_path, monkeypatch):
     # redirect every test’s sst_file into tmp_path/…
@@ -97,53 +97,87 @@ def test_api_flag_stop_monitoring(mock_process_handler, mock_exit):
     assert mock_process_handler.call_count >= 2
     mock_exit.assert_called_once_with(0)
 
-def test_restart_flag(monkeypatch, caplog):
-    # Prepare deterministic script path and python executable
+def test_restart_flag_when_running(monkeypatch, caplog):
     monkeypatch.setattr(viewport.os.path, "realpath", lambda p: "script.py")
     monkeypatch.setattr(sys, "executable", "/usr/bin/py")
     monkeypatch.setattr(sys, "argv", ["viewport.py"])
+    # Arrange: process_handler.check returns True → simulate a running daemon
+    fake_proc = MagicMock(return_value=True)
+    monkeypatch.setattr(viewport, "process_handler", fake_proc)
 
-    # Stub out process_handler and subprocess.Popen
-    fake_kill = MagicMock()
-    monkeypatch.setattr(viewport, "process_handler", fake_kill)
+    # Spy on Popen
     fake_popen = MagicMock()
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
 
-    # Stub args_child_handler to include --background when requested
-    def fake_args_child_handler(args, drop_flags, add_flags=None):
-        parts = ["--child"]
-        if add_flags and "background" in add_flags:
-            parts.append("--background")
-        return parts
-    monkeypatch.setattr(viewport, "args_child_handler", fake_args_child_handler)
+    # Stub args_child_handler to include --background
+    monkeypatch.setattr(
+        viewport,
+        "args_child_handler",
+        lambda args, drop_flags, add_flags=None: ["--child"] + (["--background"] if add_flags else [])
+    )
 
-    # Create args with restart=True
     args = Namespace(
         status=False, logs=None, background=False,
         quit=False, diagnose=False, api=False, restart=True
     )
 
-    # Run and expect it to exit
+    # Act & Assert: SystemExit(0)
     with pytest.raises(SystemExit) as se:
         viewport.args_handler(args)
     assert se.value.code == 0
 
-    # Check logged messages
-    assert "Stopping existing Viewport instance for restart…" in caplog.text
-    assert "Starting new Viewport instance in background…" in caplog.text
+    # It should first check, then kill
+    fake_proc.assert_has_calls([
+        call("viewport.py", action="check"),
+        call("viewport.py", action="kill"),
+    ])
+    assert fake_proc.call_count == 2
 
-    # Verify the old daemon was killed
-    fake_kill.assert_called_once_with("viewport.py", action="kill")
-
-    # Verify a new background process was spawned correctly
+    # It should spawn exactly one background process
     fake_popen.assert_called_once_with(
         ["/usr/bin/py", "script.py", "--child", "--background"],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         close_fds=True,
-        start_new_session=True
+        start_new_session=True,
     )
+
+    # Verify log messages
+    assert "Stopping existing Viewport instance for restart…" in caplog.text
+    assert "Starting new Viewport instance in background…" in caplog.text
+
+
+def test_restart_flag_when_not_running(monkeypatch, caplog):
+    monkeypatch.setattr(viewport.os.path, "realpath", lambda p: "script.py")
+    monkeypatch.setattr(sys, "executable", "/usr/bin/py")
+    monkeypatch.setattr(sys, "argv", ["viewport.py"])
+    # Arrange: process_handler.check returns False → simulate no daemon
+    fake_proc = MagicMock(return_value=False)
+    monkeypatch.setattr(viewport, "process_handler", fake_proc)
+
+    fake_popen = MagicMock()
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+
+    args = Namespace(
+        status=False, logs=None, background=False,
+        quit=False, diagnose=False, api=False, restart=True
+    )
+
+    # Act & Assert: SystemExit(0)
+    with pytest.raises(SystemExit) as se:
+        viewport.args_handler(args)
+    assert se.value.code == 0
+
+    # Only the check call, no kill
+    fake_proc.assert_called_once_with("viewport.py", action="check")
+
+    # No background spawn
+    fake_popen.assert_not_called()
+
+    # Verify log message
+    assert "Fake Viewport is not running." in caplog.text
+    
 def test_no_arguments_passed():
     mock_args = type("Args", (), {
         "status": False, "logs": None, "background": False,
