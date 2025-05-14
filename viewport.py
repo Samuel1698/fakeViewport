@@ -44,7 +44,7 @@ from css_selectors import (
 _mod = sys.modules[__name__]
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
-viewport_version = "2.1.7"
+viewport_version = "2.2.1"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
 # Directory and file paths
 _base = Path(__file__).parent
@@ -182,23 +182,26 @@ def args_handler(args):
     if args.restart:
         # --restart from the CLI should kill the existing daemon
         # and spawn a fresh background instance, then exit immediately.
-        logging.info("Stopping existing Viewport instance for restart…")
-        process_handler("viewport.py", action="kill")
-        logging.info("Starting new Viewport instance in background…")
-        child_argv = args_child_handler(
-            args,
-            drop_flags={"restart"},
-            add_flags={"background": None},  # force --background on the child
-        )
-        script_path = os.path.realpath(sys.argv[0])
-        subprocess.Popen(
-            [sys.executable, script_path] + child_argv,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            close_fds=True,
-            start_new_session=True,
-        )
+        if process_handler("viewport.py", action="check"):  
+            logging.info("Stopping existing Viewport instance for restart…")
+            process_handler("viewport.py", action="kill")
+            logging.info("Starting new Viewport instance in background…")
+            child_argv = args_child_handler(
+                args,
+                drop_flags={"restart"},
+                add_flags={"background": None},  # force --background on the child
+            )
+            script_path = os.path.realpath(sys.argv[0])
+            subprocess.Popen(
+                [sys.executable, script_path] + child_argv,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                start_new_session=True,
+            )
+        else:
+            logging.info("Fake Viewport is not running.")
         sys.exit(0)
     else:
         return "continue"
