@@ -7,6 +7,8 @@
 
 Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. With this setup, you can automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
 
+**Already running the script and want to update it? Check the [changelog](https://github.com/Samuel1698/fakeViewport/blob/main/CHANGELOG.md) for breaking changes.**
+
 ---
 
 ## Features
