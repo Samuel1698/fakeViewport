@@ -82,7 +82,7 @@ def client(tmp_path, monkeypatch):
     )
 
     # build Flask client
-    app = create_app(None)
+    app = create_app()
     app.testing = True
     return app.test_client()
 # ----------------------------------------------------------------------------- 
@@ -102,7 +102,7 @@ def _make_auth_client(tmp_path, monkeypatch):
         lambda tpl, **ctx: f"TEMPLATE({tpl})"
     )
 
-    app = create_app(None)
+    app = create_app()
     app.testing = True
     return app.test_client()
 # ----------------------------------------------------------------------------- 
@@ -115,7 +115,7 @@ def no_secret_client(tmp_path, monkeypatch):
     (tmp_path / "api").mkdir(exist_ok=True)
     (tmp_path / "logs").mkdir(exist_ok=True)
 
-    app = create_app(None)
+    app = create_app()
     app.testing = True
     return app.test_client()
 # ----------------------------------------------------------------------------- 

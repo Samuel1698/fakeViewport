@@ -2,6 +2,7 @@ import logging
 import logging.handlers
 import pytest
 import viewport
+import monitoring
 from validate_config import AppConfig
 
 @pytest.fixture(autouse=True)
@@ -75,15 +76,17 @@ def provide_dummy_config(monkeypatch, tmp_path):
     )
     # Save the real config browser since it changes based on other variables
     real_browser = viewport.BROWSER
-    # stub out validate_config to always give the above cfg
+     # stub out viewport
     monkeypatch.setattr(viewport, "validate_config", lambda *args, **kwargs: cfg)
-
-    # ensure viewport.cfg points at it too
     monkeypatch.setattr(viewport, "cfg", cfg)
+    for k, v in vars(cfg).items():
+        setattr(viewport, k, v)
 
-    # Assign fake config to global variables
-    for name, val in vars(cfg).items():
-        setattr(viewport, name, val)
+    # now stub out monitoring exactly the same way:
+    monkeypatch.setattr(monitoring, "validate_config", lambda *args, **kwargs: cfg)
+    monkeypatch.setattr(monitoring, "cfg", cfg)
+    for k, v in vars(cfg).items():
+        setattr(monitoring, k, v)
     # Bring back browser from the real config
     viewport.BROWSER = real_browser
     return cfg

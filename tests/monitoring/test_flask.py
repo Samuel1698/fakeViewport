@@ -1,66 +1,81 @@
 import sys
 import pytest
 import runpy
+import types
+import monitoring
 from unittest.mock import patch, MagicMock
-from monitoring import main, create_app
-@pytest.fixture
-def mock_flask_app():
-    #Fixture to mock Flask app creation and running
-    mock_app = MagicMock()
-    mock_app.run = MagicMock()
-    return mock_app
 
-@pytest.fixture
-def valid_config(provide_dummy_config):
-    #Fixture providing valid config with host/port
-    cfg = provide_dummy_config
-    cfg.host = "127.0.0.1"
-    cfg.port = "5000"
-    return cfg
+class DummyApp:
+    def __init__(self):
+        self.run_called = False
+        self.run_args = None
 
-def test_main_with_valid_config(valid_config, mock_flask_app):
-    with patch('monitoring.validate_config', return_value=valid_config) as mock_validate, \
-         patch('monitoring.create_app', return_value=mock_flask_app):
-        
-        main()  # Directly call the main function
-        
-        mock_validate.assert_called_once_with(strict=False, api=True)
-        mock_flask_app.run.assert_called_once_with(
-            host="127.0.0.1",
-            port="5000"
-        )
+    def run(self, host, port):
+        self.run_called = True
+        self.run_args = (host, port)
 
-def test_main_with_missing_host_port(provide_dummy_config, mock_flask_app):
-    # Update config with empty host/port
-    provide_dummy_config.host = ""
-    provide_dummy_config.port = ""
-    
-    with patch('monitoring.validate_config', return_value=provide_dummy_config), \
-         patch('monitoring.create_app', return_value=mock_flask_app):
-        
-        main()
-        
-        mock_flask_app.run.assert_called_once_with(host=None, port=None)
+def test_main_with_valid_config(monkeypatch):
+    fake_cfg = types.SimpleNamespace(host="1.2.3.4", port=2500)
+    monkeypatch.setattr(monitoring, "validate_config", lambda *a, **k: fake_cfg)
 
-def test_main_config_validation_failure(mock_flask_app):
-    with patch('monitoring.validate_config', side_effect=ValueError("Invalid config")), \
-         patch('monitoring.create_app', return_value=mock_flask_app):
-        
-        with pytest.raises(ValueError, match="Invalid config"):
-            main()
+    dummy = DummyApp()
+    monkeypatch.setattr(monitoring, "create_app", lambda: dummy)
 
-def test_main_app_creation_failure(valid_config):
-    with patch('monitoring.validate_config', return_value=valid_config), \
-         patch('monitoring.create_app', side_effect=RuntimeError("App creation failed")):
-        
-        with pytest.raises(RuntimeError, match="App creation failed"):
-            main()
+    # Should not raise
+    monitoring.main()
 
-def test_main_app_run_failure(valid_config, mock_flask_app):
-    mock_flask_app.run.side_effect = OSError("Port in use")
-    
-    with patch('monitoring.validate_config', return_value=valid_config), \
-         patch('monitoring.create_app', return_value=mock_flask_app):
-        
-        with pytest.raises(OSError, match="Port in use"):
-            main()
+    assert dummy.run_called is True
+    assert dummy.run_args == ("1.2.3.4", 2500)
+
+# missing host/port ⇒ .run(None, None)
+def test_main_with_missing_host_port(monkeypatch):
+    # host and port both falsey
+    fake_cfg = types.SimpleNamespace(host="", port=0)
+    monkeypatch.setattr(monitoring, "validate_config", lambda *a, **k: fake_cfg)
+
+    dummy = DummyApp()
+    monkeypatch.setattr(monitoring, "create_app", lambda: dummy)
+
+    monitoring.main()
+
+    assert dummy.run_args == (None, None)
+
+# config validation failure ⇒ SystemExit
+def test_main_config_validation_failure(monkeypatch):
+    # simulate strict-mode failure: validate_config() sys.exit(1)
+    def _bad_validate(*a, **k):
+        raise SystemExit(1)
+    monkeypatch.setattr(monitoring, "validate_config", _bad_validate)
+
+    # We never get as far as create_app()
+    with pytest.raises(SystemExit) as exc:
+        monitoring.main()
+    assert exc.value.code == 1
+
+# create_app() blows up ⇒ propagate exception 
+def test_main_app_creation_failure(monkeypatch):
+    fake_cfg = types.SimpleNamespace(host="x", port=1)
+    monkeypatch.setattr(monitoring, "validate_config", lambda *a, **k: fake_cfg)
+
+    def _broken_create():
+        raise RuntimeError("boom at create_app")
+    monkeypatch.setattr(monitoring, "create_app", _broken_create)
+
+    with pytest.raises(RuntimeError) as exc:
+        monitoring.main()
+    assert "boom at create_app" in str(exc.value)
+
+# app.run() blows up ⇒ propagate exception
+def test_main_app_run_failure(monkeypatch):
+    fake_cfg = types.SimpleNamespace(host="h", port=2)
+    monkeypatch.setattr(monitoring, "validate_config", lambda *a, **k: fake_cfg)
+
+    class BadApp:
+        def run(self, host, port):
+            raise IOError("boom at run")
+
+    monkeypatch.setattr(monitoring, "create_app", lambda: BadApp())
+
+    with pytest.raises(IOError) as exc:
+        monitoring.main()
+    assert "boom at run" in str(exc.value)

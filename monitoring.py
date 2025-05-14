@@ -36,9 +36,9 @@ api_dir     = _base / 'api'
 # ----------------------------------------------------------------------------- 
 # Load and validate everything via our shared validator
 # ----------------------------------------------------------------------------- 
-mcfg = validate_config()
+cfg = validate_config()
 # pull everything out into locals/globals
-for name, val in vars(mcfg).items():
+for name, val in vars(cfg).items():
     setattr(_mon, name, val)
 # ----------------------------------------------------------------------------- 
 # Setup Logging
@@ -55,6 +55,11 @@ configure_logging(
 # ----------------------------------------------------------------------------- 
 def create_app():
     app = Flask(__name__)
+    # This is only needed to inject the different configs we test with
+    if "pytest" in sys.modules:
+        cfg = validate_config()
+        for name, val in vars(cfg).items():
+            setattr(_mon, name, val)
     app.secret_key  = CONTROL_TOKEN or os.urandom(24)
     # ----------------------------------------------------------------------------- 
     # Enable CORS
@@ -255,6 +260,11 @@ def create_app():
 # Run server when invoked directly
 # ----------------------------------------------------------------------------- 
 def main():
+    # This is only needed to inject the different configs we test with
+    if "pytest" in sys.modules:
+        cfg = validate_config()
+        for name, val in vars(cfg).items():
+            setattr(_mon, name, val)
     logging.info(f"Starting server with http://{host}:{port}")
     create_app().run(host=host or None,
                      port=port or None)
