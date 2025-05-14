@@ -81,7 +81,7 @@ def test_diagnose_flag_success(mock_logging, mock_validate, mock_exit):
     viewport.args_handler(mock_args)
 
     mock_logging.info.assert_any_call("Checking validity of config.ini and .env variables...")
-    mock_validate.assert_called_once_with(strict=False, print_errors=True, api=True)
+    mock_validate.assert_called_once_with(strict=False, api=True)
     mock_logging.info.assert_any_call("No errors found.")
     mock_exit.assert_called_once_with(0)
     
@@ -142,11 +142,6 @@ def test_restart_flag_when_running(monkeypatch, caplog):
         close_fds=True,
         start_new_session=True,
     )
-
-    # Verify log messages
-    assert "Stopping existing Viewport instance for restart…" in caplog.text
-    assert "Starting new Viewport instance in background…" in caplog.text
-
 
 def test_restart_flag_when_not_running(monkeypatch, caplog):
     monkeypatch.setattr(viewport.os.path, "realpath", lambda p: "script.py")

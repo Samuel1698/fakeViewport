@@ -94,7 +94,6 @@ def test_invalid_ini_loose(tmp_path, caplog, ini_overrides, expected_msg):
     write_base(tmp_path, ini_overrides=ini_overrides)
     caplog.set_level("ERROR")
     ok = validate_config(strict=False,
-                         print_errors=True,
                          config_file=tmp_path / "config.ini",
                          env_file=tmp_path / ".env",
                          logs_dir=tmp_path / "logs",
@@ -118,7 +117,6 @@ def test_invalid_env_loose(tmp_path, caplog, monkeypatch, env_overrides, expecte
     write_base(tmp_path, env_overrides=env_overrides)
     caplog.set_level("ERROR")
     ok = validate_config(strict=False,
-                         print_errors=True,
                          config_file=tmp_path / "config.ini",
                          env_file=tmp_path / ".env",
                          logs_dir=tmp_path / "logs",
@@ -136,7 +134,6 @@ def test_env_parsing_exception(tmp_path, caplog):
     caplog.set_level("ERROR")
     ok = validate_config(
         strict=False,
-        print_errors=True,
         config_file=tmp_path / "config.ini",
         env_file=tmp_path / ".env",
         logs_dir=tmp_path / "logs",
@@ -166,7 +163,6 @@ def test_host_port_validation_api_mode(tmp_path, caplog, monkeypatch, host, port
 
     ok = validate_config(
         strict=False,
-        print_errors=True,
         api=True,
         config_file=tmp_path / "config.ini",
         env_file=tmp_path / ".env",
@@ -190,7 +186,6 @@ def test_missing_host_port_no_errors(tmp_path, caplog, monkeypatch):
     monkeypatch.delenv("FLASK_RUN_PORT", raising=False)
     caplog.set_level("ERROR")
     ok = validate_config(strict=False,
-                         print_errors=True,
                          api=True,
                          config_file=tmp_path / "config.ini",
                          env_file=tmp_path / ".env",
@@ -216,7 +211,6 @@ def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, fi
     monkeypatch.delenv(field, raising=False)
     ok1 = validate_config(
         strict=False,
-        print_errors=True,
         config_file=tmp_path / "config.ini",
         env_file=tmp_path / ".env",
         logs_dir=tmp_path / "logs",
@@ -230,7 +224,6 @@ def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, fi
     write_base(tmp_path, env_overrides={field: ""})
     ok2 = validate_config(
         strict=False,
-        print_errors=True,
         config_file=tmp_path / "config.ini",
         env_file=tmp_path / ".env",
         logs_dir=tmp_path / "logs",
@@ -269,7 +262,6 @@ def test_additional_validate_config_errors(tmp_path, caplog, monkeypatch,
     caplog.set_level("ERROR")
     ok = validate_config(
         strict=False,
-        print_errors=True,
         config_file=tmp_path / "config.ini",
         env_file=tmp_path / ".env",
         logs_dir=tmp_path / "logs",
