@@ -29,6 +29,7 @@ git archive \
     config.ini.example \
     .env.example \
     css_selectors.py \
+    validate_config.py \
     logging_config.py \
     requirements.txt
 
@@ -44,6 +45,7 @@ git archive \
     .env.example \
     css_selectors.py \
     logging_config.py \
+    validate_config.py \
     requirements.txt
 
 echo "Created:"
