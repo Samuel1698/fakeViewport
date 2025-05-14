@@ -38,13 +38,15 @@ from css_selectors import (
     CSS_PLAYER_OPTIONS,
     CSS_CURSOR
 )
+
+
 # ----------------------------------------------------------------------------- 
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
 _mod = sys.modules[__name__]
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 _chrome_driver_path = None  # Cache for the ChromeDriver path
-viewport_version = "2.2.1"
+viewport_version = "2.2.2"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
 # Directory and file paths
 _base = Path(__file__).parent
@@ -64,7 +66,7 @@ CYAN = "\033[36m"
 NC="\033[0m"
 # ----------------------------------------------------------------------------- 
 # Argument Handlers
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def args_helper():
     # Parse command-line arguments for the script.
     parser = argparse.ArgumentParser(
@@ -169,7 +171,7 @@ def args_handler(args):
         sys.exit(0)
     if args.diagnose:
         logging.info("Checking validity of config.ini and .env variables...")
-        diag_cfg = validate_config(strict=False, print_errors=True, api=True)
+        diag_cfg = validate_config(strict=False, api=True)
         if diag_cfg: logging.info("No errors found.")       
         sys.exit(0)
     if args.api:
@@ -183,9 +185,7 @@ def args_handler(args):
         # --restart from the CLI should kill the existing daemon
         # and spawn a fresh background instance, then exit immediately.
         if process_handler("viewport.py", action="check"):  
-            logging.info("Stopping existing Viewport instance for restart…")
             process_handler("viewport.py", action="kill")
-            logging.info("Starting new Viewport instance in background…")
             child_argv = args_child_handler(
                 args,
                 drop_flags={"restart"},
@@ -251,7 +251,7 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
     return child
 # ----------------------------------------------------------------------------- 
 # Logging setup
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 configure_logging(
     log_file_path=str(log_file),
     log_file=LOG_FILE_FLAG,
@@ -280,7 +280,7 @@ def log_error(message, exception=None, driver=None):
             logging.warning(f"Unexpected error taking screenshot: {e}")
 # ----------------------------------------------------------------------------- 
 # API setup
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def clear_sst():
     # Clear the SST file to reset uptime data on script exit or failure
     try:
@@ -312,7 +312,7 @@ def api_handler():
             api_status("Error Starting API")
 # ----------------------------------------------------------------------------- 
 # Signal Handler (Closing gracefully with CTRL+C)
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def signal_handler(signum, frame, driver=None):
     if driver is not None:
         logging.info(f'Gracefully shutting down {BROWSER}.')
@@ -325,7 +325,7 @@ signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, driver))
 signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
 # ----------------------------------------------------------------------------- 
 # Helper functions for getting information
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def get_cpu_color(name, pct):
     # viewport.py & monitoring.py thresholds
     if name in ("viewport.py", "monitoring.py"):
@@ -372,7 +372,7 @@ def get_next_interval(interval_seconds, now=None):
     return next_interval.timestamp()
 # ----------------------------------------------------------------------------- 
 # Helper Functions for installing packages and handling processes
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def screenshot_handler(logs_dir, max_age_days):
     #Deletes screenshot files in logs_dir older than max_age_days.
     cutoff = time.time() - (max_age_days * 86400)  # 86400 seconds in a day
@@ -760,15 +760,14 @@ def browser_restart_handler(url):
 def restart_scheduler(driver):
     #sleeps until the next configured restart time, then calls restart_handler.
     if not RESTART_TIMES: return
-    while True:
-        now = datetime.now()
-        next_run = get_next_restart(now)
-        wait = (next_run - now).total_seconds()
-        logging.info(f"Next scheduled restart at {next_run.time()}")
-        time.sleep(wait)
-        logging.info("Performing scheduled restart")
-        api_status(f"Scheduled restart at {next_run.time()}")
-        restart_handler(driver)
+    now = datetime.now()
+    next_run = get_next_restart(now)
+    wait = (next_run - now).total_seconds()
+    logging.info(f"Next scheduled restart at {next_run.time()}")
+    time.sleep(wait)
+    logging.info("Performing scheduled restart")
+    api_status(f"Scheduled restart at {next_run.time()}")
+    restart_handler(driver)
 def restart_handler(driver):
     # Reparse args
     args = args_helper()
@@ -806,7 +805,7 @@ def restart_handler(driver):
 # ----------------------------------------------------------------------------- 
 # Helper Functions for main script
 # These functions return true or false but don't interact directly with the webpage
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def check_crash(driver):
     # Explicitly checks for the message in page that come from a crashed tab
     # Would only get called if for some reason the tab crashed but driver is still responsive
@@ -869,7 +868,7 @@ def check_unable_to_stream(driver):
 # ----------------------------------------------------------------------------- 
 # Interactive Functions for main logic
 # These functions directly interact with the webpage
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def handle_elements(driver):
     # Removes ubiquiti's custom cursor from the page
     driver.execute_script("""
@@ -1177,7 +1176,7 @@ def handle_view(driver, url):
             handle_retry(driver, url, retry_count, max_retries)
 # ----------------------------------------------------------------------------- 
 # Main function to start the script
-# -------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 def main():
     args = args_helper()
     if args_handler(args) != "continue":

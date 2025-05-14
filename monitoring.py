@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-import os
 import sys
+import os
 import time
 import configparser
 import psutil
 import subprocess
+import logging
 from functools import wraps
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -18,10 +19,10 @@ from flask_cors import CORS
 from collections import deque
 import viewport
 from logging_config import configure_logging
-from validate_config import validate_config
+from validate_config import validate_config, AppConfig
 from dotenv import load_dotenv, find_dotenv
-global host, port
 
+_mon = sys.modules[__name__]
 dotenv_file = find_dotenv()
 load_dotenv(dotenv_file, override=True)
 
@@ -31,43 +32,30 @@ config_file = _base / 'config.ini'
 env_file    = _base / '.env'
 logs_dir    = _base / 'logs'
 api_dir     = _base / 'api'
+
+# ----------------------------------------------------------------------------- 
+# Load and validate everything via our shared validator
+# ----------------------------------------------------------------------------- 
+mcfg = validate_config(strict=True, api=True)
+# pull everything out into locals/globals
+for name, val in vars(mcfg).items():
+    setattr(_mon, name, val)
+# ----------------------------------------------------------------------------- 
+# Setup Logging
+# ----------------------------------------------------------------------------- 
+configure_logging(
+    log_file_path=str(mon_file),
+    log_file=LOG_FILE_FLAG,
+    log_console=LOG_CONSOLE,
+    log_days=LOG_DAYS,
+    Debug_logging=DEBUG_LOGGING
+)
 # ----------------------------------------------------------------------------- 
 # Application for the monitoring API
 # ----------------------------------------------------------------------------- 
-def create_app(config_file=None):
+def create_app():
     app = Flask(__name__)
-    # ----------------------------------------------------------------------------- 
-    # Load and validate everything via our shared validator
-    # ----------------------------------------------------------------------------- 
-    cfg = validate_config(api=True)
-    # pull everything out into locals/globals
-    CONTROL_TOKEN   = cfg.CONTROL_TOKEN
     app.secret_key  = CONTROL_TOKEN or os.urandom(24)
-
-    SLEEP_TIME      = cfg.SLEEP_TIME
-    LOG_INTERVAL    = cfg.LOG_INTERVAL
-    RESTART_TIMES   = cfg.RESTART_TIMES
-
-    LOG_FILE        = cfg.LOG_FILE_FLAG
-    LOG_CONSOLE     = cfg.LOG_CONSOLE
-    DEBUG_LOGGING   = cfg.DEBUG_LOGGING
-    LOG_DAYS        = cfg.LOG_DAYS
-
-    # file paths for status/u ptime
-    mon_file        = cfg.mon_file
-    log_file        = cfg.log_file
-    sst_file        = cfg.sst_file
-    status_file     = cfg.status_file
-    # ----------------------------------------------------------------------------- 
-    # Setup Logging
-    # ----------------------------------------------------------------------------- 
-    configure_logging(
-        log_file_path=str(mon_file),
-        log_file=LOG_FILE,
-        log_console=LOG_CONSOLE,
-        log_days=LOG_DAYS,
-        Debug_logging=DEBUG_LOGGING
-    )
     # ----------------------------------------------------------------------------- 
     # Enable CORS
     # ----------------------------------------------------------------------------- 
@@ -267,8 +255,9 @@ def create_app(config_file=None):
 # Run server when invoked directly
 # ----------------------------------------------------------------------------- 
 def main():
-    cfg = validate_config(strict=False, api=True)
-    create_app().run(host=cfg.host or None,
-                     port=cfg.port or None)
+    logging.info(f"Starting server with http://{host}:{port}")
+    create_app().run(host=host or None,
+                     port=port or None)
+    
 if __name__ == '__main__':
     main()
