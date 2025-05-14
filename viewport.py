@@ -55,7 +55,7 @@ env_file    = _base / '.env'
 logs_dir    = _base / 'logs'
 api_dir     = _base / 'api'
 # Initial non strict config parsing
-cfg = validate_config(strict=False)
+cfg = validate_config(strict=False, print=False)
 for name, val in vars(cfg).items():
     setattr(_mod, name, val)
 # Colors
@@ -171,7 +171,7 @@ def args_handler(args):
         sys.exit(0)
     if args.diagnose:
         logging.info("Checking validity of config.ini and .env variables...")
-        diag_cfg = validate_config(strict=False, api=True)
+        diag_cfg = validate_config(strict=False)
         if diag_cfg: logging.info("No errors found.")       
         sys.exit(0)
     if args.api:
@@ -1181,7 +1181,7 @@ def main():
     args = args_helper()
     if args_handler(args) != "continue":
         return
-    cfg = validate_config(strict=True)
+    cfg = validate_config()
     for name, val in vars(cfg).items():
         setattr(_mod, name, val)
     logging.info(f"===== Fake Viewport {viewport_version} =====")

@@ -36,7 +36,7 @@ api_dir     = _base / 'api'
 # ----------------------------------------------------------------------------- 
 # Load and validate everything via our shared validator
 # ----------------------------------------------------------------------------- 
-mcfg = validate_config(strict=True, api=True)
+mcfg = validate_config()
 # pull everything out into locals/globals
 for name, val in vars(mcfg).items():
     setattr(_mon, name, val)

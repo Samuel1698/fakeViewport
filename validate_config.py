@@ -100,75 +100,96 @@ def parse_restart_times(raw: str, errors: list[str]) -> list[time]:
             errors.append(f"Invalid RESTART_TIME: {part!r} (expected HH:MM)")
     return times
 
-def validate_env(env_file: Path, api: bool, errors: list[str]) -> tuple[str, str, str, str, str, str, dict]:
+def validate_env(env_file: Path, api: bool, errors: list[str]) -> tuple[str, str, str, str, int, str, dict]:
     try:
         load_dotenv(dotenv_path=env_file)
         values = dotenv_values(env_file)
-        allowed = {"USERNAME", "PASSWORD", "URL", "FLASK_RUN_HOST", "FLASK_RUN_PORT", "SECRET"}
-        
-        # Check for unexpected keys
+        allowed = {
+            "USERNAME", "PASSWORD", "URL",
+            "FLASK_RUN_HOST", "FLASK_RUN_PORT",
+            "SECRET",
+        }
+
+        # Unexpected keys
         for key in values:
             if key not in allowed:
-                errors.append(f"Unexpected key in .env: {key!r}. Allowed: {', '.join(sorted(allowed))}")
-        
-        # Required fields (must exist and be non-empty)
+                errors.append(
+                    f"Unexpected key in .env: {key!r}. "
+                    f"Allowed: {', '.join(sorted(allowed))}"
+                )
+
+        # Required fields
         required_fields = {
             "USERNAME": "YourLocalUsername",
-            "PASSWORD": "YourLocalPassword", 
+            "PASSWORD": "YourLocalPassword",
             "URL": "http://192.168.100.100/protect/dashboard/multiviewurl",
         }
-        
-        for key, example_value in required_fields.items():
+        for key, example in required_fields.items():
             if key not in values:
                 errors.append(f"{key} is missing from .env file.")
             elif not values[key].strip():
                 errors.append(f"{key} cannot be empty.")
-            elif example_value and values[key].strip() == example_value:
-                errors.append(f"{key} is still set to the example value. Please update it.")
-        
-        # Optional fields unless running api (if present, must be non-empty)
-        optional_fields = ["FLASK_RUN_HOST", "FLASK_RUN_PORT"]
-        if not api:
-            for key in optional_fields:
-                if key in values and not values[key].strip():
-                    errors.append(f"If {key} is specified, it cannot be empty.")
-        # Secret is always optional
-        if "SECRET" in values and not values["SECRET"].strip():
-            errors.append("If SECRET is specified, it cannot be empty.")
-        # Validate URL format if present and non-empty
+            elif example and values[key].strip() == example:
+                errors.append(
+                    f"{key} is still set to the example value. Please update it."
+                )
+        # URL format
         if "URL" in values and values["URL"].strip():
             validate_url(values["URL"], errors)
-        
-        host = os.getenv('FLASK_RUN_HOST', '').strip()
-        port = os.getenv('FLASK_RUN_PORT', '').strip()
+
+        # Optional fields can't be empty
+        optional_fields = ["FLASK_RUN_HOST", "FLASK_RUN_PORT", "SECRET"]
+        for key in optional_fields:
+            if key in values and not values[key].strip():
+                errors.append(f"{key} is specified but empty.")
+
+        # fallback defaults
+        host = "0.0.0.0"
+        port = 5000
+
+        # API-only content validation
         if api:
-            try:
-                ipaddress.ip_address(host)
-            except ValueError:
-                errors.append(f"FLASK_RUN_HOST must be a valid IP address, got: '{host}'")
-                errors.append(f"Falling back to 0.0.0.0")
-                host="0.0.0.0"
-            if not port.isdigit():
-                errors.append(f"FLASK_RUN_PORT must be an integer, got: '{port}'")
-                errors.append(f"Falling back to 5000")
-                port=5000
-            else:
-                port = int(port)
-                if not (1 <= port <= 65535):
-                    errors.append(f"FLASK_RUN_PORT must be 1-65535, got: {port}")
+            if "FLASK_RUN_HOST" in values and values["FLASK_RUN_HOST"].strip():
+                raw_host = values["FLASK_RUN_HOST"].strip()
+                try:
+                    ipaddress.ip_address(raw_host)
+                    host = raw_host
+                except ValueError:
+                    errors.append(
+                        f"FLASK_RUN_HOST must be a valid IP address, got: '{raw_host}'"
+                    )
+                    errors.append("Falling back to 0.0.0.0")
+
+            if "FLASK_RUN_PORT" in values and values["FLASK_RUN_PORT"].strip():
+                raw_port = values["FLASK_RUN_PORT"].strip()
+                if not raw_port.isdigit():
+                    errors.append(
+                        f"FLASK_RUN_PORT must be an integer, got: '{raw_port}'"
+                    )
+                    errors.append("Falling back to 5000")
+                else:
+                    ival = int(raw_port)
+                    if 1 <= ival <= 65535:
+                        port = ival
+                    else:
+                        errors.append(
+                            f"FLASK_RUN_PORT must be 1–65535, got: {ival}"
+                        )
+                        errors.append("Falling back to 5000")
+
         return (
-            os.getenv('USERNAME', ''),
-            os.getenv('PASSWORD', ''),
-            os.getenv('URL', ''),
+            os.getenv("USERNAME", "").strip(),
+            os.getenv("PASSWORD", "").strip(),
+            os.getenv("URL", "").strip(),
             host,
             port,
-            os.getenv('SECRET', ''),
-            values
+            os.getenv("SECRET", "").strip(),
+            values,
         )
     except Exception as e:
-        errors.append(f"Failed to validate .env file: {str(e)}")
+        errors.append(f"Failed to validate .env file: {e}")
         errors.append("Format should be KEY=value.")
-        return ('', '', '', '', '', '', {})
+        return ("", "", "", "", 0, "", {})
     
 def validate_url(url_val: str, errors: list[str]):
     parsed = urlparse(url_val)
@@ -177,7 +198,7 @@ def validate_url(url_val: str, errors: list[str]):
 
 def validate_config(
     strict:       bool = True,
-    api:          bool = False,
+    print:        bool = True,
     config_file: Path | None = None,
     env_file: Path | None = None,
     logs_dir: Path | None = None,
@@ -238,7 +259,7 @@ def validate_config(
     api_flag = safe_getbool(config, 'API', 'USE_API', False, errors)
 
     # Validate .env
-    username, password, url_val, host, port, secret, env_values = validate_env(env_file, api, errors)
+    username, password, url_val, host, port, secret, env_values = validate_env(env_file, api_flag, errors)
     
     control_token = secret.strip()
 
@@ -255,9 +276,10 @@ def validate_config(
         errors.append("LOG_INTERVAL must be ≥ 1.")
 
     # Report or return
-    if errors:
-        for e in errors:
-            logging.error(e)
+    if (print or strict) and errors:
+        if print:
+            for e in errors:
+                logging.error(e)
         if strict:
             sys.exit(1)
         return False
