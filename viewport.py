@@ -186,8 +186,8 @@ def args_handler(args):
     if args.restart:
         # --restart from the CLI should kill the existing daemon
         # and spawn a fresh background instance, then exit immediately.
-        if process_handler("viewport.py", action="check"):  
-            process_handler("viewport.py", action="kill")
+        if process_handler("viewport.py", action="check"):
+            logging.info("Restarting script...")  
             child_argv = args_child_handler(
                 args,
                 drop_flags={"restart"},
@@ -202,6 +202,7 @@ def args_handler(args):
                 close_fds=True,
                 start_new_session=True,
             )
+            logging.info("Viewport started in the background")
         else:
             logging.info("Fake Viewport is not running.")
         sys.exit(0)

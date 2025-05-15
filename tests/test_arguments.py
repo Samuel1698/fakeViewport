@@ -183,9 +183,8 @@ def test_restart_flag_when_running(monkeypatch, caplog):
     # It should first check, then kill
     fake_proc.assert_has_calls([
         call("viewport.py", action="check"),
-        call("viewport.py", action="kill"),
     ])
-    assert fake_proc.call_count == 2
+    assert fake_proc.call_count == 1
 
     # It should spawn exactly one background process
     fake_popen.assert_called_once_with(
