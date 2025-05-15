@@ -48,6 +48,7 @@ def test_handle_view_initial_load_failure(
     mock_restart.assert_called_once_with(driver)
 # ----------------------------------------------------------------------------- 
 # Healthy‐path iteration
+# ----------------------------------------------------------------------------- 
 @patch("viewport.time.sleep", side_effect=BreakLoop)
 @patch("viewport.get_next_interval", return_value=time.time())
 @patch("viewport.check_unable_to_stream", return_value=False)
@@ -99,6 +100,7 @@ def test_handle_view_healthy_iteration(
     mock_api_status.assert_called_with("Feed Healthy")
 # ----------------------------------------------------------------------------- 
 # Interval Logging Test
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("sleep_time, log_interval, now_minute, now_second, expected_minute", [
     # at hh:16:45, 1-min interval  → next boundary at :17
     (60,   1,  16, 45, 17),
@@ -207,6 +209,7 @@ def test_handle_view_video_feeds_healthy_logging(
 
 # ----------------------------------------------------------------------------- 
 # Decoding Error
+# ----------------------------------------------------------------------------- 
 @patch("viewport.logging.warning")
 @patch("viewport.api_status")
 @patch("viewport.time.sleep", side_effect=BreakLoop)                       # break out after first sleep
@@ -253,6 +256,7 @@ def test_handle_view_decoding_error_branch(
     mock_api_status.assert_called_with("Decoding Error in some cameras")
 # ----------------------------------------------------------------------------- 
 # Offline‐status branch
+# ----------------------------------------------------------------------------- 
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.handle_retry", side_effect=BreakLoop)
 @patch("viewport.api_status")
@@ -293,7 +297,7 @@ def test_handle_view_offline_branch(
 @pytest.mark.parametrize(
     "trigger, expected_log_args, expected_api, recovery_fn, recovery_args",
     [
-        # 1) InvalidSessionIdException ⇒ restart_handler(driver)
+        # InvalidSessionIdException ⇒ restart_handler(driver)
         (
             lambda drv, wdw: setattr(
                 viewport, "check_driver",
@@ -305,7 +309,7 @@ def test_handle_view_offline_branch(
             "restart_handler",
             lambda drv, url, mw: (drv,),
         ),
-        # 2) TimeoutException ⇒ handle_retry(driver, url, 1, max_retries)
+        # TimeoutException ⇒ handle_retry(driver, url, 1, max_retries)
         (
             lambda drv, wdw: setattr(
                 wdw, "until",
@@ -316,7 +320,7 @@ def test_handle_view_offline_branch(
             "handle_retry",
             lambda drv, url, mw: (drv, url, 1, mw),
         ),
-        # 3) NoSuchElementException ⇒ same as TimeoutException
+        # NoSuchElementException ⇒ same as TimeoutException
         (
             lambda drv, wdw: setattr(
                 wdw, "until",
@@ -327,7 +331,7 @@ def test_handle_view_offline_branch(
             "handle_retry",
             lambda drv, url, mw: (drv, url, 1, mw),
         ),
-        # 4) NewConnectionError ⇒ handle_retry(driver, url, 1, max_retries)
+        # NewConnectionError ⇒ handle_retry(driver, url, 1, max_retries)
         (
             lambda drv, wdw: drv.execute_script.__setattr__(
                 "side_effect", NewConnectionError(None, "fail")
@@ -337,7 +341,7 @@ def test_handle_view_offline_branch(
             "handle_retry",
             lambda drv, url, mw: (drv, url, 1, mw),
         ),
-        # 5) WebDriverException ⇒ browser_restart_handler(url)
+        # WebDriverException ⇒ browser_restart_handler(url)
         (
             lambda drv, wdw: setattr(
                 wdw, "until",
@@ -348,7 +352,7 @@ def test_handle_view_offline_branch(
             "browser_restart_handler",
             lambda drv, url, mw: (url,),
         ),
-        # 6) Generic Exception ⇒ handle_retry(driver, url, 1, max_retries)
+        # Generic Exception ⇒ handle_retry(driver, url, 1, max_retries)
         (
             lambda drv, wdw: setattr(
                 wdw, "until",
@@ -509,3 +513,21 @@ def test_handle_view_check_crash(monkeypatch):
     assert errors and errors[0].startswith(f"Tab Crashed. Restarting {viewport.BROWSER}"), \
         f"log_error not called correctly, got: {errors}"
     assert apis and apis[0] == "Tab Crashed", f"api_status not called, got: {apis}"
+    
+@patch("viewport.api_status", side_effect=BreakLoop)
+@patch("viewport.log_error")
+@patch("viewport.check_driver", return_value=False)
+def test_handle_view_driver_unresponsive(
+    mock_check_driver,
+    mock_log_error,
+    mock_api_status,
+):
+    driver = MagicMock()
+    url = "http://example.com"
+
+    # Should hit the "Driver unresponsive" branch, then api_status raises BreakLoop
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, url)
+
+    mock_log_error.assert_called_once_with("Driver unresponsive.")
+    mock_api_status.assert_called_once_with("Driver unresponsive")

@@ -1046,19 +1046,29 @@ def handle_retry(driver, url, attempt, max_retries):
                 driver = browser_restart_handler(url)
             if "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
                 logging.info("Log-in page found. Inputting credentials...")
-                if handle_login(driver):
-                    if not handle_fullscreen_button(driver):
-                        logging.warning("Failed to activate fullscreen, but continuing anyway.")
+                handle_login(driver) and (
+                handle_fullscreen_button(driver) or
+                logging.warning("Failed to activate fullscreen, but continuing anyway.")
+                )
                 api_status("Feed Healthy")
             else:
                 logging.info("Attempting to load page from URL.")
                 driver.get(url)
-                if handle_page(driver):
-                    logging.info("Page successfully reloaded.")
+                page_ok = handle_page(driver)
+        
+                 # log success or failure with one ternary; no need for an else just to log
+                logging.info("Page successfully reloaded." if page_ok else "Couldn't reload page.")
+        
+                 # only if it succeeded do we do the fullscreen + healthy-feed status
+                if page_ok:
                     time.sleep(WAIT_TIME)
-                    if not handle_fullscreen_button(driver):
-                        logging.warning("Failed to activate fullscreen, but continuing anyway.")
-                api_status("Feed Healthy")
+                    # inline-or to fire warning if fullscreen fails
+                    handle_fullscreen_button(driver) \
+                        or logging.warning("Failed to activate fullscreen, but continuing anyway.")
+                    api_status("Feed Healthy")
+                else:
+                    logging.warning("Page reload failed; skipping fullscreen and healthy-feed status.")
+                    api_status("Couldn't verify feed")
         except InvalidSessionIdException as e:
             log_error(f"{BROWSER} session is invalid. Restarting the program.", e)
             api_status("Restarting Program")
@@ -1132,8 +1142,8 @@ def handle_view(driver, url):
                 if screen_size['width'] != driver.execute_script("return screen.width;") or \
                     screen_size['height'] != driver.execute_script("return screen.height;"):
                     logging.info("Attempting to make live-view fullscreen.")
-                    if not handle_fullscreen_button(driver):
-                        logging.warning("Failed to activate fullscreen, but continuing anyway.")
+                    handle_fullscreen_button(driver) \
+                    or logging.warning("Failed to activate fullscreen, but continuing anyway.")
                 # Check for "Unable to Stream" message
                 handle_loading_issue(driver)
                 handle_elements(driver)
@@ -1149,6 +1159,9 @@ def handle_view(driver, url):
                 sleep_duration = max(0, get_next_interval(SLEEP_TIME) - time.time())
                 time.sleep(sleep_duration)
                 iteration_counter += 1
+            else:
+                log_error("Driver unresponsive.")
+                api_status("Driver unresponsive")
         except InvalidSessionIdException as e:
             log_error(f"{BROWSER} session is invalid. Restarting the program.", e)
             api_status("Restarting Program")

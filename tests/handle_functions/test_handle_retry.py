@@ -48,7 +48,9 @@ def test_handle_retry_basic_paths(
         driver.get.assert_called_once_with(url)
         mock_api_status.assert_any_call("Feed Healthy")
         mock_sleep.assert_called()
+# ----------------------------------------------------------------------------- 
 # max_retries − 1 branch
+# ----------------------------------------------------------------------------- 
 @patch("viewport.api_status")
 @patch("viewport.logging.info")
 @patch("viewport.browser_restart_handler", return_value="CH_RESTARTED")
@@ -67,7 +69,9 @@ def test_handle_retry_final_before_restart(
 
     mock_chrome_restart.assert_called_once_with("u")
     assert result == "CH_RESTARTED"
+# ----------------------------------------------------------------------------- 
 # max_retries branch
+# ----------------------------------------------------------------------------- 
 @patch("viewport.restart_handler")
 @patch("viewport.logging.info")
 @patch("viewport.api_status")
@@ -79,7 +83,9 @@ def test_handle_retry_max_retries_calls_restart(mock_api, mock_info, mock_restar
     mock_info.assert_any_call("Max Attempts reached, restarting script...")
     mock_api.assert_called_with("Max Attempts Reached, restarting script")
     mock_restart.assert_called_once_with(driver)
+# ----------------------------------------------------------------------------- 
 # handle_retry triggers browser_restart_handler when driver has crashed
+# ----------------------------------------------------------------------------- 
 @patch("viewport.browser_restart_handler", return_value=MagicMock(title="Dashboard Home"))
 @patch("viewport.handle_fullscreen_button", return_value=True)
 @patch("viewport.handle_login", return_value=True)
@@ -119,7 +125,7 @@ def test_handle_retry_detects_driver_crash_and_restarts(
     assert result is new_driver
 
 # ----------------------------------------------------------------------------- 
-# 1) InvalidSessionIdException path
+# InvalidSessionIdException path
 # ----------------------------------------------------------------------------- 
 @patch("viewport.log_error")
 @patch("viewport.api_status")
@@ -151,10 +157,9 @@ def test_handle_retry_invalid_session(
 
     # return value is whatever restart_handler returned (None by default)
     assert result is driver
-
-
+    
 # ----------------------------------------------------------------------------- 
-# 2) WebDriverException path
+# WebDriverException path
 # ----------------------------------------------------------------------------- 
 @patch("viewport.log_error")
 @patch("viewport.api_status")
@@ -187,9 +192,8 @@ def test_handle_retry_webdriver_exception(
     # and return value is what it returned
     assert result == "new-driver"
 
-
 # ----------------------------------------------------------------------------- 
-# 3) Generic Exception path
+# Generic Exception path
 # ----------------------------------------------------------------------------- 
 @patch("viewport.log_error")
 @patch("viewport.api_status")
@@ -219,4 +223,48 @@ def test_handle_retry_generic_exception(
     assert err_call[2] is driver
 
     # since this is attempt < max_retries-1, we return the original driver
+    assert result is driver
+    
+# -----------------------------------------------------------------------------
+# Page Failure path
+# -----------------------------------------------------------------------------
+from unittest.mock import MagicMock, patch, call
+import pytest
+import viewport
+
+@patch("viewport.api_status")
+@patch("viewport.logging.warning")
+@patch("viewport.logging.info")
+@patch("viewport.handle_page", return_value=False)
+@patch("viewport.check_driver", return_value=True)
+def test_handle_retry_page_failure(
+    mock_check_driver,
+    mock_handle_page,
+    mock_log_info,
+    mock_log_warning,
+    mock_api_status,
+):
+    driver = MagicMock(title="Whatever")
+    url = "http://example.com"
+    attempt = 1
+    max_retries = 3
+
+    # Act
+    result = viewport.handle_retry(driver, url, attempt=attempt, max_retries=max_retries)
+
+    # Assert: info-logging for failed reload
+    mock_log_info.assert_any_call("Couldn't reload page.")
+
+    # Assert: warning-logging for skipping fullscreen / healthy-feed
+    mock_log_warning.assert_called_once_with(
+        "Page reload failed; skipping fullscreen and healthy-feed status."
+    )
+
+    # Assert: api_status called for retry then unhealthy feed
+    assert mock_api_status.call_args_list == [
+        call(f"Retrying: {attempt} of {max_retries}"),
+        call("Couldn't verify feed"),
+    ]
+
+    # And our driver should just be returned unchanged
     assert result is driver
