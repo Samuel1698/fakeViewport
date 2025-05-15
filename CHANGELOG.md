@@ -7,11 +7,14 @@ and "🔥" indicates a non-breaking change.
 
 ## 🔥🐛 v2.2.2: Browser Handler improvements
 ### 🔥 Changed
-- `browser_handler` can now detect if installing the driver is taking too long and properly handle it as a `retry attempt`. Before it would not raise an error and silently get stuck forever.
+- `browser_handler` can now detect if installing the driver is taking too long and properly handle it as a `retry attempt`. Before, it would not raise an error and silently get stuck forever.
 - `browser_handler` can now catch unrecognized browser and raise an error.
+- `handle_view` now runs while `shutdown` flag is unset.  It is set by the `restart_handler` in order to prevent interacting with the `driver` while a restart is happening.
+- `restart_handler` now uses `os._exit` instead of `sys.exit` in order to exit independent `handle_view` thread if invoked from within `restart_scheduler`.
 ### 🐛 Fixed
-- Issue #25: API would clutter `viewport.log` with Flask logs meant for `monitoring.log`
-- Issue #26: Script would silently exit with bad configuration file
+- [Issue #25](https://github.com/Samuel1698/fakeViewport/issues/25): API would clutter `viewport.log` with Flask logs meant for `monitoring.log`.
+- [Issue #26](https://github.com/Samuel1698/fakeViewport/issues/26): Script would silently exit with bad configuration file.
+- Remove killing `viewport` in `--restart` flag to prevent inconsistency in how script start time is determined to have crashed. Let `main()` handle the process.
 
 **[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.2.1...v2.2.2)**
 
@@ -166,7 +169,7 @@ Toggles the API on or off. Requires `USE_API=True` in `config.ini`
 - Rename most files and functions.
 - `check_view` function now runs relative to the system time to prevent drifts in logging times.
 - Script will self-start a virtual environment if it detects it's not running in one.
-- Logs are now more accurate in terms of when they get called and what they dispaly.
+- Logs are now more accurate in terms of when they get called and what they display.
 - Kill other `viewport.py` and `chrome` processes when script initializes. 
 
 **[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.0.0...v2.0.3)**
