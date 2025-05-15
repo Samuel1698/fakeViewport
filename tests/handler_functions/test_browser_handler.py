@@ -88,7 +88,7 @@ def test_browser_handler(
         mock_ff_profile.return_value  = MagicMock()
         mock_gecko_mgr.return_value.install.return_value = "/fake/gecko"
         mock_ff_service.return_value  = MagicMock()
-
+        
     # Act
     result = viewport.browser_handler(url)
 
@@ -101,7 +101,7 @@ def test_browser_handler(
         assert mock_chrome.call_count == len(side_effects)
     else:
         assert mock_firefox.call_count == len(side_effects)
-
+        
     # .get/url and return value
     if expected_driver_get_calls:
         mock_driver.get.assert_called_once_with(url)
@@ -165,3 +165,30 @@ def test_browser_handler_logs_expected_error(monkeypatch, exc, expected_msg):
     # Verify log_error was called with the expected message at least once
     messages = [call_args[0][0] for call_args in mock_log_error.call_args_list]
     assert any(expected_msg in msg for msg in messages), f"{expected_msg!r} not found in {messages}"
+    
+def test_browser_handler_unsupported(monkeypatch):
+    import viewport
+
+    # Force an unrecognized browser name
+    monkeypatch.setattr(viewport, 'BROWSER', 'safari')
+    monkeypatch.setattr(viewport, 'HEADLESS', False)
+
+    # Stub out the usual machinery so the function bails early
+    monkeypatch.setattr(viewport, 'validate_config', lambda *a, **k: True)
+    monkeypatch.setattr(viewport, 'process_handler', lambda *a, **k: False)
+    monkeypatch.setattr(viewport, 'restart_handler', lambda *a, **k: None)
+    monkeypatch.setattr(viewport, 'time', MagicMock(sleep=lambda s: None))
+
+    # Capture log_error and api_status calls
+    fake_log = MagicMock()
+    fake_api = MagicMock()
+    monkeypatch.setattr(viewport, 'log_error', fake_log)
+    monkeypatch.setattr(viewport, 'api_status', fake_api)
+
+    # Call it
+    result = viewport.browser_handler("http://example.com")
+
+    # Assert the unsupported-branch ran
+    assert result is None
+    fake_log.assert_called_once_with("Unsupported browser: safari")
+    fake_api.assert_called_once_with("Unsupported browser: safari")

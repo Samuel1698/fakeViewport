@@ -711,6 +711,10 @@ def browser_handler(url):
                 opts.accept_insecure_certs = True
                 service = FirefoxService(executable_path=GeckoDriverManager().install())
                 driver  = webdriver.Firefox(service=service, options=opts)
+            else:
+                log_error(f"Unsupported browser: {BROWSER}")
+                api_status(f"Unsupported browser: {BROWSER}")
+                return None
             driver.get(url)
             return driver
         except NameResolutionError as e:

@@ -3,3 +3,4 @@
 exclude_lines =
     if __name__ == .__main__.:
     if "pytest" in sys.modules
+    if HEADLESS:
