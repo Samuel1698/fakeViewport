@@ -2,7 +2,22 @@
 
 Note: Entries marked with "💥" indicate crucial or breaking changes that might affect your current setup. Entries marked with "🐛" indicate a bug fix, "✨" indicates an improvement,
 and "🔥" indicates a non-breaking change.
-## 🐛🔥✨ v2.2.1: Config validation
+
+---
+
+## 🔥🐛 v2.2.2: Browser Handler improvements
+### 🔥 Changed
+- `browser_handler` can now detect if installing the driver is taking too long and properly handle it as a `retry attempt`. Before it would not raise an error and silently get stuck forever.
+- `browser_handler` can now catch unrecognized browser and raise an error.
+### 🐛 Fixed
+- Issue #25: API would clutter `viewport.log` with Flask logs meant for `monitoring.log`
+- Issue #26: Script would silently exit with bad configuration file
+
+**[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.2.1...v2.2.2)**
+
+---
+
+## ✨🔥🐛 v2.2.1: Config validation
 ### ✨ Added
 - `viewport --diagnose` argument will look at your current `.env` and `config.ini` and look for errors.
 - `browser_handler` can now deal with dropped/lost connection while attempting to download the ChromeDrivers/GeckoDrivers. 
