@@ -28,7 +28,8 @@ from selenium.webdriver.common.by        import By
 from selenium.webdriver.common.action_chains    import ActionChains
 from selenium.webdriver.support.ui       import WebDriverWait
 from selenium.webdriver.support          import expected_conditions as EC
-from selenium.common.exceptions          import TimeoutException, NoSuchElementException, InvalidSessionIdException, WebDriverException
+from selenium.common.exceptions          import TimeoutException, NoSuchElementException
+from selenium.common.exceptions          import InvalidSessionIdException, WebDriverException
 from urllib3.exceptions                  import NewConnectionError, MaxRetryError, NameResolutionError
 from css_selectors import (
     CSS_FULLSCREEN_PARENT,
@@ -38,8 +39,6 @@ from css_selectors import (
     CSS_PLAYER_OPTIONS,
     CSS_CURSOR
 )
-
-
 # ----------------------------------------------------------------------------- 
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
