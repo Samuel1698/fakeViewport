@@ -1,13 +1,39 @@
 import pytest
+import concurrent.futures
 from unittest.mock import MagicMock, PropertyMock, patch
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from datetime import datetime, time as dt_time, timedelta
-
 import viewport
+# from viewport import viewport.get_driver_path
 
 # ----------------------------------------------------------------------------- 
-# Fixtures
+# Fixtures and Helpers
 # ----------------------------------------------------------------------------- 
+class DummyMgr:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def install(self):
+        return "/fake/driver/path"
+class DummyFuture:
+    def result(self, timeout=None):
+        # always time out
+        raise concurrent.futures.TimeoutError
+
+class DummyExecutor:
+    def __init__(self, max_workers):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        pass
+
+    def submit(self, fn, *args, **kwargs):
+        # ignore fn, always return a dummy future
+        return DummyFuture()
+
 @pytest.fixture(autouse=True)
 def mock_common(mocker):
     patches = {
@@ -96,3 +122,50 @@ def test_get_next_restart_tomorrow():
 def test_get_next_interval(interval_seconds, now, expected):
     result = viewport.get_next_interval(interval_seconds, now=now)
     assert datetime.fromtimestamp(result) == expected
+
+# ----------------------------------------------------------------------------- 
+# tests for get_driver_path
+# ----------------------------------------------------------------------------- 
+# -----------------------------------------------------------------------------
+# tests for get_driver_path
+# -----------------------------------------------------------------------------
+def test_get_driver_path_chrome_success(monkeypatch):
+    # .install() returns immediately
+    monkeypatch.setattr(viewport, "ChromeDriverManager", lambda chrome_type: DummyMgr())
+    path = viewport.get_driver_path("chrome", timeout=1)
+    assert path == "/fake/driver/path"
+
+def test_get_driver_path_chromium_success(monkeypatch):
+    # Same for the "chromium" alias
+    monkeypatch.setattr(viewport, "ChromeDriverManager", lambda chrome_type: DummyMgr())
+    path = viewport.get_driver_path("chromium", timeout=1)
+    assert path == "/fake/driver/path"
+
+def test_get_driver_path_firefox_success(monkeypatch):
+    # Firefox path
+    monkeypatch.setattr(viewport, "GeckoDriverManager", lambda: DummyMgr())
+    path = viewport.get_driver_path("firefox", timeout=1)
+    assert path == "/fake/driver/path"
+
+def test_get_driver_path_timeout_calls(monkeypatch):
+    # Simulate a stuck install()
+    monkeypatch.setattr(viewport, "ChromeDriverManager", lambda chrome_type: DummyMgr())
+    monkeypatch.setattr(viewport.concurrent.futures, "ThreadPoolExecutor", DummyExecutor)
+
+    with pytest.raises(viewport.DriverDownloadStuckError) as exc:
+        viewport.get_driver_path("chrome", timeout=0.01)
+    # the exception message should include our timeout note
+    assert "Chrome driver download stuck" in str(exc.value)
+
+    # under mock_common, these are mocks, so assert they were called
+    viewport.log_error.assert_called_once_with(
+        "Chrome driver download stuck (> 0.01s)"
+    )
+    viewport.api_status.assert_called_once_with(
+        "Driver download stuck; restart computer if it persists"
+    )
+
+def test_get_driver_path_unsupported_browser():
+    with pytest.raises(ValueError) as exc:
+        viewport.get_driver_path("safari")
+    assert "Unsupported browser" in str(exc.value)

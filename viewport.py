@@ -10,6 +10,7 @@ import subprocess
 import math
 import threading
 import logging
+import concurrent.futures
 from logging.handlers          import TimedRotatingFileHandler
 from logging_config            import configure_logging
 from validate_config           import validate_config, AppConfig
@@ -57,6 +58,7 @@ api_dir     = _base / 'api'
 cfg = validate_config(strict=False, print=False)
 for name, val in vars(cfg).items():
     setattr(_mod, name, val)
+class DriverDownloadStuckError(Exception): pass
 # Colors
 RED="\033[0;31m"
 GREEN="\033[0;32m"
@@ -369,6 +371,28 @@ def get_next_interval(interval_seconds, now=None):
         seconds_until_next_interval += interval_seconds
     next_interval = now + timedelta(seconds=seconds_until_next_interval)
     return next_interval.timestamp()
+def get_driver_path(browser: str, timeout: int = 60) -> str:
+    # Downloads and returns the local path to the browser driver binary.
+    # Supports 'chrome', 'chromium', and 'firefox'. Raises DriverDownloadStuckError
+    # if the install() call does not finish within `timeout` seconds.
+    if browser in ("chrome", "chromium"):
+        is_chromium = "chromium" in BROWSER_BINARY.lower()
+        mgr = ChromeDriverManager(chrome_type=ChromeType.CHROMIUM if is_chromium else ChromeType.GOOGLE)
+    elif browser == "firefox":
+        mgr = GeckoDriverManager()
+    else:
+        raise ValueError(f"Unsupported browser for driver install: {browser!r}")
+
+    # wrap blocking install() in a thread so we can time it out
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(mgr.install)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            msg = f"{browser.title()} driver download stuck (> {timeout}s)"
+            log_error(msg)
+            api_status("Driver download stuck; restart computer if it persists")
+            raise DriverDownloadStuckError(msg)
 # ----------------------------------------------------------------------------- 
 # Helper Functions for installing packages and handling processes
 # ----------------------------------------------------------------------------- 
@@ -641,19 +665,6 @@ def process_handler(name, action="check"):
         log_error(f"Error while checking process '{name}'", e)
         api_status(f"Error Checking Process '{name}'")
         return False
-def service_handler():
-    global _chrome_driver_path
-    if not _chrome_driver_path:
-        # pick Chrome vs. Chromium
-        is_chromium = "chromium" in BROWSER_BINARY.lower()
-        chrome_type = ChromeType.CHROMIUM if is_chromium else ChromeType.GOOGLE
-
-        # just grab whatever version the manager thinks is appropriate
-        _chrome_driver_path = ChromeDriverManager(
-            chrome_type=chrome_type
-        ).install()
-
-    return _chrome_driver_path
 def browser_handler(url):
     # Kills any browser instance, then launches a new one with the specified URL
     # Starts a browser 'driver' and handles error reattempts
@@ -663,6 +674,7 @@ def browser_handler(url):
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
         try:
+            driver_path = get_driver_path(BROWSER, timeout=WAIT_TIME)
             if BROWSER in ("chrome", "chromium"):
                 chrome_options = Options()
                 if HEADLESS:
@@ -687,7 +699,10 @@ def browser_handler(url):
                     "credentials_enable_service": False,
                     "profile.password_manager_enabled": False
                 })
-                driver = webdriver.Chrome(service=Service(service_handler()), options=chrome_options)
+                driver = webdriver.Chrome(
+                    service=Service(driver_path),
+                    options=chrome_options
+                )
             elif BROWSER == "firefox":
                 opts = FirefoxOptions()
                 if HEADLESS:
@@ -709,7 +724,7 @@ def browser_handler(url):
                 opts.add_argument(BROWSER_PROFILE_PATH)
                 opts.binary_location = BROWSER_BINARY
                 opts.accept_insecure_certs = True
-                service = FirefoxService(executable_path=GeckoDriverManager().install())
+                service = FirefoxService(executable_path=driver_path)
                 driver  = webdriver.Firefox(service=service, options=opts)
             else:
                 log_error(f"Unsupported browser: {BROWSER}")
@@ -717,6 +732,9 @@ def browser_handler(url):
                 return None
             driver.get(url)
             return driver
+        except DriverDownloadStuckError:
+            process_handler(BROWSER, action="kill")
+            log_error(f"Error downloading {BROWSER}WebDrivers; Restart machine if it persists.")
         except NameResolutionError as e:
             # catch lower-level DNS failures
             log_error(f"DNS resolution failed while starting {BROWSER}; retrying in {int(SLEEP_TIME/2)}s", e)

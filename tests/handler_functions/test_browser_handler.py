@@ -1,8 +1,12 @@
 import pytest
 from urllib3.exceptions import MaxRetryError, NameResolutionError, NewConnectionError
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 import viewport
 
+@pytest.fixture(autouse=True)
+def stub_get_driver_path(monkeypatch):
+    # no matter which browser or timeout, always return a fake path instantly
+    monkeypatch.setattr(viewport, "get_driver_path", lambda *args, **kwargs: "/fake/driver/path")
 # ----------------------------------------------------------------------------- 
 # Test for browser_handler 
 # ----------------------------------------------------------------------------- 
@@ -192,3 +196,52 @@ def test_browser_handler_unsupported(monkeypatch):
     assert result is None
     fake_log.assert_called_once_with("Unsupported browser: safari")
     fake_api.assert_called_once_with("Unsupported browser: safari")
+    
+# ----------------------------------------------------------------------------- 
+# Tests for driver-stuck behavior in browser_handler
+# ----------------------------------------------------------------------------- 
+class Breakout(Exception): pass
+
+@pytest.mark.parametrize("browser", ["chrome", "chromium", "firefox"])
+def test_driver_download_stuck_logs_and_kills(monkeypatch, browser):
+    # 1) Force exactly one retry so loop only runs once
+    monkeypatch.setattr(viewport, "MAX_RETRIES", 1)
+    monkeypatch.setattr(viewport, "BROWSER", browser)
+
+    # 2) Spy on process_handler and log_error
+    spy_kill = MagicMock()
+    monkeypatch.setattr(viewport, "process_handler", spy_kill)
+
+    spy_log = MagicMock()
+    monkeypatch.setattr(viewport, "log_error", spy_log)
+
+    # 3) Stub out everything else so we never actually launch a driver
+    monkeypatch.setattr(viewport, "validate_config", lambda *a, **k: True)
+    monkeypatch.setattr(viewport, "api_status", lambda *a, **k: None)
+    monkeypatch.setattr(viewport, "time", MagicMock(sleep=lambda s: None))
+
+    # 4) Make get_driver_path always raise DriverDownloadStuckError
+    monkeypatch.setattr(
+        viewport,
+        "get_driver_path",
+        lambda *a, **k: (_ for _ in ()).throw(viewport.DriverDownloadStuckError("stuck"))
+    )
+
+    # 5) Stub restart_handler to break out immediately
+    monkeypatch.setattr(
+        viewport,
+        "restart_handler",
+        lambda *a, **k: (_ for _ in ()).throw(Breakout())
+    )
+
+    # Act: run until our Breakout bubbles up
+    with pytest.raises(Breakout):
+        viewport.browser_handler("http://example.com")
+
+    # Assert: Asser expecting 3 kills with the same signature
+    assert spy_kill.call_count == 3
+    spy_kill.assert_has_calls([call(browser, action="kill")] * 3)
+    # Assert log has the appropriate line
+    spy_log.assert_any_call(
+        f"Error downloading {browser}WebDrivers; Restart machine if it persists."
+    )

@@ -106,52 +106,6 @@ def test_screenshot_handler_unlink_raises(tmp_path, monkeypatch):
     mock_log_error.assert_called_once()
     assert "unlink failed" in str(mock_log_error.call_args[0][1])
 # ----------------------------------------------------------------------------- 
-# Test for Service Handler
-# ----------------------------------------------------------------------------- 
-@patch("viewport.ChromeDriverManager")
-def test_service_handler_installs_chrome_driver_google(mock_chrome_driver_manager):
-    # Reset the cached path
-    viewport._chrome_driver_path = None
-    # Simulate a Google-Chrome binary
-    viewport.BROWSER_BINARY = "/usr/bin/google-chrome-stable"
-
-    # Stub out the installer
-    mock_installer = MagicMock()
-    mock_installer.install.return_value = "/fake/path/to/chromedriver"
-    mock_chrome_driver_manager.return_value = mock_installer
-
-    path = viewport.service_handler()
-
-    assert path == "/fake/path/to/chromedriver"
-    mock_chrome_driver_manager.assert_called_once_with(chrome_type=ChromeType.GOOGLE)
-    mock_installer.install.assert_called_once()
-@patch("viewport.ChromeDriverManager")
-def test_service_handler_installs_chrome_driver_chromium(mock_chrome_driver_manager):
-    # Reset the cached path
-    viewport._chrome_driver_path = None
-    # Simulate a Chromium binary
-    viewport.BROWSER_BINARY = "/usr/lib/chromium/chromium"
-
-    # Stub out the installer
-    mock_installer = MagicMock()
-    mock_installer.install.return_value = "/fake/path/to/chromedriver-chromium"
-    mock_chrome_driver_manager.return_value = mock_installer
-
-    path = viewport.service_handler()
-
-    assert path == "/fake/path/to/chromedriver-chromium"
-    mock_chrome_driver_manager.assert_called_once_with(chrome_type=ChromeType.CHROMIUM)
-    mock_installer.install.assert_called_once()
-@patch("viewport.ChromeDriverManager")
-def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
-    # Pre-seed the cache
-    viewport._chrome_driver_path = "/already/installed/driver"
-
-    path = viewport.service_handler()
-
-    assert path == "/already/installed/driver"
-    mock_chrome_driver_manager.assert_not_called()
-# ----------------------------------------------------------------------------- 
 # Tests for browser_restart_handler
 # ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
