@@ -10,7 +10,7 @@ import subprocess
 import math
 import threading
 import logging
-import concurrent.futures
+import concurrent      
 from logging.handlers          import TimedRotatingFileHandler
 from logging_config            import configure_logging
 from validate_config           import validate_config, AppConfig
@@ -385,16 +385,25 @@ def get_driver_path(browser: str, timeout: int = 60) -> str:
     else:
         raise ValueError(f"Unsupported browser for driver install: {browser!r}")
 
-    # wrap blocking install() in a thread so we can time it out
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(mgr.install)
-        try:
-            return future.result(timeout=timeout)
-        except concurrent.futures.TimeoutError:
-            msg = f"{browser.title()} driver download stuck (> {timeout}s)"
-            log_error(msg)
-            api_status("Driver download stuck; restart computer if it persists")
-            raise DriverDownloadStuckError(msg)
+    # spin up a single-worker executor
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(mgr.install)
+
+    try:
+        # this will raise concurrent.futures.TimeoutError if it’s stuck
+        return future.result(timeout=timeout)
+
+    except concurrent.futures.TimeoutError:
+        msg = f"{browser.title()} driver download stuck (> {timeout}s)"
+        log_error(msg)
+        api_status("Driver download stuck; restart computer if it persists")
+        # shut down without waiting on the hung worker thread
+        executor.shutdown(wait=False)
+        raise DriverDownloadStuckError(msg)
+
+    finally:
+        # ensure we always tear down the executor
+        executor.shutdown(wait=False)
 # ----------------------------------------------------------------------------- 
 # Helper Functions for installing packages and handling processes
 # ----------------------------------------------------------------------------- 

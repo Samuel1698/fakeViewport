@@ -29,7 +29,9 @@ class DummyExecutor:
 
     def __exit__(self, exc_type, exc, tb):
         pass
-
+    
+    def shutdown(self, wait):
+            pass
     def submit(self, fn, *args, **kwargs):
         # ignore fn, always return a dummy future
         return DummyFuture()
@@ -126,9 +128,6 @@ def test_get_next_interval(interval_seconds, now, expected):
 # ----------------------------------------------------------------------------- 
 # tests for get_driver_path
 # ----------------------------------------------------------------------------- 
-# -----------------------------------------------------------------------------
-# tests for get_driver_path
-# -----------------------------------------------------------------------------
 def test_get_driver_path_chrome_success(monkeypatch):
     # .install() returns immediately
     monkeypatch.setattr(viewport, "ChromeDriverManager", lambda chrome_type: DummyMgr())
@@ -148,9 +147,9 @@ def test_get_driver_path_firefox_success(monkeypatch):
     assert path == "/fake/driver/path"
 
 def test_get_driver_path_timeout_calls(monkeypatch):
-    # Simulate a stuck install()
-    monkeypatch.setattr(viewport, "ChromeDriverManager", lambda chrome_type: DummyMgr())
-    monkeypatch.setattr(viewport.concurrent.futures, "ThreadPoolExecutor", DummyExecutor)
+    # Patch ChromeDriverManager to return DummyMgr, and patch ThreadPoolExecutor
+    monkeypatch.setattr(viewport, "ChromeDriverManager", lambda *args, **kwargs: DummyMgr())
+    monkeypatch.setattr(concurrent.futures, "ThreadPoolExecutor", DummyExecutor)
 
     with pytest.raises(viewport.DriverDownloadStuckError) as exc:
         viewport.get_driver_path("chrome", timeout=0.01)
