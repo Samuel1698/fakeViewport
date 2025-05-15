@@ -220,18 +220,15 @@ def test_browser_restart_handler(
 def test_restart_scheduler_triggers_api_and_restart(monkeypatch):
     # Fix "now" at 2025-05-08 12:00:00
     fixed_now = datetime(2025, 5, 8, 12, 0, 0)
-
-    # Create a subclass so we can override now(), but inherit combine()/time() etc.
     class DummyDateTime(datetime):
         @classmethod
         def now(cls):
             return fixed_now
 
-    # Patch in our DummyDateTime and a single RESTART_TIME at 12:00:10
     monkeypatch.setattr(viewport, 'datetime', DummyDateTime)
     monkeypatch.setattr(viewport, 'RESTART_TIMES', [dt_time(12, 0, 10)])
 
-    # Capture the sleep duration
+    # Capture sleeps
     sleep_calls = []
     monkeypatch.setattr(viewport.time, 'sleep', lambda secs: sleep_calls.append(secs))
 
@@ -239,7 +236,7 @@ def test_restart_scheduler_triggers_api_and_restart(monkeypatch):
     api_calls = []
     monkeypatch.setattr(viewport, 'api_status', lambda msg: api_calls.append(msg))
 
-    # Stub restart_handler to record the driver and then raise to break the loop
+    # Stub restart_handler to record the driver and then raise to break
     restart_calls = []
     def fake_restart(driver):
         restart_calls.append(driver)
@@ -247,25 +244,29 @@ def test_restart_scheduler_triggers_api_and_restart(monkeypatch):
     monkeypatch.setattr(viewport, 'restart_handler', fake_restart)
 
     dummy_driver = object()
+    viewport.shutdown.clear()
 
-    # Act: we expect StopIteration to bubble out after one iteration
     with pytest.raises(StopIteration):
         viewport.restart_scheduler(dummy_driver)
 
-    # Compute what the wait _should_ have been:
-    #   next_run = today at 12:00:10 → wait = 10 seconds
+    # Compute wait until 12:00:10
     expected_wait = (fixed_now.replace(hour=12, minute=0, second=10) - fixed_now).total_seconds()
 
     # === Assertions ===
-    # We slept exactly the right amount
-    assert sleep_calls == [expected_wait]
+    # We slept until next_run, then WAIT_TIME
+    assert sleep_calls == [expected_wait, viewport.WAIT_TIME]
+    # shutdown flag got set
+    assert viewport.shutdown.is_set(), "shutdown should have been set"
 
-    # api_status was called once with the scheduled‐restart time
-    assert len(api_calls) == 1
-    assert api_calls[0] == f"Scheduled restart at {dt_time(12, 0, 10)}"
+    # api_status was called twice: next scheduled and performing restart
+    assert api_calls == [
+        f"Next scheduled restart at {dt_time(12, 0, 10)}",
+        "Performing scheduled restart"
+    ]
 
-    # restart_handler was called with our dummy driver
+    # restart_handler was called with our driver
     assert restart_calls == [dummy_driver]
+    
 def test_restart_scheduler_no_times(monkeypatch):
     # Arrange: no restart times configured
     monkeypatch.setattr(viewport, 'RESTART_TIMES', [])
@@ -278,6 +279,7 @@ def test_restart_scheduler_no_times(monkeypatch):
     # Act & Assert: should return None and not raise
     result = viewport.restart_scheduler(driver="dummy")
     assert result is None
+    
 def test_restart_thread_terminates_on_system_exit(monkeypatch):
     # Fix "now" at 2025-05-08 12:00:00
     fixed_now = datetime(2025, 5, 8, 12, 0, 0)
@@ -286,31 +288,30 @@ def test_restart_thread_terminates_on_system_exit(monkeypatch):
         def now(cls):
             return fixed_now
 
-    # Patch datetime and give us a single restart 10s in the future
     monkeypatch.setattr(viewport, 'datetime', DummyDateTime)
     monkeypatch.setattr(viewport, 'RESTART_TIMES', [dt_time(12, 0, 10)])
 
     # Don’t actually sleep
     monkeypatch.setattr(viewport.time, 'sleep', lambda secs: None)
 
-    # Capture api_status so we know that happened
+    # Capture api_status calls
     api_msgs = []
     monkeypatch.setattr(viewport, 'api_status', lambda msg: api_msgs.append(msg))
 
-    # Make restart_handler simulate killing the thread via sys.exit(0)
+    # Make restart_handler simulate exit
     def fake_restart(driver):
         fake_restart.called = True
         raise SystemExit(0)
     fake_restart.called = False
     monkeypatch.setattr(viewport, 'restart_handler', fake_restart)
 
-    # Now when we call restart_scheduler, it should raise SystemExit(0)
     with pytest.raises(SystemExit) as exc:
         viewport.restart_scheduler(driver="DUMMY")
 
     # === Assertions ===
     assert exc.value.code == 0, "Thread should exit with code 0"
     assert fake_restart.called, "restart_handler must have been called"
-    # And we also got our api_status before the exit
-    assert api_msgs and api_msgs[0].startswith("Scheduled restart"), \
-           "api_status should have been invoked before the exit"
+
+    # api_status was invoked before exit
+    assert api_msgs[0].startswith("Next scheduled restart"), f"got {api_msgs}"
+    assert api_msgs[1] == "Performing scheduled restart"

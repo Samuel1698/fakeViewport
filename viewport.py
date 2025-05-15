@@ -48,6 +48,7 @@ driver = None # Declare it globally so that it can be accessed in the signal han
 _chrome_driver_path = None  # Cache for the ChromeDriver path
 viewport_version = "2.2.2"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
+shutdown = threading.Event()
 # Directory and file paths
 _base = Path(__file__).parent
 config_file = _base / 'config.ini'
@@ -785,9 +786,12 @@ def restart_scheduler(driver):
     next_run = get_next_restart(now)
     wait = (next_run - now).total_seconds()
     logging.info(f"Next scheduled restart at {next_run.time()}")
+    api_status(f"Next scheduled restart at {next_run.time()}")
     time.sleep(wait)
     logging.info("Performing scheduled restart")
-    api_status(f"Scheduled restart at {next_run.time()}")
+    api_status("Performing scheduled restart")
+    shutdown.set()         # Bail out handle_view 
+    time.sleep(WAIT_TIME)  # Wait for it to exit it's loop if in it
     restart_handler(driver)
 def restart_handler(driver):
     # Reparse args
@@ -817,7 +821,8 @@ def restart_handler(driver):
                 close_fds=True,
                 start_new_session=True,
             )
-            sys.exit(0)
+            # Use OS exit to also exit out of the handle_view process when scheduled restart calls this function
+            os._exit(0) 
     except Exception as e:
         log_error("Error during restart process:", e, driver)
         api_status("Error Restarting, exiting...")
@@ -1132,7 +1137,7 @@ def handle_view(driver, url):
         log_error("Error loading the live view. Restarting the program.", None, driver=driver)
         api_status("Error Loading Live View. Restarting...")
         restart_handler(driver)
-    while True:
+    while not shutdown.is_set():
         try:
             if check_driver(driver):
                 # Check for "Console Offline" or "Protect Offline"
@@ -1144,7 +1149,7 @@ def handle_view(driver, url):
                 if offline_status:
                     logging.warning("Detected offline status: Console or Protect Offline.")
                     api_status("Console or Protect Offline")
-                    time.sleep(SLEEP_TIME)  # Wait before retrying
+                    time.sleep(WAIT_TIME)  # Wait before retrying
                     retry_count += 1
                     handle_retry(driver, url, retry_count, max_retries)
                 if check_crash(driver):

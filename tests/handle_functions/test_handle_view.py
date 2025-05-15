@@ -531,3 +531,67 @@ def test_handle_view_driver_unresponsive(
 
     mock_log_error.assert_called_once_with("Driver unresponsive.")
     mock_api_status.assert_called_once_with("Driver unresponsive")
+    
+def test_handle_view_exits_on_shutdown(monkeypatch):
+    # 1) Create a dummy shutdown_event that returns False once, then True
+    class DummyEvent:
+        def __init__(self):
+            self.count = 0
+        def is_set(self):
+            self.count += 1
+            return self.count >= 2
+
+    dummy_event = DummyEvent()
+    monkeypatch.setattr(viewport, 'shutdown', dummy_event)
+
+    # Stub out the pre‐loop “handle_page” check (no restart)
+    monkeypatch.setattr(viewport, 'handle_page', lambda drv: True)
+
+    # Stub all in‐loop checks so nothing blows up:
+    monkeypatch.setattr(viewport, 'check_driver', lambda drv: True)
+    monkeypatch.setattr(viewport, 'check_crash', lambda drv: False)
+
+    # Stub out the Selenium wait so it returns immediately
+    class FakeWebDriverWait:
+        def __init__(self, drv, t): pass
+        def until(self, cond): pass
+    monkeypatch.setattr(viewport, 'WebDriverWait', FakeWebDriverWait)
+
+    # Ensure driver.execute_script doesn't trigger your “offline” branch:
+    dummy_driver = MagicMock()
+    dummy_driver.execute_script = lambda script: None
+
+    # Stub window‐size logic so it never tries to fullscreen
+    dummy_driver.get_window_size = lambda: {'width': 100, 'height': 100}
+    # also stub the JS call for screen.width/height
+    dummy_driver.execute_script = lambda script: 100
+
+    monkeypatch.setattr(viewport, 'handle_fullscreen_button', lambda drv: False)
+    monkeypatch.setattr(viewport, 'handle_loading_issue',   lambda drv: None)
+    monkeypatch.setattr(viewport, 'handle_elements',        lambda drv: None)
+    monkeypatch.setattr(viewport, 'check_unable_to_stream', lambda drv: False)
+
+    # Stub out your API calls (no real HTTP)
+    monkeypatch.setattr(viewport, 'api_status', lambda msg: None)
+
+    # Make get_next_interval/time.time produce exactly SLEEP_TIME
+    monkeypatch.setattr(viewport, 'get_next_interval',
+                        lambda secs: viewport.time.time() + viewport.SLEEP_TIME)
+    monkeypatch.setattr(viewport.time, 'time', lambda: 0)
+
+    # Capture the sleep call
+    sleep_calls = []
+    monkeypatch.setattr(viewport.time, 'sleep',
+                        lambda secs: sleep_calls.append(secs))
+
+    # Run
+    viewport.handle_view(dummy_driver, url="http://unused")
+
+    # === Assertions ===
+
+    # WAIT TIME in offline console and SLEEP TIME after first loop
+    assert sleep_calls == [viewport.WAIT_TIME, viewport.SLEEP_TIME]
+
+    # shutdown_event.is_set() was checked twice:
+    #   1) to enter the loop, 2) to see it should now exit.
+    assert dummy_event.count == 2
