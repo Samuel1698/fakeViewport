@@ -349,3 +349,12 @@ def test_dashboard_renders_index(tmp_path, monkeypatch):
     resp = client.get("/")
     assert resp.status_code == 200
     assert b"INDEX(index.html)" in resp.data
+def test_authenticated_session_skips_redirect(client, monkeypatch):
+    monkeypatch.setattr(monitoring, "CONTROL_TOKEN", "secret")
+
+    with client.session_transaction() as sess:
+        sess["authenticated"] = "secret"  # valid token
+
+    response = client.get("/")  # or any @login_required route
+
+    assert response.status_code == 200  # no redirect

@@ -40,7 +40,6 @@ SECRET=somesecret
 FLASK_RUN_HOST=127.0.0.1
 FLASK_RUN_PORT=8080
 """
-
 def write_base(tmp_path: Path, ini_overrides=None, env_overrides=None):
     # write config.ini
     ini = BASE_INI
@@ -305,3 +304,76 @@ def test_validate_config_strict_mode_exits_after_logging(tmp_path, caplog):
     # And verify we still logged our errors before exiting
     messages = [rec.message for rec in caplog.records]
     assert any("SECRET is specified but empty." in m for m in messages)
+# ----------------------------------------------------------------------------- 
+# Print and Exit behavior
+# ----------------------------------------------------------------------------- 
+def test_no_errors_skips_reporting(tmp_path, caplog):
+    # Write base config with all valid values
+    write_base(tmp_path)
+    caplog.set_level(logging.ERROR)
+
+    ok = validate_config(
+        strict=False,
+        print=False,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
+
+    assert ok  # Should return AppConfig, not False
+    assert not caplog.records  # No errors expected
+
+
+def test_print_only_logs_errors(tmp_path, caplog):
+    # Force a known error (SECRET empty)
+    write_base(tmp_path, env_overrides={"SECRET": ""})
+    caplog.set_level(logging.ERROR)
+
+    ok = validate_config(
+        strict=False,
+        print=True,
+        config_file=tmp_path / "config.ini",
+        env_file=tmp_path / ".env",
+        logs_dir=tmp_path / "logs",
+        api_dir=tmp_path / "api",
+    )
+
+    assert ok is False
+    assert any("SECRET is specified but empty." in r.message for r in caplog.records)
+
+
+def test_strict_only_exits_on_error(tmp_path, caplog):
+    write_base(tmp_path, env_overrides={"SECRET": ""})
+    caplog.set_level(logging.ERROR)
+
+    with pytest.raises(SystemExit) as exc:
+        validate_config(
+            strict=True,
+            print=False,
+            config_file=tmp_path / "config.ini",
+            env_file=tmp_path / ".env",
+            logs_dir=tmp_path / "logs",
+            api_dir=tmp_path / "api",
+        )
+
+    assert exc.value.code == 1
+    assert not caplog.records  
+
+def test_print_and_strict_logs_and_exits(tmp_path, caplog):
+    # Force a known error (SECRET empty)
+    write_base(tmp_path, env_overrides={"SECRET": ""})
+    caplog.set_level(logging.ERROR)
+
+    with pytest.raises(SystemExit) as exc:
+        validate_config(
+            strict=True,
+            print=True,
+            config_file=tmp_path / "config.ini",
+            env_file=tmp_path / ".env",
+            logs_dir=tmp_path / "logs",
+            api_dir=tmp_path / "api",
+        )
+
+    assert exc.value.code == 1
+    assert any("SECRET is specified but empty." in r.message for r in caplog.records)

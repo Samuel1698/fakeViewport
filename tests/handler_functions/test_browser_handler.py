@@ -82,7 +82,7 @@ def test_browser_handler(
     if browser in ("chrome", "chromium"):
         mock_chrome.side_effect       = effects
         mock_options.return_value     = MagicMock()
-    elif browser == "firefox":
+    else:
         mock_firefox.side_effect      = effects
         mock_ff_opts.return_value     = MagicMock()
         mock_ff_profile.return_value  = MagicMock()
@@ -99,7 +99,7 @@ def test_browser_handler(
     # Assert constructor calls
     if browser in ("chrome", "chromium"):
         assert mock_chrome.call_count == len(side_effects)
-    elif browser == "firefox":
+    else:
         assert mock_firefox.call_count == len(side_effects)
 
     # .get/url and return value

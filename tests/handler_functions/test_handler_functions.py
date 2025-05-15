@@ -255,9 +255,8 @@ def test_browser_restart_handler(
                        for args in mock_log_info.call_args_list)
 
     # Return driver only on full success
-    if not should_raise:
-        if should_return:
-            assert result is fake_driver
+    if not should_raise and should_return:
+        assert result is fake_driver
 
     # log_error only on exception paths
     assert mock_log_error.called == should_log_err

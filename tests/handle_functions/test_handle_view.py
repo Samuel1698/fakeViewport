@@ -23,9 +23,6 @@ def make_driver(window_size, screen_size, offline_status=None):
         # offline_status check
         if "Console Offline" in script or "Protect Offline" in script:
             return offline_status
-        # screen.width / screen.height
-        if "return screen.width" in script:
-            return screen_size["width"]
 
     driver.execute_script.side_effect = exec_script
     return driver
