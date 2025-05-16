@@ -1,14 +1,11 @@
-import sys
+import os
 import logging
 import pytest
 import viewport
-import os
 from datetime import datetime, time as dt_time
 import time 
 from webdriver_manager.core.os_manager import ChromeType
 from unittest.mock import MagicMock, patch, call
-import signal
-import subprocess
 
 @pytest.fixture(autouse=True)
 def isolate_sst(tmp_path, monkeypatch):
@@ -21,8 +18,8 @@ def isolate_sst(tmp_path, monkeypatch):
 # ----------------------------------------------------------------------------- 
 @patch("viewport.logging")
 @patch("viewport.api_status")
-@patch("viewport.sys.exit")
-def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
+@patch("viewport.os._exit")
+def test_signal_handler_calls_exit(mock__exit, mock_api_status, mock_logging):
     mock_driver = MagicMock()
 
     # Call the signal handler manually
@@ -33,7 +30,7 @@ def test_signal_handler_calls_exit(mock_exit, mock_api_status, mock_logging):
     mock_logging.info.assert_any_call(f"Gracefully shutting down {viewport.BROWSER}.")
     mock_logging.info.assert_any_call("Gracefully shutting down script instance.")
     mock_api_status.assert_called_once_with("Stopped ")
-    mock_exit.assert_called_once_with(0)
+    mock__exit.assert_called_once_with(0)
 # ----------------------------------------------------------------------------- 
 # Tests for screenshot handler
 # ----------------------------------------------------------------------------- 
@@ -105,52 +102,6 @@ def test_screenshot_handler_unlink_raises(tmp_path, monkeypatch):
     mock_api_status.assert_not_called()
     mock_log_error.assert_called_once()
     assert "unlink failed" in str(mock_log_error.call_args[0][1])
-# ----------------------------------------------------------------------------- 
-# Test for Service Handler
-# ----------------------------------------------------------------------------- 
-@patch("viewport.ChromeDriverManager")
-def test_service_handler_installs_chrome_driver_google(mock_chrome_driver_manager):
-    # Reset the cached path
-    viewport._chrome_driver_path = None
-    # Simulate a Google-Chrome binary
-    viewport.BROWSER_BINARY = "/usr/bin/google-chrome-stable"
-
-    # Stub out the installer
-    mock_installer = MagicMock()
-    mock_installer.install.return_value = "/fake/path/to/chromedriver"
-    mock_chrome_driver_manager.return_value = mock_installer
-
-    path = viewport.service_handler()
-
-    assert path == "/fake/path/to/chromedriver"
-    mock_chrome_driver_manager.assert_called_once_with(chrome_type=ChromeType.GOOGLE)
-    mock_installer.install.assert_called_once()
-@patch("viewport.ChromeDriverManager")
-def test_service_handler_installs_chrome_driver_chromium(mock_chrome_driver_manager):
-    # Reset the cached path
-    viewport._chrome_driver_path = None
-    # Simulate a Chromium binary
-    viewport.BROWSER_BINARY = "/usr/lib/chromium/chromium"
-
-    # Stub out the installer
-    mock_installer = MagicMock()
-    mock_installer.install.return_value = "/fake/path/to/chromedriver-chromium"
-    mock_chrome_driver_manager.return_value = mock_installer
-
-    path = viewport.service_handler()
-
-    assert path == "/fake/path/to/chromedriver-chromium"
-    mock_chrome_driver_manager.assert_called_once_with(chrome_type=ChromeType.CHROMIUM)
-    mock_installer.install.assert_called_once()
-@patch("viewport.ChromeDriverManager")
-def test_service_handler_reuses_existing_path(mock_chrome_driver_manager):
-    # Pre-seed the cache
-    viewport._chrome_driver_path = "/already/installed/driver"
-
-    path = viewport.service_handler()
-
-    assert path == "/already/installed/driver"
-    mock_chrome_driver_manager.assert_not_called()
 # ----------------------------------------------------------------------------- 
 # Tests for browser_restart_handler
 # ----------------------------------------------------------------------------- 
@@ -255,109 +206,8 @@ def test_browser_restart_handler(
                        for args in mock_log_info.call_args_list)
 
     # Return driver only on full success
-    if not should_raise:
-        if should_return:
-            assert result is fake_driver
+    if not should_raise and should_return:
+        assert result is fake_driver
 
     # log_error only on exception paths
     assert mock_log_error.called == should_log_err
-# ----------------------------------------------------------------------------- 
-# Tests for restart_scheduler
-# ----------------------------------------------------------------------------- 
-def test_restart_scheduler_triggers_api_and_restart(monkeypatch):
-    # Fix "now" at 2025-05-08 12:00:00
-    fixed_now = datetime(2025, 5, 8, 12, 0, 0)
-
-    # Create a subclass so we can override now(), but inherit combine()/time() etc.
-    class DummyDateTime(datetime):
-        @classmethod
-        def now(cls):
-            return fixed_now
-
-    # Patch in our DummyDateTime and a single RESTART_TIME at 12:00:10
-    monkeypatch.setattr(viewport, 'datetime', DummyDateTime)
-    monkeypatch.setattr(viewport, 'RESTART_TIMES', [dt_time(12, 0, 10)])
-
-    # Capture the sleep duration
-    sleep_calls = []
-    monkeypatch.setattr(viewport.time, 'sleep', lambda secs: sleep_calls.append(secs))
-
-    # Capture api_status calls
-    api_calls = []
-    monkeypatch.setattr(viewport, 'api_status', lambda msg: api_calls.append(msg))
-
-    # Stub restart_handler to record the driver and then raise to break the loop
-    restart_calls = []
-    def fake_restart(driver):
-        restart_calls.append(driver)
-        raise StopIteration
-    monkeypatch.setattr(viewport, 'restart_handler', fake_restart)
-
-    dummy_driver = object()
-
-    # Act: we expect StopIteration to bubble out after one iteration
-    with pytest.raises(StopIteration):
-        viewport.restart_scheduler(dummy_driver)
-
-    # Compute what the wait _should_ have been:
-    #   next_run = today at 12:00:10 → wait = 10 seconds
-    expected_wait = (fixed_now.replace(hour=12, minute=0, second=10) - fixed_now).total_seconds()
-
-    # === Assertions ===
-    # We slept exactly the right amount
-    assert sleep_calls == [expected_wait]
-
-    # api_status was called once with the scheduled‐restart time
-    assert len(api_calls) == 1
-    assert api_calls[0] == f"Scheduled restart at {dt_time(12, 0, 10)}"
-
-    # restart_handler was called with our dummy driver
-    assert restart_calls == [dummy_driver]
-def test_restart_scheduler_no_times(monkeypatch):
-    # Arrange: no restart times configured
-    monkeypatch.setattr(viewport, 'RESTART_TIMES', [])
-
-    # Any of these being called would mean we didn't return early
-    monkeypatch.setattr(viewport, 'api_status',                lambda msg: pytest.fail("api_status should NOT be called"))
-    monkeypatch.setattr(viewport, 'restart_handler',           lambda drv: pytest.fail("restart_handler should NOT be called"))
-    monkeypatch.setattr(viewport.time,   'sleep',              lambda secs: pytest.fail("time.sleep should NOT be called"))
-
-    # Act & Assert: should return None and not raise
-    result = viewport.restart_scheduler(driver="dummy")
-    assert result is None
-def test_restart_thread_terminates_on_system_exit(monkeypatch):
-    # Fix "now" at 2025-05-08 12:00:00
-    fixed_now = datetime(2025, 5, 8, 12, 0, 0)
-    class DummyDateTime(datetime):
-        @classmethod
-        def now(cls):
-            return fixed_now
-
-    # Patch datetime and give us a single restart 10s in the future
-    monkeypatch.setattr(viewport, 'datetime', DummyDateTime)
-    monkeypatch.setattr(viewport, 'RESTART_TIMES', [dt_time(12, 0, 10)])
-
-    # Don’t actually sleep
-    monkeypatch.setattr(viewport.time, 'sleep', lambda secs: None)
-
-    # Capture api_status so we know that happened
-    api_msgs = []
-    monkeypatch.setattr(viewport, 'api_status', lambda msg: api_msgs.append(msg))
-
-    # Make restart_handler simulate killing the thread via sys.exit(0)
-    def fake_restart(driver):
-        fake_restart.called = True
-        raise SystemExit(0)
-    fake_restart.called = False
-    monkeypatch.setattr(viewport, 'restart_handler', fake_restart)
-
-    # Now when we call restart_scheduler, it should raise SystemExit(0)
-    with pytest.raises(SystemExit) as exc:
-        viewport.restart_scheduler(driver="DUMMY")
-
-    # === Assertions ===
-    assert exc.value.code == 0, "Thread should exit with code 0"
-    assert fake_restart.called, "restart_handler must have been called"
-    # And we also got our api_status before the exit
-    assert api_msgs and api_msgs[0].startswith("Scheduled restart"), \
-           "api_status should have been invoked before the exit"

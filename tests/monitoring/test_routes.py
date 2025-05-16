@@ -300,8 +300,7 @@ def test_log_entry_missing(client, monkeypatch):
     # Patch Path.exists to always say the viewport.log doesn't exist
     orig_exists = pathlib.Path.exists
     def fake_exists(self):
-        if self.name == 'viewport.log':
-            return False
+        return self.name != 'viewport.log'
     monkeypatch.setattr(pathlib.Path, 'exists', fake_exists)
 
     resp = client.get('/api/log_entry')
@@ -315,15 +314,13 @@ def test_log_entry_ok(client, monkeypatch):
     # Patch Path.exists to say viewport.log exists
     orig_exists = pathlib.Path.exists
     def fake_exists(self):
-        if self.name == 'viewport.log':
-            return True
+        return self.name == 'viewport.log'
     monkeypatch.setattr(pathlib.Path, 'exists', fake_exists)
 
     # Patch Path.read_text to return our fake log contents
     orig_read = pathlib.Path.read_text
     def fake_read_text(self, *args, **kwargs):
-        if self.name == 'viewport.log':
-            return "first\nsecond\nthird"
+        return "first\nsecond\nthird"
     monkeypatch.setattr(pathlib.Path, 'read_text', fake_read_text)
 
     resp = client.get('/api/log_entry')

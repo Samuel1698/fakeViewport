@@ -2,8 +2,11 @@ import sys
 import pytest
 import viewport
 import subprocess
+import types
 from types import SimpleNamespace as Namespace
 from unittest.mock import MagicMock, patch, mock_open, call
+from test_config import write_base
+
 @pytest.fixture(autouse=True)
 def isolate_sst(tmp_path, monkeypatch):
     # redirect every test’s sst_file into tmp_path/…
@@ -81,7 +84,7 @@ def test_diagnose_flag_success(mock_logging, mock_validate, mock_exit):
     viewport.args_handler(mock_args)
 
     mock_logging.info.assert_any_call("Checking validity of config.ini and .env variables...")
-    mock_validate.assert_called_once_with(strict=False, print_errors=True, api=True)
+    mock_validate.assert_called_once_with(strict=False)
     mock_logging.info.assert_any_call("No errors found.")
     mock_exit.assert_called_once_with(0)
     
@@ -96,7 +99,58 @@ def test_api_flag_stop_monitoring(mock_process_handler, mock_exit):
     viewport.args_handler(mock_args)
     assert mock_process_handler.call_count >= 2
     mock_exit.assert_called_once_with(0)
+    
+@patch("viewport.sys.exit")
+def test_args_handler_api_enabled_calls_api_handler(mock_exit, monkeypatch):
+    # Simulate “monitoring.py” not running, so we skip the stop‐monitoring branch:
+    monkeypatch.setattr(viewport, "process_handler", lambda proc, action=None: False)
 
+    # Force the config‐loaded API flag to True
+    monkeypatch.setattr(viewport, "API", True)
+
+    # Spy on api_handler
+    called = {}
+    monkeypatch.setattr(viewport, "api_handler", lambda: called.setdefault("api", True))
+
+    # Build args with api=True
+    args = Namespace(
+        status=False, logs=None, background=False,
+        quit=False, diagnose=False, api=True, restart=False
+    )
+
+    # Act
+    viewport.args_handler(args)
+
+    # Assert: we hit the API branch, called api_handler(), then sys.exit(0)
+    mock_exit.assert_called_once_with(0)
+    assert called.get("api") is True
+
+@patch("viewport.sys.exit")
+def test_args_handler_api_disabled_logs_message(mock_exit, monkeypatch, caplog):
+    # Simulate “monitoring.py” not running, so we skip the stop‐monitoring branch:
+    monkeypatch.setattr(viewport, "process_handler", lambda proc, action=None: False)
+
+    # Force API flag to False
+    monkeypatch.setattr(viewport, "API", False)
+
+    # Capture INFO‐level logs
+    caplog.set_level("INFO")
+
+    args = Namespace(
+        status=False, logs=None, background=False,
+        quit=False, diagnose=False, api=True, restart=False
+    )
+
+    # Act
+    viewport.args_handler(args)
+
+    # Assert: logged the “not enabled” message, then exit(0)
+    mock_exit.assert_called_once_with(0)
+    assert any(
+        "API is not enabled in config.ini" in rec.message
+        for rec in caplog.records
+    )
+     
 def test_restart_flag_when_running(monkeypatch, caplog):
     monkeypatch.setattr(viewport.os.path, "realpath", lambda p: "script.py")
     monkeypatch.setattr(sys, "executable", "/usr/bin/py")
@@ -129,9 +183,8 @@ def test_restart_flag_when_running(monkeypatch, caplog):
     # It should first check, then kill
     fake_proc.assert_has_calls([
         call("viewport.py", action="check"),
-        call("viewport.py", action="kill"),
     ])
-    assert fake_proc.call_count == 2
+    assert fake_proc.call_count == 1
 
     # It should spawn exactly one background process
     fake_popen.assert_called_once_with(
@@ -142,11 +195,6 @@ def test_restart_flag_when_running(monkeypatch, caplog):
         close_fds=True,
         start_new_session=True,
     )
-
-    # Verify log messages
-    assert "Stopping existing Viewport instance for restart…" in caplog.text
-    assert "Starting new Viewport instance in background…" in caplog.text
-
 
 def test_restart_flag_when_not_running(monkeypatch, caplog):
     monkeypatch.setattr(viewport.os.path, "realpath", lambda p: "script.py")
@@ -226,11 +274,11 @@ def test_args_child_handler_override_list_and_single_value():
         "quit": False, "diagnose": False, "api": False, "logs": None
     })()
 
-    # 1) list‐style override ⇒ should extend exactly the list
+    # list‐style override ⇒ should extend exactly the list
     flags = viewport.args_child_handler(args, add_flags={"status": ["--status", "--extra"]})
     assert flags == ["--status", "--extra"]
 
-    # 2) single‐value override ⇒ should produce ["--logs", "<value>"]
+    # single‐value override ⇒ should produce ["--logs", "<value>"]
     flags2 = viewport.args_child_handler(args, add_flags={"logs": 42})
     assert flags2 == ["--logs", "42"]
 

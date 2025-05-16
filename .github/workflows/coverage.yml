@@ -22,6 +22,36 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r dev_requirements.txt
+      
+      # Create a valid config.ini so viewport.py import passes
+      - name: Write out config.ini
+        run: |
+          cat << 'EOF' > config.ini
+          [General]
+          SLEEP_TIME = 300
+          WAIT_TIME = 30
+          MAX_RETRIES = 5
+
+          [Logging]
+          LOG_FILE = true
+          LOG_CONSOLE = true
+          DEBUG_LOGGING=False
+          ERROR_LOGGING = false
+          LOG_DAYS = 7
+          LOG_INTERVAL = 60
+
+          [API]
+          USE_API = false
+          EOF
+
+      # Create a minimal .env so viewport.py import passes
+      - name: Write out .env
+        run: |
+          cat << 'EOF' > .env
+          USERNAME=testuser
+          PASSWORD=testpass
+          URL=http://example.com
+          EOF
 
       - name: Run tests
         run: pytest --cov --cov-branch --cov-report=xml

@@ -65,7 +65,7 @@ def test_restart_handler(
     # Arrange: set up sys.argv and optional driver
     viewport.sys.argv = list(initial_argv)
     driver = MagicMock() if driver_present else None
-
+    
     # Act
     viewport.restart_handler(driver)
 
@@ -178,7 +178,6 @@ def test_restart_handler_detach(monkeypatch,
     fake_popen = MagicMock()
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
     monkeypatch.setattr(sys, "exit", lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
-
     driver = DummyDriver()
     with pytest.raises(SystemExit) as se:
         viewport.restart_handler(driver)

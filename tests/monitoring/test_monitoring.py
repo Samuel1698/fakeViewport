@@ -82,7 +82,7 @@ def client(tmp_path, monkeypatch):
     )
 
     # build Flask client
-    app = create_app(None)
+    app = create_app()
     app.testing = True
     return app.test_client()
 # ----------------------------------------------------------------------------- 
@@ -102,7 +102,7 @@ def _make_auth_client(tmp_path, monkeypatch):
         lambda tpl, **ctx: f"TEMPLATE({tpl})"
     )
 
-    app = create_app(None)
+    app = create_app()
     app.testing = True
     return app.test_client()
 # ----------------------------------------------------------------------------- 
@@ -115,7 +115,7 @@ def no_secret_client(tmp_path, monkeypatch):
     (tmp_path / "api").mkdir(exist_ok=True)
     (tmp_path / "logs").mkdir(exist_ok=True)
 
-    app = create_app(None)
+    app = create_app()
     app.testing = True
     return app.test_client()
 # ----------------------------------------------------------------------------- 
@@ -349,3 +349,12 @@ def test_dashboard_renders_index(tmp_path, monkeypatch):
     resp = client.get("/")
     assert resp.status_code == 200
     assert b"INDEX(index.html)" in resp.data
+def test_authenticated_session_skips_redirect(client, monkeypatch):
+    monkeypatch.setattr(monitoring, "CONTROL_TOKEN", "secret")
+
+    with client.session_transaction() as sess:
+        sess["authenticated"] = "secret"  # valid token
+
+    response = client.get("/")  # or any @login_required route
+
+    assert response.status_code == 200  # no redirect

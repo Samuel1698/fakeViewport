@@ -7,6 +7,8 @@ from selenium.common.exceptions import TimeoutException, WebDriverException, Inv
 from urllib3.exceptions import NewConnectionError
 from unittest.mock import MagicMock, patch, ANY
 from datetime import datetime, timedelta
+from itertools import cycle
+
 # ----------------------------------------------------------------------------- 
 # Helper functions
 # ----------------------------------------------------------------------------- 
@@ -23,9 +25,6 @@ def make_driver(window_size, screen_size, offline_status=None):
         # offline_status check
         if "Console Offline" in script or "Protect Offline" in script:
             return offline_status
-        # screen.width / screen.height
-        if "return screen.width" in script:
-            return screen_size["width"]
 
     driver.execute_script.side_effect = exec_script
     return driver
@@ -51,6 +50,7 @@ def test_handle_view_initial_load_failure(
     mock_restart.assert_called_once_with(driver)
 # ----------------------------------------------------------------------------- 
 # Healthy‐path iteration
+# ----------------------------------------------------------------------------- 
 @patch("viewport.time.sleep", side_effect=BreakLoop)
 @patch("viewport.get_next_interval", return_value=time.time())
 @patch("viewport.check_unable_to_stream", return_value=False)
@@ -102,6 +102,7 @@ def test_handle_view_healthy_iteration(
     mock_api_status.assert_called_with("Feed Healthy")
 # ----------------------------------------------------------------------------- 
 # Interval Logging Test
+# ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("sleep_time, log_interval, now_minute, now_second, expected_minute", [
     # at hh:16:45, 1-min interval  → next boundary at :17
     (60,   1,  16, 45, 17),
@@ -154,11 +155,6 @@ def test_handle_view_video_feeds_healthy_logging(
     expected_minute,
     monkeypatch,
 ):
-    from itertools import cycle
-    from datetime import datetime
-
-    class BreakLoop(BaseException):
-        pass
 
     # fake current time so we know exactly where the hour is
     fake_now = datetime(2025, 4, 27, 5, now_minute, now_second)
@@ -210,6 +206,7 @@ def test_handle_view_video_feeds_healthy_logging(
 
 # ----------------------------------------------------------------------------- 
 # Decoding Error
+# ----------------------------------------------------------------------------- 
 @patch("viewport.logging.warning")
 @patch("viewport.api_status")
 @patch("viewport.time.sleep", side_effect=BreakLoop)                       # break out after first sleep
@@ -256,6 +253,7 @@ def test_handle_view_decoding_error_branch(
     mock_api_status.assert_called_with("Decoding Error in some cameras")
 # ----------------------------------------------------------------------------- 
 # Offline‐status branch
+# ----------------------------------------------------------------------------- 
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.handle_retry", side_effect=BreakLoop)
 @patch("viewport.api_status")
@@ -296,7 +294,7 @@ def test_handle_view_offline_branch(
 @pytest.mark.parametrize(
     "trigger, expected_log_args, expected_api, recovery_fn, recovery_args",
     [
-        # 1) InvalidSessionIdException ⇒ restart_handler(driver)
+        # InvalidSessionIdException ⇒ restart_handler(driver)
         (
             lambda drv, wdw: setattr(
                 viewport, "check_driver",
@@ -308,7 +306,7 @@ def test_handle_view_offline_branch(
             "restart_handler",
             lambda drv, url, mw: (drv,),
         ),
-        # 2) TimeoutException ⇒ handle_retry(driver, url, 1, max_retries)
+        # TimeoutException ⇒ handle_retry(driver, url, 1, max_retries)
         (
             lambda drv, wdw: setattr(
                 wdw, "until",
@@ -319,7 +317,7 @@ def test_handle_view_offline_branch(
             "handle_retry",
             lambda drv, url, mw: (drv, url, 1, mw),
         ),
-        # 3) NoSuchElementException ⇒ same as TimeoutException
+        # NoSuchElementException ⇒ same as TimeoutException
         (
             lambda drv, wdw: setattr(
                 wdw, "until",
@@ -330,7 +328,7 @@ def test_handle_view_offline_branch(
             "handle_retry",
             lambda drv, url, mw: (drv, url, 1, mw),
         ),
-        # 4) NewConnectionError ⇒ handle_retry(driver, url, 1, max_retries)
+        # NewConnectionError ⇒ handle_retry(driver, url, 1, max_retries)
         (
             lambda drv, wdw: drv.execute_script.__setattr__(
                 "side_effect", NewConnectionError(None, "fail")
@@ -340,7 +338,7 @@ def test_handle_view_offline_branch(
             "handle_retry",
             lambda drv, url, mw: (drv, url, 1, mw),
         ),
-        # 5) WebDriverException ⇒ browser_restart_handler(url)
+        # WebDriverException ⇒ browser_restart_handler(url)
         (
             lambda drv, wdw: setattr(
                 wdw, "until",
@@ -351,7 +349,7 @@ def test_handle_view_offline_branch(
             "browser_restart_handler",
             lambda drv, url, mw: (url,),
         ),
-        # 6) Generic Exception ⇒ handle_retry(driver, url, 1, max_retries)
+        # Generic Exception ⇒ handle_retry(driver, url, 1, max_retries)
         (
             lambda drv, wdw: setattr(
                 wdw, "until",
@@ -512,3 +510,117 @@ def test_handle_view_check_crash(monkeypatch):
     assert errors and errors[0].startswith(f"Tab Crashed. Restarting {viewport.BROWSER}"), \
         f"log_error not called correctly, got: {errors}"
     assert apis and apis[0] == "Tab Crashed", f"api_status not called, got: {apis}"
+    
+@patch("viewport.api_status", side_effect=BreakLoop)
+@patch("viewport.log_error")
+@patch("viewport.check_driver", return_value=False)
+def test_handle_view_driver_unresponsive(
+    mock_check_driver,
+    mock_log_error,
+    mock_api_status,
+):
+    driver = MagicMock()
+    url = "http://example.com"
+
+    # Should hit the "Driver unresponsive" branch, then api_status raises BreakLoop
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, url)
+
+    mock_log_error.assert_called_once_with("Driver unresponsive.")
+    mock_api_status.assert_called_once_with("Driver unresponsive")
+
+def test_handle_view_no_restart_times_does_not_call_restart(
+    monkeypatch
+):
+    # Arrange
+    driver = MagicMock()
+    url = "http://example.com"
+
+    # 1) No scheduled times at all
+    monkeypatch.setattr(viewport, "RESTART_TIMES", [])
+
+    # 2) Our guard should skip get_next_restart altogether
+    #    so if it does get called, fail the test
+    monkeypatch.setattr(
+        viewport,
+        "get_next_restart",
+        lambda now: (_ for _ in ()).throw(AssertionError("get_next_restart should not be called"))
+    )
+
+    # 3) Break out of handle_view before it ever tries anything else
+    monkeypatch.setattr(
+        viewport,
+        "handle_page",
+        lambda d: (_ for _ in ()).throw(BreakLoop())
+    )
+
+    # Act & Assert: we only hit our BreakLoop, and no restart
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, url)
+
+
+def test_handle_view_scheduled_restart_immediate_breaks_and_calls_restart(
+    monkeypatch
+):
+    # Arrange
+    driver = MagicMock()
+    url = "http://example.com"
+
+    # 1) Make it look like we do have at least one restart time
+    monkeypatch.setattr(viewport, "RESTART_TIMES", [datetime.now().time()])
+
+    # 2) Force get_next_restart(now) == now so now >= next_run ⇒ restart branch
+    monkeypatch.setattr(
+        viewport,
+        "get_next_restart",
+        lambda now: now
+    )
+
+    # 3) Spy on restart_handler and make it raise so we can break the loop
+    mock_restart = MagicMock(side_effect=BreakLoop())
+    monkeypatch.setattr(viewport, "restart_handler", mock_restart)
+
+    # 4) We let handle_page and check_driver succeed (base_setup takes care of that)
+
+    # Act
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, url)
+
+    # Assert
+    mock_restart.assert_called_once_with(driver)
+
+
+def test_handle_view_scheduled_restart_not_due_does_not_call_restart(
+    monkeypatch
+):
+    # Arrange
+    driver = MagicMock()
+    url = "http://example.com"
+
+    # 1) Enable scheduling
+    monkeypatch.setattr(viewport, "RESTART_TIMES", [datetime.now().time()])
+
+    # 2) Return a time *in the future* so now < next_run
+    future = datetime.now() + timedelta(seconds=60)
+    monkeypatch.setattr(
+        viewport,
+        "get_next_restart",
+        lambda now: future
+    )
+
+    # 3) Watch restart_handler so we can assert it was NOT called
+    mock_restart = MagicMock()
+    monkeypatch.setattr(viewport, "restart_handler", mock_restart)
+
+    # 4) Break out of the loop via handle_page on its first use
+    monkeypatch.setattr(
+        viewport,
+        "handle_page",
+        lambda d: (_ for _ in ()).throw(BreakLoop())
+    )
+
+    # Act & Assert
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, url)
+
+    mock_restart.assert_not_called()

@@ -45,8 +45,9 @@ def configure_logging(
     logger = logging.getLogger()
     level = logging.DEBUG if Debug_logging else logging.INFO
     logger.setLevel(level)
+    logger.handlers.clear()
+    logger.propagate = False
 
-    # Formatter for file handler
     file_fmt = logging.Formatter(f'[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
     if log_file:
@@ -56,17 +57,15 @@ def configure_logging(
             interval=1,
             backupCount=log_days
         )
-        file_handler.setLevel(level)
+        file_handler.setLevel(logger.level)
         file_handler.setFormatter(file_fmt)
         logger.addHandler(file_handler)
 
     if log_console:
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(level)
+        console_handler.setLevel(logger.level)
         console_handler.setFormatter(
-            ColoredFormatter(
-                '[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
-            )
+            ColoredFormatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
         )
         logger.addHandler(console_handler)
 
