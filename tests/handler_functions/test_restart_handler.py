@@ -49,7 +49,7 @@ def patch_args_and_api(monkeypatch):
     # driver present    ⇒ quit()
     (["viewport.py", "--restart"],            True,  []),
 ])
-@patch("viewport.os._exit")
+@patch("viewport.sys.exit")
 @patch("viewport.subprocess.Popen")
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.api_status")
@@ -57,7 +57,7 @@ def test_restart_handler(
     mock_api_status,
     mock_sleep,
     mock_popen,
-    mock__exit,
+    mock_exit,
     initial_argv,
     driver_present,
     expected_flags
@@ -92,7 +92,7 @@ def test_restart_handler(
     )
 
     # Assert: parent exits with code 0
-    mock__exit.assert_called_once_with(0)
+    mock_exit.assert_called_once_with(0)
 # ----------------------------------------------------------------------------- 
 # Error‐flow: make subprocess.Popen throw ⇒ log_error, api_status, clear_sst, sys.exit(1)
 # ----------------------------------------------------------------------------- 
@@ -177,7 +177,7 @@ def test_restart_handler_detach(monkeypatch,
 
     fake_popen = MagicMock()
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
-    monkeypatch.setattr(viewport.os, "_exit", lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
+    monkeypatch.setattr(sys, "exit", lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
     driver = DummyDriver()
     with pytest.raises(SystemExit) as se:
         viewport.restart_handler(driver)

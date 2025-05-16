@@ -5,15 +5,13 @@ import sys
 import time
 import argparse
 import signal
-import getpass
 import subprocess
 import math
 import threading
 import logging
 import concurrent      
-from logging.handlers          import TimedRotatingFileHandler
 from logging_config            import configure_logging
-from validate_config           import validate_config, AppConfig
+from validate_config           import validate_config
 from pathlib                   import Path
 from datetime                  import datetime, timedelta
 from webdriver_manager.chrome  import ChromeDriverManager
@@ -45,7 +43,6 @@ from css_selectors import (
 # -------------------------------------------------------------------
 _mod = sys.modules[__name__]
 driver = None # Declare it globally so that it can be accessed in the signal handler function
-_chrome_driver_path = None  # Cache for the ChromeDriver path
 viewport_version = "2.2.2"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
 shutdown = threading.Event()
@@ -831,8 +828,7 @@ def restart_handler(driver):
                 close_fds=True,
                 start_new_session=True,
             )
-            # Use OS exit to also exit out of the handle_view process when scheduled restart calls this function
-            os._exit(0) 
+            sys.exit(0) 
     except Exception as e:
         log_error("Error during restart process:", e, driver)
         api_status("Error Restarting, exiting...")
