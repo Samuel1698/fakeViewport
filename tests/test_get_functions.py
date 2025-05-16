@@ -24,14 +24,9 @@ class DummyExecutor:
     def __init__(self, max_workers):
         pass
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        pass
-    
     def shutdown(self, wait):
             pass
+        
     def submit(self, fn, *args, **kwargs):
         # ignore fn, always return a dummy future
         return DummyFuture()
