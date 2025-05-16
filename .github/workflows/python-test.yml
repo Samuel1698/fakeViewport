@@ -14,7 +14,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      # 1) Create a valid config.ini so viewport.py import passes
+      # Create a valid config.ini so viewport.py import passes
       - name: Write out config.ini
         run: |
           cat << 'EOF' > config.ini
@@ -35,7 +35,7 @@ jobs:
           USE_API = false
           EOF
 
-      # 2) Create a minimal .env so viewport.py import passes
+      # Create a minimal .env so viewport.py import passes
       - name: Write out .env
         run: |
           cat << 'EOF' > .env
