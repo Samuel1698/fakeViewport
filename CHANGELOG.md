@@ -10,7 +10,6 @@ and "🔥" indicates a non-breaking change.
 ### 🔥 Changed
 - `browser_handler` can now detect if installing the driver is taking too long and properly handle it as a `retry attempt`. Before, it would not raise an error and silently get stuck forever.
 - `browser_handler` can now catch unrecognized browser and raise an error.
-- `handle_view` now runs while `shutdown` flag is unset.  It is set by the `restart_handler` in order to prevent interacting with the `driver` while a restart is happening.
 - Removed `restart_scheduler` thread and moved that logic to `handle_view` to avoid the complexity of dealing with 2 separate threads interacting with one another.
 - Signal Handler uses `os._exit` instead of `sys.exit`.
 
