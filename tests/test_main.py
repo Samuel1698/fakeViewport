@@ -1,14 +1,13 @@
-import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent.parent))
 import re
 import signal
 import logging
 import logging.handlers
 import builtins
+from pathlib import Path
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, mock_open, ANY
+
 import pytest
 import viewport
 # Ensure no scheduled restarts by default
@@ -126,12 +125,6 @@ def test_main_various(
     mock_thread.assert_any_call(
         target=viewport.handle_view,
         args=(dummy_driver, viewport.url)
-    )
-    # restart_scheduler must also be spun up—and as a daemon!
-    mock_thread.assert_any_call(
-        target=viewport.restart_scheduler,
-        args=(dummy_driver,),
-        daemon=True
     )
     # no API logic here
     mock_api_handler.assert_not_called()
@@ -399,8 +392,8 @@ def test_main_sst_write_logic(mock_thread, mock_chrome, mock_args, pre, other_ru
         assert sst.read_text() == pre
 
 # simulate SIGTERM (signal_handler): clears SST, then main() writes again
-@patch("viewport.sys.exit")
-def test_sigterm_clears_and_next_main_writes(mock_exit, tmp_path, monkeypatch):
+@patch("viewport.os._exit")
+def test_sigterm_clears_and_next_main_writes(mock__exit, tmp_path, monkeypatch):
     # prepopulate
     sst = tmp_path / "sst.txt"
     viewport.sst_file = sst

@@ -7,6 +7,8 @@ from selenium.common.exceptions import TimeoutException, WebDriverException, Inv
 from urllib3.exceptions import NewConnectionError
 from unittest.mock import MagicMock, patch, ANY
 from datetime import datetime, timedelta
+from itertools import cycle
+
 # ----------------------------------------------------------------------------- 
 # Helper functions
 # ----------------------------------------------------------------------------- 
@@ -153,11 +155,6 @@ def test_handle_view_video_feeds_healthy_logging(
     expected_minute,
     monkeypatch,
 ):
-    from itertools import cycle
-    from datetime import datetime
-
-    class BreakLoop(BaseException):
-        pass
 
     # fake current time so we know exactly where the hour is
     fake_now = datetime(2025, 4, 27, 5, now_minute, now_second)
@@ -531,67 +528,99 @@ def test_handle_view_driver_unresponsive(
 
     mock_log_error.assert_called_once_with("Driver unresponsive.")
     mock_api_status.assert_called_once_with("Driver unresponsive")
-    
-def test_handle_view_exits_on_shutdown(monkeypatch):
-    # 1) Create a dummy shutdown_event that returns False once, then True
-    class DummyEvent:
-        def __init__(self):
-            self.count = 0
-        def is_set(self):
-            self.count += 1
-            return self.count >= 2
 
-    dummy_event = DummyEvent()
-    monkeypatch.setattr(viewport, 'shutdown', dummy_event)
+def test_handle_view_no_restart_times_does_not_call_restart(
+    monkeypatch
+):
+    # Arrange
+    driver = MagicMock()
+    url = "http://example.com"
 
-    # Stub out the pre‐loop “handle_page” check (no restart)
-    monkeypatch.setattr(viewport, 'handle_page', lambda drv: True)
+    # 1) No scheduled times at all
+    monkeypatch.setattr(viewport, "RESTART_TIMES", [])
 
-    # Stub all in‐loop checks so nothing blows up:
-    monkeypatch.setattr(viewport, 'check_driver', lambda drv: True)
-    monkeypatch.setattr(viewport, 'check_crash', lambda drv: False)
+    # 2) Our guard should skip get_next_restart altogether
+    #    so if it does get called, fail the test
+    monkeypatch.setattr(
+        viewport,
+        "get_next_restart",
+        lambda now: (_ for _ in ()).throw(AssertionError("get_next_restart should not be called"))
+    )
 
-    # Stub out the Selenium wait so it returns immediately
-    class FakeWebDriverWait:
-        def __init__(self, drv, t): pass
-        def until(self, cond): pass
-    monkeypatch.setattr(viewport, 'WebDriverWait', FakeWebDriverWait)
+    # 3) Break out of handle_view before it ever tries anything else
+    monkeypatch.setattr(
+        viewport,
+        "handle_page",
+        lambda d: (_ for _ in ()).throw(BreakLoop())
+    )
 
-    # Ensure driver.execute_script doesn't trigger your “offline” branch:
-    dummy_driver = MagicMock()
-    dummy_driver.execute_script = lambda script: None
+    # Act & Assert: we only hit our BreakLoop, and no restart
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, url)
 
-    # Stub window‐size logic so it never tries to fullscreen
-    dummy_driver.get_window_size = lambda: {'width': 100, 'height': 100}
-    # also stub the JS call for screen.width/height
-    dummy_driver.execute_script = lambda script: 100
 
-    monkeypatch.setattr(viewport, 'handle_fullscreen_button', lambda drv: False)
-    monkeypatch.setattr(viewport, 'handle_loading_issue',   lambda drv: None)
-    monkeypatch.setattr(viewport, 'handle_elements',        lambda drv: None)
-    monkeypatch.setattr(viewport, 'check_unable_to_stream', lambda drv: False)
+def test_handle_view_scheduled_restart_immediate_breaks_and_calls_restart(
+    monkeypatch
+):
+    # Arrange
+    driver = MagicMock()
+    url = "http://example.com"
 
-    # Stub out your API calls (no real HTTP)
-    monkeypatch.setattr(viewport, 'api_status', lambda msg: None)
+    # 1) Make it look like we do have at least one restart time
+    monkeypatch.setattr(viewport, "RESTART_TIMES", [datetime.now().time()])
 
-    # Make get_next_interval/time.time produce exactly SLEEP_TIME
-    monkeypatch.setattr(viewport, 'get_next_interval',
-                        lambda secs: viewport.time.time() + viewport.SLEEP_TIME)
-    monkeypatch.setattr(viewport.time, 'time', lambda: 0)
+    # 2) Force get_next_restart(now) == now so now >= next_run ⇒ restart branch
+    monkeypatch.setattr(
+        viewport,
+        "get_next_restart",
+        lambda now: now
+    )
 
-    # Capture the sleep call
-    sleep_calls = []
-    monkeypatch.setattr(viewport.time, 'sleep',
-                        lambda secs: sleep_calls.append(secs))
+    # 3) Spy on restart_handler and make it raise so we can break the loop
+    mock_restart = MagicMock(side_effect=BreakLoop())
+    monkeypatch.setattr(viewport, "restart_handler", mock_restart)
 
-    # Run
-    viewport.handle_view(dummy_driver, url="http://unused")
+    # 4) We let handle_page and check_driver succeed (base_setup takes care of that)
 
-    # === Assertions ===
+    # Act
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, url)
 
-    # WAIT TIME in offline console and SLEEP TIME after first loop
-    assert sleep_calls == [viewport.WAIT_TIME, viewport.SLEEP_TIME]
+    # Assert
+    mock_restart.assert_called_once_with(driver)
 
-    # shutdown_event.is_set() was checked twice:
-    #   1) to enter the loop, 2) to see it should now exit.
-    assert dummy_event.count == 2
+
+def test_handle_view_scheduled_restart_not_due_does_not_call_restart(
+    monkeypatch
+):
+    # Arrange
+    driver = MagicMock()
+    url = "http://example.com"
+
+    # 1) Enable scheduling
+    monkeypatch.setattr(viewport, "RESTART_TIMES", [datetime.now().time()])
+
+    # 2) Return a time *in the future* so now < next_run
+    future = datetime.now() + timedelta(seconds=60)
+    monkeypatch.setattr(
+        viewport,
+        "get_next_restart",
+        lambda now: future
+    )
+
+    # 3) Watch restart_handler so we can assert it was NOT called
+    mock_restart = MagicMock()
+    monkeypatch.setattr(viewport, "restart_handler", mock_restart)
+
+    # 4) Break out of the loop via handle_page on its first use
+    monkeypatch.setattr(
+        viewport,
+        "handle_page",
+        lambda d: (_ for _ in ()).throw(BreakLoop())
+    )
+
+    # Act & Assert
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, url)
+
+    mock_restart.assert_not_called()

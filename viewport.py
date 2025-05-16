@@ -45,7 +45,6 @@ _mod = sys.modules[__name__]
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 viewport_version = "2.2.2"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
-shutdown = threading.Event()
 # Directory and file paths
 _base = Path(__file__).parent
 config_file = _base / 'config.ini'
@@ -320,7 +319,7 @@ def signal_handler(signum, frame, driver=None):
     api_status("Stopped ")
     logging.info("Gracefully shutting down script instance.")
     clear_sst()
-    sys.exit(0)
+    os._exit(0)
 signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, driver))
 signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
 # ----------------------------------------------------------------------------- 
@@ -786,20 +785,6 @@ def browser_restart_handler(url):
         log_error(f"Error while killing {BROWSER} processes: ", e)
         api_status(f"Error Killing {BROWSER}")
         raise
-def restart_scheduler(driver):
-    #sleeps until the next configured restart time, then calls restart_handler.
-    if not RESTART_TIMES: return
-    now = datetime.now()
-    next_run = get_next_restart(now)
-    wait = (next_run - now).total_seconds()
-    logging.info(f"Next scheduled restart at {next_run.time()}")
-    api_status(f"Next scheduled restart at {next_run.time()}")
-    time.sleep(wait)
-    logging.info("Performing scheduled restart")
-    api_status("Performing scheduled restart")
-    shutdown.set()         # Bail out handle_view 
-    time.sleep(WAIT_TIME)  # Wait for it to exit it's loop if in it
-    restart_handler(driver)
 def restart_handler(driver):
     # Reparse args
     args = args_helper()
@@ -1129,6 +1114,11 @@ def handle_view(driver, url):
     #   e.g. if LOG_INTERVAL=10 (minutes), we want the first
     #   log at the next multiple of 10 past the hour.
     now = datetime.now()
+    if RESTART_TIMES:
+        next_run = get_next_restart(now)
+        logging.info(f"Next scheduled restart: {next_run}")
+    else:
+        next_run = None
     interval_secs = LOG_INTERVAL * 60
     secs_since_hour = now.minute * 60 + now.second
     # seconds until the next multiple of interval_secs
@@ -1143,9 +1133,14 @@ def handle_view(driver, url):
         log_error("Error loading the live view. Restarting the program.", None, driver=driver)
         api_status("Error Loading Live View. Restarting...")
         restart_handler(driver)
-    while not shutdown.is_set():
+    while True:
         try:
-            if check_driver(driver):
+            now = datetime.now()
+            if RESTART_TIMES and next_run and now >= next_run:
+                logging.info("Performing scheduled restart")
+                api_status("Performing scheduled restart")
+                restart_handler(driver)
+            elif check_driver(driver):
                 # Check for "Console Offline" or "Protect Offline"
                 offline_status = driver.execute_script("""
                     return Array.from(document.querySelectorAll('span')).find(el => 
@@ -1250,7 +1245,5 @@ def main():
     driver = browser_handler(url)
     # Start the handle_view function in a separate thread
     threading.Thread(target=handle_view, args=(driver, url)).start()
-    # Start the restart scheduler
-    threading.Thread(target=restart_scheduler, args=(driver,), daemon=True).start()
 if __name__ == "__main__":
     main()
