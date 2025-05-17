@@ -40,8 +40,8 @@ find . -type f -name "dev_*" -not -path "./venv/*" -print0 | while IFS= read -r 
     rm -f "$file" && echo -ne "${GREEN}.${NC}"
 done
 
-# Remove *.coveragerc and *.bak
-find . -type f \( -name "*.coveragerc" -o -name "*.bak" \) -not -path "./venv/*" -print0 | while IFS= read -r -d '' file; do
+# Remove *.coveragerc and *release.sh
+find . -type f \( -name "*.coveragerc" -o -name "release.sh" \) -not -path "./venv/*" -print0 | while IFS= read -r -d '' file; do
     rm -f "$file" && echo -ne "${GREEN}.${NC}"
 done
 

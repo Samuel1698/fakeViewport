@@ -21,17 +21,19 @@ git archive \
   HEAD \
     viewport.py \
     monitoring.py \
+    logging_config.py \
+    validate_config.py \
+    css_selectors.py \
+    setup.sh \
+    minimize.sh \
+    uninstall.sh \
+    requirements.txt \
     templates/ \
     static/main-min.js \
     static/main.css \
     static/favicon* \
-    setup.sh \
     config.ini.example \
-    .env.example \
-    css_selectors.py \
-    validate_config.py \
-    logging_config.py \
-    requirements.txt
+    .env.example
 
 # 3️⃣ Barebones: viewport.py + deps
 git archive \
@@ -40,13 +42,15 @@ git archive \
   -o "${OUTDIR}/viewport-${VERSION}-no-api.tar.gz" \
   HEAD \
     viewport.py \
-    setup.sh \
-    config.ini.example \
-    .env.example \
-    css_selectors.py \
     logging_config.py \
     validate_config.py \
-    requirements.txt
+    css_selectors.py \
+    setup.sh \
+    minimize.sh \
+    uninstall.sh \
+    requirements.txt \
+    config.ini.example \
+    .env.example
 
 echo "Created:"
 ls -1 "${OUTDIR}"
