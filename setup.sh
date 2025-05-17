@@ -203,8 +203,7 @@ if [[ -e "$SHORTCUT_PATH" ]]; then
     _create_shortcut
   else
     echo -e "${GREEN}✓ Desktop Shortcut already exists, skipping...${NC}"
-    echo -e "${GREEN}✓ To override it, run:${NC}"
-    echo -e "${YELLOW}  ./setup.sh -s${NC}"
+    echo -e "${GREEN}✓ To override it, run:${NC}${YELLOW} ./setup.sh -s${NC}"
   fi
 elif [[ -e "$SHORTCUT_DIR" ]]; then
   if $OVERRIDE_SHORTCUT; then
@@ -254,7 +253,7 @@ fi
 cron_entry="@reboot sleep 60 && $VENV_PYTHON $SCRIPT_PATH"
 # Check if the cron job already exists
 if crontab -l 2>/dev/null | grep -Fxq "$cron_entry"; then
-    echo -e "${GREEN}Startup cron job already exists. Skipping setup.${NC}"
+    echo -e "${GREEN}✓ Startup cron job already exists. Skipping...${NC}"
 else
     echo -ne "${YELLOW}Do you want to set up the script to run automatically at startup using cron? (y/n):${NC} " 
     read -r setup_cron
@@ -269,7 +268,7 @@ fi
 # Final Report
 # ----------------------------------------------------------------------------- 
 if [ "$INSTALL_SUCCESS" = false ]; then
-    echo -e "\n${RED}SETUP INCOMPLETE - Some steps failed${NC}"
+    echo -e "\n\n${RED}===== SETUP INCOMPLETE - Some steps failed =====${NC}"
     echo -e "${YELLOW}Check the error messages above and try again.${NC}"
     exit 1
 else
@@ -288,7 +287,7 @@ else
         YELLOW='\e[1;33m'
         NC='\e[0m'
     fi 
-    echo -e "\n${GREEN}Setup complete!${NC}"
+    echo -e "\n\n${GREEN}===== Setup complete! =====${NC}\n"
     echo -e "${GREEN}Check the different ways to launch the script with:${NC}"
     echo -e "${YELLOW}  viewport -h${NC}"
     echo -e "${GREEN}If the 'viewport' alias doesn't work run these commands:${NC}"
