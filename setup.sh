@@ -29,6 +29,7 @@ fi
 # ----------------------------------------------------------------------------- 
 # 2. Verify python3-venv is available
 # ----------------------------------------------------------------------------- 
+sleep 0.5
 if ! python3 -c "import ensurepip; import venv" &> /dev/null; then
     echo -e "${RED}python3-venv not found! Installing...${NC}"
     sudo apt install -y python3-venv
@@ -39,6 +40,7 @@ fi
 # ----------------------------------------------------------------------------- 
 # 3. Create virtual environment (if doesn't exist)
 # ----------------------------------------------------------------------------- 
+sleep 0.5
 VENV_DIR="venv"
 if [ ! -d "$VENV_DIR" ]; then
     echo -e "${YELLOW}Creating virtual environment...${NC}"
@@ -50,6 +52,7 @@ fi
 # ----------------------------------------------------------------------------- 
 # 4. Install requirements
 # ----------------------------------------------------------------------------- 
+sleep 0.5
 if [ "$1" == "dev" ]; then
     echo -e "${YELLOW}Development mode enabled. Using dev_requirements.txt.${NC}"
     REQUIREMENTS="dev_requirements.txt"
@@ -99,8 +102,8 @@ fi
 # ----------------------------------------------------------------------------- 
 # 5. Verify Google Chrome, Chromium, or Firefox
 # ----------------------------------------------------------------------------- 
+sleep 0.5
 any_browser_installed=false
-
 if command -v google-chrome-stable &> /dev/null; then
     echo -e "${GREEN}✓ Google Chrome is installed${NC}"
     any_browser_installed=true
@@ -125,6 +128,7 @@ fi
 # ----------------------------------------------------------------------------- 
 # 6: Rename .env.example to .env
 # ----------------------------------------------------------------------------- 
+sleep 0.5
 if [ -f ".env.example" ]; then
     if [ -f ".env" ]; then
         echo -e "${GREEN}✓ .env already exists. Skipping...${NC}"
@@ -147,6 +151,7 @@ fi
 # ----------------------------------------------------------------------------- 
 # 7: Rename config.ini.example to config.ini
 # ----------------------------------------------------------------------------- 
+sleep 0.5
 if [ -f "config.ini.example" ]; then
     if [ -f "config.ini" ]; then
         echo -e "${GREEN}✓ config.ini already exists. Skipping...${NC}"
@@ -166,6 +171,7 @@ fi
 # ----------------------------------------------------------------------------- 
 # 8: Create Desktop Shortcut
 # ----------------------------------------------------------------------------- 
+sleep 0.5
 if [[ -d "$HOME/Desktop" ]]; then
   SHORTCUT_DIR="$HOME/Desktop"
   SHORTCUT_PATH="$SHORTCUT_DIR/Viewport.desktop"
@@ -222,8 +228,8 @@ fi
 # ----------------------------------------------------------------------------- 
 # 9: Create an alias for running the script
 # ----------------------------------------------------------------------------- 
+sleep 0.5
 ALIAS_NAME="viewport"
-CREATED_ALIAS=false
 # Check if the alias already exists in ~/.bashrc or ~/.zshrc
 if grep -q "alias $ALIAS_NAME=" ~/.bashrc 2>/dev/null || grep -q "alias $ALIAS_NAME=" ~/.zshrc 2>/dev/null; then
     echo -e "${GREEN}✓ Alias '$ALIAS_NAME' already exists. Skipping...${NC}"
@@ -231,25 +237,22 @@ else
     echo -e "${YELLOW}Adding alias '$ALIAS_NAME' to your shell configuration...${NC}"
     # Add the alias to ~/.bashrc or ~/.zshrc
     if [ -f ~/.bashrc ]; then
-        echo "# This alias was added by the FakeViewport setup script" >> ~/.bashrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.bashrc
         echo -e "${GREEN}✓ Alias added to ~/.bashrc${NC}"
-        echo -e "${GREEN}If the viewport command doesn't work, reload the terminal with: ${NC}"
-        echo -e "${YELLOW}  source ~/.bashrc${NC}"
-        CREATED_ALIAS=true
+        echo -e "${GREEN}Reload your shell terminal to use the new alias: ${NC}"
+        echo -e "${CYAN}  source ~/.bashrc${NC}"
     fi
     if [ -f ~/.zshrc ]; then
-        echo "# This alias was added by the FakeViewport setup script" >> ~/.zshrc
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.zshrc
         echo -e "${GREEN}✓ Alias added to ~/.zshrc${NC}"
-        echo -e "${GREEN}If the viewport command doesn't work, reload the terminal with: ${NC}"
-        echo -e "${YELLOW}  source ~/.zshrc${NC}"
-        CREATED_ALIAS=true
+        echo -e "${GREEN}Reload your shell terminal to use the new alias: ${NC}"
+        echo -e "${CYAN}  source ~/.zshrc${NC}"
     fi
 fi
 # ----------------------------------------------------------------------------- 
 # 10: Set up a cron job
 # ----------------------------------------------------------------------------- 
+sleep 0.5
 cron_entry="@reboot sleep 60 && $VENV_PYTHON $SCRIPT_PATH"
 # Check if the cron job already exists
 if crontab -l 2>/dev/null | grep -Fxq "$cron_entry"; then
@@ -267,31 +270,20 @@ fi
 # ----------------------------------------------------------------------------- 
 # Final Report
 # ----------------------------------------------------------------------------- 
+sleep 0.5
 if [ "$INSTALL_SUCCESS" = false ]; then
     echo -e "\n\n${RED}===== SETUP INCOMPLETE - Some steps failed =====${NC}"
     echo -e "${YELLOW}Check the error messages above and try again.${NC}"
     exit 1
 else
-    # Reload shell configuration files to apply the alias
-    # Doing this here as to not lose the INSTALL_SUCCESS variable
-    if [ "$CREATED_ALIAS" = true ]; then
-        sleep 3
-        if [ -f ~/.bashrc ]; then
-            source ~/.bashrc
-        fi
-        if [ -f ~/.zshrc ]; then
-            source ~/.zshrc
-        fi
-        sleep 3
-        GREEN='\e[0;32m'
-        YELLOW='\e[1;33m'
-        NC='\e[0m'
-    fi 
     echo -e "\n\n${GREEN}===== Setup complete! =====${NC}\n"
     echo -e "${GREEN}Check the different ways to launch the script with:${NC}"
-    echo -e "${YELLOW}  viewport -h${NC}"
-    echo -e "${GREEN}If the 'viewport' alias doesn't work run these commands:${NC}"
-    echo -e "${YELLOW}  source venv/bin/activate${NC}"
-    echo -e "${YELLOW}  python3 viewport.py -h${NC}"
-    exit 0
+    echo -e "${CYAN}  viewport -h${NC}"
+    echo -e "${GREEN}If the 'viewport' alias doesn't work run:${NC}"
+    if [ -f ~/.bashrc ]; then
+        echo -e "${CYAN}  source ~/.bashrc${NC}"
+    fi
+    if [ -f ~/.zshrc ]; then
+        echo -e "${CYAN}  source ~/.zshrc${NC}"
+    fi
 fi
