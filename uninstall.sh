@@ -6,7 +6,7 @@ NC='\e[0m'
 
 echo -ne "${YELLOW}This will uninstall the script and related files. Continue? (y/n):${NC} " 
 read -r confirm
-if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+if [[ ! "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then
     echo -e "${GREEN}Aborted.${NC}"
     exit 0
 fi

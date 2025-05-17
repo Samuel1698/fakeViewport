@@ -251,13 +251,14 @@ fi
 # ----------------------------------------------------------------------------- 
 # 10: Set up a cron job
 # ----------------------------------------------------------------------------- 
-cron_entry="@reboot sleep 60 && $VENV_PYTHON $SCRIPT_PATH > /dev/null 2>&1"
+cron_entry="@reboot sleep 60 && $VENV_PYTHON $SCRIPT_PATH"
 # Check if the cron job already exists
 if crontab -l 2>/dev/null | grep -Fxq "$cron_entry"; then
     echo -e "${GREEN}Startup cron job already exists. Skipping setup.${NC}"
 else
-    read -p "${YELLOW}Do you want to set up the script to run automatically at startup using cron? (y/n):${NC} " setup_cron
-    if [[ "$setup_cron" =~ ^[Yy]$ ]]; then
+    echo -ne "${YELLOW}Do you want to set up the script to run automatically at startup using cron? (y/n):${NC} " 
+    read -r setup_cron
+    if [[ "$setup_cron" =~ ^[Yy]([Ee][Ss])?$ ]]; then
         (crontab -l 2>/dev/null; echo "$cron_entry") | crontab -
         echo -e "${GREEN}✓ Cron job added to run the script at startup.${NC}"
     else
