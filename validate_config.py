@@ -44,6 +44,7 @@ class AppConfig:
     log_file: Path
     sst_file: Path
     status_file: Path
+    restart_file: Path
 
 def check_files(config_file: Path, env_file: Path, errors: list[str]):
     if not config_file.exists():
@@ -221,7 +222,8 @@ def validate_config(
     log_file = logs_dir / 'viewport.log'
     sst_file = api_dir / 'sst.txt'
     status_file = api_dir / 'status.txt'
-
+    restart_file = api_dir / '.restart'
+    
     # Parse INI
     config = load_ini(config_file)
 
@@ -309,5 +311,6 @@ def validate_config(
         mon_file=mon_file,
         log_file=log_file,
         sst_file=sst_file,
-        status_file=status_file
+        status_file=status_file,
+        restart_file=restart_file
     )

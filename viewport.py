@@ -793,6 +793,9 @@ def restart_handler(driver):
     try:
         # notify API & shut down driver if present
         api_status("Restarting script...")
+        # Mark a restart intent
+        with open(restart_file, "w") as f:
+            f.write("1")
         if driver is not None:
             driver.quit()
         time.sleep(2)
@@ -1229,6 +1232,7 @@ def main():
     logging.info(f"===== Fake Viewport {viewport_version} =====")
     if API: api_handler()
     api_status("Starting...")
+    intentional_restart = restart_file.exists()
     # Inspect SST File
     sst_exists = sst_file.exists()
     sst_size   = sst_file.stat().st_size if sst_exists else 0
@@ -1236,9 +1240,10 @@ def main():
     # Check existence of another running instance of viewport.py
     # Used to determine if the previous process likely crashed based on sst file content
     other_running = process_handler("viewport.py", action="check")
-    crashed = (not other_running) and sst_non_empty
-    # Check and kill any existing instance of viewport.py
+    crashed = (not other_running) and sst_non_empty and not intentional_restart
+    # Check and kill any existing instance of viewport.py and reset the restart_file flag
     if other_running: process_handler("viewport.py", action="kill")
+    if restart_file.exists(): restart_file.unlink()
     # Write the start time to the SST file
     # Only if it's empty or if a crash likely happened
     if sst_size == 0 or crashed:
