@@ -99,13 +99,24 @@ fi
 # ----------------------------------------------------------------------------- 
 # 5. Verify Google Chrome, Chromium, or Firefox
 # ----------------------------------------------------------------------------- 
-if   command -v google-chrome-stable &> /dev/null; then
+any_browser_installed=false
+
+if command -v google-chrome-stable &> /dev/null; then
     echo -e "${GREEN}✓ Google Chrome is installed${NC}"
-elif command -v chromium        &> /dev/null; then
+    any_browser_installed=true
+fi
+
+if command -v chromium &> /dev/null; then
     echo -e "${GREEN}✓ Chromium is installed${NC}"
-elif command -v firefox         &> /dev/null; then
+    any_browser_installed=true
+fi
+
+if command -v firefox &> /dev/null; then
     echo -e "${GREEN}✓ Firefox is installed${NC}"
-else
+    any_browser_installed=true
+fi
+
+if [ "$any_browser_installed" = false ]; then
     echo -e "${RED}No supported browser found! Install one of:${NC}"
     echo -e "${YELLOW}    sudo apt install -y google-chrome-stable${NC}"
     echo -e "${YELLOW}    sudo apt install -y chromium${NC}"
@@ -235,6 +246,22 @@ else
         echo -e "${GREEN}If the viewport command doesn't work, reload the terminal with: ${NC}"
         echo -e "${YELLOW}  source ~/.zshrc${NC}"
         CREATED_ALIAS=true
+    fi
+fi
+# ----------------------------------------------------------------------------- 
+# 10: Set up a cron job
+# ----------------------------------------------------------------------------- 
+cron_entry="@reboot sleep 60 && $VENV_PYTHON $SCRIPT_PATH > /dev/null 2>&1"
+# Check if the cron job already exists
+if crontab -l 2>/dev/null | grep -Fxq "$cron_entry"; then
+    echo -e "${GREEN}Startup cron job already exists. Skipping setup.${NC}"
+else
+    read -p "${YELLOW}Do you want to set up the script to run automatically at startup using cron? (y/n):${NC} " setup_cron
+    if [[ "$setup_cron" =~ ^[Yy]$ ]]; then
+        (crontab -l 2>/dev/null; echo "$cron_entry") | crontab -
+        echo -e "${GREEN}✓ Cron job added to run the script at startup.${NC}"
+    else
+        echo -e "${GREEN}✓ Skipping cron setup.${NC}"
     fi
 fi
 # ----------------------------------------------------------------------------- 
