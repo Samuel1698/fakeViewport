@@ -4,7 +4,8 @@ GREEN='\e[0;32m'
 YELLOW='\e[1;33m'
 NC='\e[0m'
 
-read -p "${YELLOW}This will uninstall the script and related files. Continue? (y/n):${NC} " confirm
+echo -ne "${YELLOW}This will uninstall the script and related files. Continue? (y/n):${NC} " 
+read -r confirm
 if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
     echo -e "${GREEN}Aborted.${NC}"
     exit 0
