@@ -2,6 +2,7 @@
 RED='\e[0;31m'
 GREEN='\e[0;32m'
 YELLOW='\e[1;33m'
+CYAN='\e[36m'
 NC='\e[0m'
 SCRIPT_PATH="$(pwd)/viewport.py"
 VENV_PYTHON="$(pwd)/venv/bin/python3"
@@ -29,7 +30,7 @@ fi
 # ----------------------------------------------------------------------------- 
 # 2. Verify python3-venv is available
 # ----------------------------------------------------------------------------- 
-sleep 0.5
+sleep 0.25
 if ! python3 -c "import ensurepip; import venv" &> /dev/null; then
     echo -e "${RED}python3-venv not found! Installing...${NC}"
     sudo apt install -y python3-venv
@@ -40,10 +41,10 @@ fi
 # ----------------------------------------------------------------------------- 
 # 3. Create virtual environment (if doesn't exist)
 # ----------------------------------------------------------------------------- 
-sleep 0.5
+sleep 0.25
 VENV_DIR="venv"
 if [ ! -d "$VENV_DIR" ]; then
-    echo -e "${YELLOW}Creating virtual environment...${NC}"
+    echo -e "\n${YELLOW}Creating virtual environment...${NC}"
     python3 -m venv "$VENV_DIR"
     echo -e "${GREEN}✓ Virtual environment created${NC}"
 else
@@ -52,9 +53,8 @@ fi
 # ----------------------------------------------------------------------------- 
 # 4. Install requirements
 # ----------------------------------------------------------------------------- 
-sleep 0.5
 if [ "$1" == "dev" ]; then
-    echo -e "${YELLOW}Development mode enabled. Using dev_requirements.txt.${NC}"
+    echo -e "\n${YELLOW}Development mode enabled. Using dev_requirements.txt.${NC}"
     REQUIREMENTS="dev_requirements.txt"
 else
     REQUIREMENTS="requirements.txt"
@@ -73,7 +73,7 @@ if [ -f "$REQUIREMENTS" ]; then
     fi
     # Install requirements (with progress dots)
     if [ "$INSTALL_SUCCESS" = true ]; then
-        echo -e "${YELLOW}Installing dependencies...${NC}"
+        echo -e "\n${YELLOW}Installing dependencies...${NC}"
         # Run pip install in the background
         pip install --quiet --trusted-host pypi.org --trusted-host files.pythonhosted.org -r "$REQUIREMENTS" &
         PIP_PID=$!
@@ -90,8 +90,8 @@ if [ -f "$REQUIREMENTS" ]; then
             echo -e "\n${RED}✗ Failed to install some dependencies${NC}"
             echo -e "${GREEN}This might be due to network issues.${NC}"
             echo -e "${GREEN}Activate the virtual environment and install manually:${NC} "
-            echo -e "${YELLOW}  source ${VENV_DIR}/bin/activate${NC}"
-            echo -e "${YELLOW}  pip install -r requirements.txt${NC}"
+            echo -e "${CYAN}  source ${VENV_DIR}/bin/activate${NC}"
+            echo -e "${CYAN}  pip install -r requirements.txt${NC}"
             INSTALL_SUCCESS=false
         fi
     fi
@@ -102,7 +102,6 @@ fi
 # ----------------------------------------------------------------------------- 
 # 5. Verify Google Chrome, Chromium, or Firefox
 # ----------------------------------------------------------------------------- 
-sleep 0.5
 any_browser_installed=false
 if command -v google-chrome-stable &> /dev/null; then
     echo -e "${GREEN}✓ Google Chrome is installed${NC}"
@@ -121,9 +120,9 @@ fi
 
 if [ "$any_browser_installed" = false ]; then
     echo -e "${RED}No supported browser found! Install one of:${NC}"
-    echo -e "${YELLOW}    sudo apt install -y google-chrome-stable${NC}"
-    echo -e "${YELLOW}    sudo apt install -y chromium${NC}"
-    echo -e "${YELLOW}    sudo apt install -y firefox${NC}"
+    echo -e "${CYAN}    sudo apt install -y google-chrome-stable${NC}"
+    echo -e "${CYAN}    sudo apt install -y chromium${NC}"
+    echo -e "${CYAN}    sudo apt install -y firefox${NC}"
 fi
 # ----------------------------------------------------------------------------- 
 # 6: Rename .env.example to .env
@@ -133,11 +132,11 @@ if [ -f ".env.example" ]; then
     if [ -f ".env" ]; then
         echo -e "${GREEN}✓ .env already exists. Skipping...${NC}"
     else
-        echo -e "${YELLOW}Renaming .env.example to .env...${NC}"
+        echo -e "\n${YELLOW}Renaming .env.example to .env...${NC}"
         if ss_mv_if_not_exists .env.example .env; then
             echo -e "${GREEN}✓ Configuration file prepared${NC}"
-            echo -e "${YELLOW}  Please edit .env to set your UniFi Protect credentials.${NC}"
-            echo -e "${YELLOW}  You can do so with the command: nano .env\n${NC}"
+            echo -e "${CYAN}  Please edit .env to set your UniFi Protect credentials.${NC}"
+            echo -e "${CYAN}  You can do so with the command: nano .env${NC}"
         else
             echo -e "${RED}Failed to rename .env.example file!${NC}"
             exit 1
@@ -156,7 +155,7 @@ if [ -f "config.ini.example" ]; then
     if [ -f "config.ini" ]; then
         echo -e "${GREEN}✓ config.ini already exists. Skipping...${NC}"
     else
-        echo -e "${YELLOW}Renaming config.ini.example to config.ini...${NC}"
+        echo -e "\n${YELLOW}Renaming config.ini.example to config.ini...${NC}"
         if ss_mv_if_not_exists config.ini.example config.ini; then
             echo -e "${GREEN}✓ Configuration file prepared${NC}"
         else
@@ -176,7 +175,7 @@ if [[ -d "$HOME/Desktop" ]]; then
   SHORTCUT_DIR="$HOME/Desktop"
   SHORTCUT_PATH="$SHORTCUT_DIR/Viewport.desktop"
 else
-echo -e "${YELLOW}No desktop directory found; skipping shortcut creation.${NC}"
+echo -e "${RED}No desktop directory found; skipping shortcut creation.${NC}"
 fi
 OVERRIDE_SHORTCUT=false
 for arg in "$@"; do
@@ -205,18 +204,18 @@ EOL
 }
 if [[ -e "$SHORTCUT_PATH" ]]; then
   if $OVERRIDE_SHORTCUT; then
-    echo -e "${YELLOW}Shortcut already exists at $SHORTCUT_PATH, overwriting...${NC}"
+    echo -e "\n${YELLOW}Shortcut already exists at $SHORTCUT_PATH, overwriting...${NC}"
     _create_shortcut
   else
-    echo -e "${GREEN}✓ Desktop Shortcut already exists, skipping...${NC}"
-    echo -e "${GREEN}✓ To override it, run:${NC}${YELLOW} ./setup.sh -s${NC}"
+    echo -e "${GREEN}✓ Desktop Shortcut already exists. Skipping...${NC}"
+    echo -e "${GREEN}✓ To override it, run:${NC}${CYAN} ./setup.sh -s${NC}"
   fi
 elif [[ -e "$SHORTCUT_DIR" ]]; then
   if $OVERRIDE_SHORTCUT; then
-    echo -e "${YELLOW}Creating shortcut without prompt (override flag given)${NC}"
+    echo -e "\n${YELLOW}Creating shortcut without prompt (override flag given)${NC}"
     _create_shortcut
   else
-    echo -ne "${YELLOW}\nWould you like to create a desktop shortcut for FakeViewport (y/n)? ${NC}"
+    echo -ne "\n${YELLOW}Would you like to create a desktop shortcut for FakeViewport (y/n)? ${NC}"
     read -r reply
     if [[ "$reply" =~ ^[Yy]([Ee][Ss])?$ ]]; then
       _create_shortcut
@@ -234,7 +233,7 @@ ALIAS_NAME="viewport"
 if grep -q "alias $ALIAS_NAME=" ~/.bashrc 2>/dev/null || grep -q "alias $ALIAS_NAME=" ~/.zshrc 2>/dev/null; then
     echo -e "${GREEN}✓ Alias '$ALIAS_NAME' already exists. Skipping...${NC}"
 else
-    echo -e "${YELLOW}Adding alias '$ALIAS_NAME' to your shell configuration...${NC}"
+    echo -e "\n${YELLOW}Adding alias '$ALIAS_NAME' to your shell configuration...${NC}"
     # Add the alias to ~/.bashrc or ~/.zshrc
     if [ -f ~/.bashrc ]; then
         echo "alias $ALIAS_NAME='$VENV_PYTHON $SCRIPT_PATH'" >> ~/.bashrc
@@ -258,7 +257,7 @@ cron_entry="@reboot sleep 60 && $VENV_PYTHON $SCRIPT_PATH"
 if crontab -l 2>/dev/null | grep -Fxq "$cron_entry"; then
     echo -e "${GREEN}✓ Startup cron job already exists. Skipping...${NC}"
 else
-    echo -ne "${YELLOW}Do you want to set up the script to run automatically at startup using cron? (y/n):${NC} " 
+    echo -ne "\n${YELLOW}Do you want to set up the script to run automatically at startup using cron? (y/n):${NC} " 
     read -r setup_cron
     if [[ "$setup_cron" =~ ^[Yy]([Ee][Ss])?$ ]]; then
         (crontab -l 2>/dev/null; echo "$cron_entry") | crontab -
