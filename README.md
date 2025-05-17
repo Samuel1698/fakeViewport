@@ -1,4 +1,6 @@
+<!-- [START BADGES] -->
 [![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg?branch=snapshot)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
+<!-- [END BADGES] -->
 
 # SNAPSHOT
 You are currently seeing the snapshot branch. This is where I make rapid changes and experiment with new code. If this branch is ahead of main, it is most likely broken. 
