@@ -5,6 +5,28 @@ and "🔥" indicates a non-breaking change.
 
 ---
 
+## ✨🔥🐛 v2.2.3: Minimize and Uninstall script
+
+### ✨ Added
+- `minimize.sh` will delete all development and test related files, as well as all files ending in `.md` to declutter install folder.
+Same as downloading the `minimal` version from the [release](https://github.com/Samuel1698/fakeViewport/releases).
+- `uninstall.sh` will remove the modifications the script makes outside the install folder:
+    - Removes cron job if present
+    - Removes alias in bashrc/zshrc if present
+    - Removes Desktop shortcut if present
+    - Removes all files from the directory except `.env` (in case you want a fresh re-install and want to keep the credentials and url saved.)
+### 🔥Changed
+- `setup.sh` optionally sets up a cronjob to automatically start the script on startup.
+- `setup.sh` Now has a 250ms delay between each check because I didn't like how fast it spammed the console. If a change is about to be made it prints a new line before to separate it from successful checks.
+### 🐛 Fixed
+- Moving the `restart_scheduler` logic to `handle_view` made it so that the crash detection would erroneously trigger on a restart and override the script start time. `handle_restart` now writes to a temporary file `api/.restart` that gets checked by the crash detection logic to determined if the script restarted or not.
+- Fix execution of `browser_handler` last retry attempt.  
+
+
+**[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.2.2...v2.2.3)**
+
+---
+
 ## 🔥🐛 v2.2.2: Browser Handler improvements
 
 ### 🔥 Changed

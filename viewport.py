@@ -43,7 +43,7 @@ from css_selectors import (
 # -------------------------------------------------------------------
 _mod = sys.modules[__name__]
 driver = None # Declare it globally so that it can be accessed in the signal handler function
-viewport_version = "2.2.2"
+viewport_version = "2.2.3"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
 # Directory and file paths
 _base = Path(__file__).parent
@@ -680,6 +680,11 @@ def browser_handler(url):
     retry_count = 0
     max_retries = MAX_RETRIES
     while retry_count < max_retries:
+        # Kill before the last retry to give it a clean slate
+        if retry_count == max_retries - 1:
+            logging.info(f"Killing existing {BROWSER} processes before final attempt...")
+            process_handler(BROWSER, action="kill")
+        
         try:
             driver_path = get_driver_path(BROWSER, timeout=WAIT_TIME)
             if BROWSER in ("chrome", "chromium"):
@@ -758,11 +763,8 @@ def browser_handler(url):
             log_error(f"Error starting {BROWSER}: ", e)
             api_status(f"Error Starting {BROWSER}")
         retry_count += 1
-        logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
-        # If this is the final attempt, kill all existing browser processes
-        if retry_count == max_retries:
-            logging.info(f"Killing existing {BROWSER} processes...")
-            process_handler(BROWSER, action="kill")
+        if retry_count < max_retries:
+            logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
     log_error(f"Failed to start {BROWSER} after maximum retries.")
     logging.info(f"Starting Script again in {int(SLEEP_TIME/2)} seconds.")
     api_status(f"Restarting Script in {int(SLEEP_TIME/2)} seconds.")
@@ -791,6 +793,9 @@ def restart_handler(driver):
     try:
         # notify API & shut down driver if present
         api_status("Restarting script...")
+        # Mark a restart intent
+        with open(restart_file, "w") as f:
+            f.write("1")
         if driver is not None:
             driver.quit()
         time.sleep(2)
@@ -1227,6 +1232,7 @@ def main():
     logging.info(f"===== Fake Viewport {viewport_version} =====")
     if API: api_handler()
     api_status("Starting...")
+    intentional_restart = restart_file.exists()
     # Inspect SST File
     sst_exists = sst_file.exists()
     sst_size   = sst_file.stat().st_size if sst_exists else 0
@@ -1234,9 +1240,10 @@ def main():
     # Check existence of another running instance of viewport.py
     # Used to determine if the previous process likely crashed based on sst file content
     other_running = process_handler("viewport.py", action="check")
-    crashed = (not other_running) and sst_non_empty
-    # Check and kill any existing instance of viewport.py
+    crashed = (not other_running) and sst_non_empty and not intentional_restart
+    # Check and kill any existing instance of viewport.py and reset the restart_file flag
     if other_running: process_handler("viewport.py", action="kill")
+    if restart_file.exists(): restart_file.unlink()
     # Write the start time to the SST file
     # Only if it's empty or if a crash likely happened
     if sst_size == 0 or crashed:

@@ -1,0 +1,53 @@
+name: Update README Badges
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-badges:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Remove SNAPSHOT Warning and Replace Badges
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const file = 'README.md';
+            let md = fs.readFileSync(file, 'utf8');
+            md = md.replace(
+              /# SNAPSHOT[\s\S]*?for a stable version of the code\.\n+---\s*/m,
+              ''
+            );
+
+            const badges = `
+            [![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
+            [![CodeQL](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml)
+            [![codecov](https://codecov.io/github/Samuel1698/fakeViewport/graph/badge.svg?token=mPKJSAYXH5)](https://codecov.io/github/Samuel1698/fakeViewport)
+            `;
+            
+            const regionRe = /<!-- \[START BADGES\] -->[\s\S]*?<!-- \[END BADGES\] -->/gm;
+              md = md.replace(
+                regionRe,
+                `<!-- [START BADGES] -->\n${badges}\n<!-- [END BADGES] -->`
+              );
+            fs.writeFileSync(file, md);
+
+      - name: Commit & push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Update README" || echo "No changes to commit"
+          git push

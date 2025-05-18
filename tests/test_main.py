@@ -37,18 +37,14 @@ def test_timed_rotating_file_handler_isolated(tmp_path, monkeypatch, isolate_log
 # Test main function
 # ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
-    "sst_exists,sst_size,other_running,expected_kill,expected_write",
+    "sst_exists,sst_size,other_running,restart_flag_exists,expected_kill,expected_write",
     [
-        # 1) first-ever run: no file                     -> Expect write   
-        (False, 0,    False, False, True),
-        # 2) file exists but empty                       -> Expect Write
-        (True,  0,    False, False, True),
-        # 3) crash-recovery: stale SST, no other process -> Expect Write  
-        (True,  123,  False, False, True),
-        # 4) normal restart: SST present + old process   -> Don't Write
-        (True,  123,  True,  True,  False),
-        # 5) Edge case Restart: SST Present, no size + Old process -> Write
-        (True,  0,  True,  True,  True),
+        # sst_exists, sst_size, other_running, restart_flag, kill?, write?
+        (False,  0,    False, False, False, True),   # first-ever run
+        (True,   0,    False, False, False, True),   # empty SST
+        (True,   123,  False, False, False, True),   # crash recovery
+        (True,   123,  True,  True,  True,  False),  # normal restart
+        (True,   0,    True,  False, True,  True),   # edge: interval + running
     ],
 )
 @patch("viewport.args_handler", return_value="continue")
@@ -66,27 +62,34 @@ def test_main_various(
     mock_api_handler,
     mock_process,
     mock_args,
+    tmp_path,
     sst_exists,
     sst_size,
     other_running,
+    restart_flag_exists,
     expected_kill,
     expected_write,
 ):
     # Arrange
     viewport.API = False
     dummy_driver = object()
-    # Arrange SST file to match parameters
+
+    # Set up the SST file
     if not sst_exists:
-        # remove it so exists() → False
         viewport.sst_file.unlink(missing_ok=True)
     else:
-        # ensure it exists with exactly sst_size bytes
-        data = "" if sst_size == 0 else "x" * sst_size
-        viewport.sst_file.write_text(data)
+        viewport.sst_file.write_text("" if sst_size == 0 else "x" * sst_size)
 
+    # Stub out the .restart file
+    if restart_flag_exists:
+        viewport.restart_file.write_text("1")
+    else:
+        viewport.restart_file.unlink(missing_ok=True)
+        
+    # Stub out browser launch
     mock_chrome.return_value = dummy_driver
 
-    # process_handler: check → other_running; kill → None
+    # Control process_handler behavior
     def proc_side_effect(name, action="check"):
         if name == "viewport.py" and action == "check":
             return other_running
@@ -96,37 +99,42 @@ def test_main_various(
     # Act
     viewport.main()
 
-    # the test stub passes whatever args_handler gets, so just check it got called
-    mock_args.assert_called_once()
-    # process_handler('viewport.py','check') always happens
-    mock_process.assert_any_call('viewport.py', action="check")
+    # Assert
+    # restart flag should always be removed
+    assert not viewport.restart_file.exists(), "api/.restart was not cleaned up"
 
-    # kill only if expected_kill
+    # args_handler must be called
+    mock_args.assert_called_once()
+
+    # we always check for an existing process
+    mock_process.assert_any_call("viewport.py", action="check")
+
+    # kill logic
     kill_calls = [
         c for c in mock_process.call_args_list
-        if c.kwargs.get('action') == "kill"
+        if c.kwargs.get("action") == "kill"
     ]
     if expected_kill:
         assert kill_calls, "Expected a kill() call but none occurred"
     else:
         assert not kill_calls, f"Did not expect kill(), but got: {kill_calls}"
 
-    # SST write only if expected_write
+    # SST write logic
     if expected_write:
-        mock_open_file.assert_called_once_with(viewport.sst_file, 'w')
+        mock_open_file.assert_called_once_with(viewport.sst_file, "w")
         handle = mock_open_file()
         handle.write.assert_called_once()
     else:
         mock_open_file.assert_not_called()
 
-    # Chrome launched
+    # browser + thread
     mock_chrome.assert_called_once_with(viewport.url)
-    # handle_view should be spun up as before
     mock_thread.assert_any_call(
         target=viewport.handle_view,
         args=(dummy_driver, viewport.url)
     )
-    # no API logic here
+
+    # no API server, but startup status
     mock_api_handler.assert_not_called()
     mock_api_status.assert_called_with("Starting...")
 
