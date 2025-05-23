@@ -14,14 +14,12 @@ Check the [latest release](https://github.com/Samuel1698/fakeViewport/releases) 
 
 Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. With this setup, you can automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
 
-**Already running the script and want to update it? Check the [changelog](https://github.com/Samuel1698/fakeViewport/blob/main/CHANGELOG.md) for breaking changes.**
-
 
 <!-- markdownlint-disable no-inline-html -->
 <table><tr>
 <td>Jump</td>
 <td><a href="#Installation">🗃️ Download</a></td>
-<td><a href="#Usage">❓ How To Use</a></td>
+<td><a href="#usage">❓ How To Use</a></td>
 <td><a href="#why">💭 Why Choose This?</a></td>
 <td><a href="https://github.com/Samuel1698/fakeViewport/releases">🎉 Latest Release</a></td>
 </tr><tr>
@@ -29,7 +27,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 <td><a href="CHANGELOG.md">📋 Changelog</a></td>
 <td><a href="#Update">🚀 Updating</a></td>
 <td><a href="#Uninstalling">❌ Uninstall</a></td>
-<td><a href="https://github.com/Samuel1698/fakeViewport/blob/snapshot/CONTRIBUTING.md">🤗 Contribute</a></td>
+<td><a href="#show">🖼️ Showcase</a></td>
 
 </tr></table>
 
@@ -161,7 +159,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 
 ---
 
-## Usage
+## <a name="usage"></a>How To Use
    If running remotely or in a detached session (so you can close the terminal without stopping the script), use the `-b` or `--background` argument:
    ```bash
    viewport -b
@@ -176,19 +174,24 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ```bash
    venv/bin/python3 viewport.py
    ```
-   or by activating the virtual environment and running it with python3:
+   Alternatively, you can activate the virtual environment and run it with python3:
    ```bash
    source venv/bin/activate
    python3 viewport.py
+   ```
+   Most convenient way is to use the alias. Run `./setup.sh` and then reload the shell:
+   ```bash
+   source ~/.bashrc
+   ```
+   or
+   ```bash
+   source ~/.zshrc
    ```
 
 ### Stopping the Script
 If the script is running and you cannot use `CTRL+C` to stop it, you can call the script with the `-q` argument: 
 ```bash
 viewport -q
-```
-```bash
-python3 viewport.py -q
 ```
 or manually kill the process with pgrep:
 ```bash
@@ -214,13 +217,15 @@ If you wish to remove all the files and changes this script makes, run the `unin
 
 It does the following:
    - Removes cron job if present
-   - Removes alias in bashrc/zshrc if present
+   - Removes alias entry in the .bashrc/.zshrc files
    - Removes Desktop shortcut if present
    - Removes all files from the directory except `.env` (in case you want a fresh re-install and want to keep the credentials and url saved.)
 
 ```shell
 ./uninstall.sh
 ```
+Because this script executes in a child shell, it cannot reload the parent shell, and the alias persists. Manually type:
+`unalias viewport` after running the uninstall script.
 
 ---
 
@@ -275,25 +280,49 @@ These endpoints display raw data, meant to be integrated into a third party tool
 
 Because this script simply displays the live view on a webpage, it has several advantages to running it over a TV App or even a real Viewport. Below is a comparison of it's advantages and disadvantages:
 
-### Advantages:
-  - **✔ Vintage Point Support** - Display several consoles' cameras in a single view. 
-  - **✔ Fully Customizable** - Adjust layout, use Enhanced Encoding,  
-  - **✔ Cost Effective** - Less than $50 **total** as opposed to $100-$200+
-  - **✔ 4K Streaming** - Some native TV Apps cannot display 4K cameras.
-  - **✔ WiFi Compatible** - Viewport requires wired connection.
-  - **✔ No Vendor Lock-in** - AppleTV requiers an AppleID to use.
-  - **✔ Local & Private** - No cloud dependency; runs entirely on your local network.
+### ✔ Advantages:
+  - **Vintage Point Support** - Display several consoles' cameras in a single view.
+  - **Fully Customizable** - Adjust layout, use Enhanced Encoding.
+  - **Cost Effective** - Less than $50 **total** as opposed to $100-$200+
+  - **4K Streaming** - Some native TV Apps cannot display 4K cameras.
+  - **WiFi Compatible** - Viewport requires wired connection.
+  - **No Vendor Lock-in** - AppleTV requiers an AppleID to use.
+  - **Local & Private** - No cloud dependency; runs entirely on your local network.
+  - **360 Camera Support** - Protect Viewport does not support dewarping 360 camera feeds into separate views.
 
-### Limitations:
-  - **⚠ Initial Setup Required** – More configuration than plug-and-play alternatives
-  - **⚠ Limited Camera Controls** – No native PTZ/zoom controls (unless using a wireless mouse)
-  - **⚠ Larger Footprint** – Slightly bulkier than some devices (but easily hidden behind a TV/monitor)
-  
+### ⚠ Limitations:
+  - **Initial Setup Required** – More configuration than plug-and-play alternatives
+  - **Limited Camera Controls** – No native PTZ/zoom controls (unless using a wireless mouse)
+  - **Larger Footprint** – Slightly bulkier than some devices (but easily hidden behind a TV/monitor)
+
+---
+
+## <a name="show"></a>Showcase
+<img width="466" alt="Console showing viewport -s output" src="https://github.com/user-attachments/assets/f80ae222-874c-4ffe-8327-67134a5c97a4" />
+
+<sup>`viewport -s` output</sup>
+
+<img width="623" alt="thinclient" src="https://github.com/user-attachments/assets/cc81774c-303d-4501-991b-0365496e66b8" />
+
+<sup>Initial install behind TV</sup>
+
+<img width="554" alt="Full Setup" src="https://github.com/user-attachments/assets/fc5dc452-bed7-4399-9604-538c25436fa5" />
+
+<sup>Setup at my parent's house—blurred for privacy</sup>
+
+<img width="600" alt="Viewport Control Panel" src="https://github.com/user-attachments/assets/8caa3576-d761-46d3-9bf4-3eb30618fc03" />
+
+<sup>Control Panel</sup>
+
+<img width="508" alt="Logfile" src="https://github.com/user-attachments/assets/bd82741b-f278-4219-a376-03ac1fe0dc86" />
+
+<sup>Logfile output from the Control Dashboard</sup>
+
 ---
 
 ## Notes
 
 - The thin clients used in this setup only have DisplayPort outputs. Ensure your monitor or TV supports DisplayPort, or use a compatible adapter.
-- The tested Thin Clients do not include built-in WiFi antennas. However, you can use a USB WiFi adapter to connect wirelessly, provided your network has sufficient bandwidth for the video streams.
+- The tested Thin Clients do not include built-in WiFi antennas. However, you can use a USB WiFi adapter to connect wirelessly. Some thin clients do include wifi.
 
 ---
