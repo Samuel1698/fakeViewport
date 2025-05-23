@@ -10,8 +10,6 @@ Check the [latest release](https://github.com/Samuel1698/fakeViewport/releases) 
 
 ---
 
-
-
 # Fake Viewport
 
 Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. With this setup, you can automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
@@ -24,14 +22,16 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 <td>Jump</td>
 <td><a href="#Installation">🗃️ Download</a></td>
 <td><a href="#Usage">❓ How To Use</a></td>
+<td><a href="#why">💭 Why Choose This?</a></td>
 <td><a href="https://github.com/Samuel1698/fakeViewport/releases">🎉 Latest Release</a></td>
 </tr><tr>
 <td><a href="#API">🌐 API</a></td>
 <td><a href="CHANGELOG.md">📋 Changelog</a></td>
 <td><a href="#Update">🚀 Updating</a></td>
 <td><a href="#Uninstalling">❌ Uninstall</a></td>
-</tr></table>
+<td><a href="https://github.com/Samuel1698/fakeViewport/blob/snapshot/CONTRIBUTING.md">🤗 Contribute</a></td>
 
+</tr></table>
 
 ---
 
@@ -49,6 +49,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 - Logs output of the terminal to logs/viewport.log for troubleshooting or checking status remotely.
 - Optional API integration for remote monitoring (e.g., with [Rainmeter](https://www.rainmeter.net/)).
 - API features a simple and lightweight `Viewport Control` webpage capable of displaying status of the script as well as sending commands to `Start`, `Quit`, or `Restart`. 
+
 ---
 
 ## Requirements
@@ -157,6 +158,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ```
 
    If you chose to install the desktop shortcut during setup, simply click on it.
+
 ---
 
 ## Usage
@@ -194,6 +196,8 @@ ps aux | grep viewport.py
 kill <pid>
 ```
 
+---
+
 ## Update
 If you're running an older version of the script, the easiest way to update is by running `git pull` inside the `fakeViewport` directory. If you downloaded a release manually, you can grab the latest version and unzip it over your current setup.
 
@@ -202,6 +206,8 @@ Any breaking changes will be clearly marked with a 💥 in the release notes and
 If Ubiquiti changes their page layout and breaks the script, I'll usually just update `css_selectors.py`. A quick `git pull` will be enough to get that fix, even if you're using the `minimal` or `no-api` version.
 
 In the future, I might add an “Update” button to the dashboard itself (see [Issue #27](https://github.com/Samuel1698/fakeViewport/issues/27) for progress)
+
+---
 
 ## Uninstalling
 If you wish to remove all the files and changes this script makes, run the `uninstall.sh` script. Make sure you do run it in the `fakeViewport` directory.
@@ -215,6 +221,8 @@ It does the following:
 ```shell
 ./uninstall.sh
 ```
+
+---
 
 ## API
 The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, run `viewport -a` to toggle the API. You can access the script's status remotely (with appropriate network permissions) by navigating to the Thin Client's IP address in your browser. For example: `http://[machine's IP]:5000`
@@ -261,6 +269,26 @@ These endpoints display raw data, meant to be integrated into a third party tool
    - Timestamp of when the system was turned on
 ```
 
+---
+
+## <a name="why"></a>Why Choose This?
+
+Because this script simply displays the live view on a webpage, it has several advantages to running it over a TV App or even a real Viewport. Below is a comparison of it's advantages and disadvantages:
+
+### Advantages:
+  - **✔ Vintage Point Support** - Display several consoles' cameras in a single view. 
+  - **✔ Fully Customizable** - Adjust layout, use Enhanced Encoding,  
+  - **✔ Cost Effective** - Less than $50 **total** as opposed to $100-$200+
+  - **✔ 4K Streaming** - Some native TV Apps cannot display 4K cameras.
+  - **✔ WiFi Compatible** - Viewport requires wired connection.
+  - **✔ No Vendor Lock-in** - AppleTV requiers an AppleID to use.
+  - **✔ Local & Private** - No cloud dependency; runs entirely on your local network.
+
+### Limitations:
+  - **⚠ Initial Setup Required** – More configuration than plug-and-play alternatives
+  - **⚠ Limited Camera Controls** – No native PTZ/zoom controls (unless using a wireless mouse)
+  - **⚠ Larger Footprint** – Slightly bulkier than some devices (but easily hidden behind a TV/monitor)
+  
 ---
 
 ## Notes
