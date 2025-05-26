@@ -1,21 +1,12 @@
 #!/usr/bin/venv python3
-import os
-import psutil
-import sys
-import time
-import argparse
-import signal
-import subprocess
-import math
-import threading
-import logging
-import concurrent      
-from logging_config            import configure_logging
-from validate_config           import validate_config
-from pathlib                   import Path
-from datetime                  import datetime, timedelta
-from webdriver_manager.chrome  import ChromeDriverManager
-from webdriver_manager.firefox import GeckoDriverManager
+import os, psutil, sys, time, argparse, signal, subprocess
+import math, threading, logging, concurrent
+from logging_config                      import configure_logging
+from validate_config                     import validate_config
+from pathlib                             import Path
+from datetime                            import datetime, timedelta
+from webdriver_manager.chrome            import ChromeDriverManager
+from webdriver_manager.firefox           import GeckoDriverManager
 from webdriver_manager.core.os_manager   import ChromeType
 from selenium                            import webdriver
 from selenium.webdriver.chrome.service   import Service
@@ -44,7 +35,6 @@ from css_selectors import (
 # -------------------------------------------------------------------
 _mod = sys.modules[__name__]
 driver = None # Declare it globally so that it can be accessed in the signal handler function
-viewport_version = "2.2.4"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
 # Directory and file paths
 _base = Path(__file__).parent
@@ -52,6 +42,8 @@ config_file = _base / 'config.ini'
 env_file    = _base / '.env'
 logs_dir    = _base / 'logs'
 api_dir     = _base / 'api'
+ver_file    = api_dir / 'VERSION'
+__version__ = ver_file.read_text().strip()
 # Initial non strict config parsing
 cfg = validate_config(strict=False, print=False)
 for name, val in vars(cfg).items():
@@ -69,7 +61,7 @@ NC="\033[0m"
 def args_helper():
     # Parse command-line arguments for the script.
     parser = argparse.ArgumentParser(
-        description=f"{YELLOW}===== Fake Viewport {viewport_version} ====={NC}"
+        description=f"{YELLOW}===== Fake Viewport {__version__} ====={NC}"
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -523,7 +515,7 @@ def status_handler():
             next = f"{GREEN}{sc}s{NC}"
         next_str = next if uptime else f"{RED}Not Running{NC}"
         # Printing
-        print(f"{YELLOW}======= Fake Viewport {viewport_version} ========{NC}")
+        print(f"{YELLOW}======= Fake Viewport {__version__} ========{NC}")
         print(f"{CYAN}Script Uptime:{NC}      {uptime_str}")
         print(f"{CYAN}Monitoring API:{NC}     {monitoring_str}")
         print(f"{CYAN}Next Health Check:{NC}  {next_str}")
@@ -1246,7 +1238,7 @@ def main():
     cfg = validate_config()
     for name, val in vars(cfg).items():
         setattr(_mod, name, val)
-    logging.info(f"===== Fake Viewport {viewport_version} =====")
+    logging.info(f"===== Fake Viewport {__version__} =====")
     if API: api_handler()
     api_status("Starting...")
     intentional_restart = restart_file.exists()

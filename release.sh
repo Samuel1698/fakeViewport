@@ -21,6 +21,7 @@ git archive \
   HEAD \
     viewport.py \
     monitoring.py \
+    update.py \
     logging_config.py \
     validate_config.py \
     css_selectors.py \
@@ -28,6 +29,7 @@ git archive \
     minimize.sh \
     uninstall.sh \
     requirements.txt \
+    api/VERSION \
     templates/ \
     static/main-min.js \
     static/main.css \
@@ -49,6 +51,7 @@ git archive \
     minimize.sh \
     uninstall.sh \
     requirements.txt \
+    api/VERSION \
     config.ini.example \
     .env.example
 

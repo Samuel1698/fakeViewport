@@ -33,7 +33,7 @@ def isolate_all_files(tmp_path, monkeypatch):
 def default_status_env(monkeypatch):
     # Monkey-patch all of the module-level globals that status_handler expects
     # so tests can drop them in by just requesting this fixture.
-    monkeypatch.setattr(viewport, "viewport_version", "1.2.3",        raising=False)
+    monkeypatch.setattr(viewport, "__version__", "1.2.3",             raising=False)
     monkeypatch.setattr(viewport, "SLEEP_TIME",      10,              raising=False)
     monkeypatch.setattr(viewport, "LOG_INTERVAL",    5,               raising=False)
     monkeypatch.setattr(viewport, "RESTART_TIMES",   [],              raising=False)

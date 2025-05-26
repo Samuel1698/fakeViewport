@@ -18,6 +18,7 @@ from flask import (
 from flask_cors import CORS
 from collections import deque
 import viewport
+import update 
 from logging_config import configure_logging
 from validate_config import validate_config, AppConfig
 from dotenv import load_dotenv, find_dotenv
@@ -155,7 +156,28 @@ def create_app():
         except Exception as e:
             app.logger.exception("Failed to dispatch control command")
             return jsonify(status="error", message="Failed to dispatch control command"), 500
+    # ----------------------------------------------------------------------------- 
+    # Update
+    # ----------------------------------------------------------------------------- 
+    @app.route("/update")
+    def api_update_info():
+        try:
+            return jsonify(status="ok", data={
+                "current": update.current_version(),
+                "latest":  update.latest_version(),
+            })
+        except Exception as e:
+            app.logger.exception("version check failed")
+            return jsonify(status="error", message=str(e)), 500
 
+    @app.route("/update/apply", methods=["POST"])
+    @login_required
+    def api_update_apply():
+        # ignore any prefer_git flag—perform_update now always
+        # tries git first (if clean) then falls back to tar
+        outcome = update.perform_update()
+        return jsonify(status="ok", data={"outcome": outcome}), 202
+    # ----------------------------------------------------------------------------- 
     @app.route("/api")
     @app.route("/api/")
     def api_index():
