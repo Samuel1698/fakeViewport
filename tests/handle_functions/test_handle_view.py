@@ -624,3 +624,42 @@ def test_handle_view_scheduled_restart_not_due_does_not_call_restart(
         viewport.handle_view(driver, url)
 
     mock_restart.assert_not_called()
+
+@patch("viewport.time.sleep", side_effect=BreakLoop)                           
+@patch("viewport.get_next_interval", return_value=time.time())
+@patch("viewport.check_unable_to_stream", return_value=False)
+@patch("viewport.api_status")
+@patch("viewport.handle_elements")
+@patch("viewport.handle_loading_issue")
+@patch("viewport.handle_fullscreen_button", return_value=True)
+@patch("viewport.WebDriverWait")
+@patch("viewport.check_driver", return_value=True)
+@patch("viewport.handle_page", return_value=True)
+def test_handle_view_no_elements_when_hide_cursor_false(
+    mock_handle_page,
+    mock_check_driver,
+    mock_wdw,
+    mock_fullscreen_btn,
+    mock_loading_issue,
+    mock_handle_elements,
+    mock_api_status,
+    mock_check_unable,
+    mock_next_interval,
+    mock_sleep,
+    monkeypatch,
+):
+    # Disable cursor-hiding
+    monkeypatch.setattr(viewport, "HIDE_CURSOR", False)
+
+    # Minimal driver stub
+    driver = MagicMock()
+    driver.execute_script.side_effect = [None, 1920, 1080]
+    driver.get_window_size.return_value = {"width": 1920, "height": 1080}
+
+    fake_wait = MagicMock(); fake_wait.until.return_value = True
+    mock_wdw.return_value = fake_wait
+
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, "http://example.com")
+
+    mock_handle_elements.assert_not_called()
