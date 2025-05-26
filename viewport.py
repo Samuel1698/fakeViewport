@@ -23,6 +23,7 @@ from selenium.webdriver.chrome.options   import Options
 from selenium.webdriver.firefox.service  import Service as FirefoxService
 from selenium.webdriver.firefox.options  import Options as FirefoxOptions
 from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
+from selenium.webdriver.common.keys      import Keys
 from selenium.webdriver.common.by        import By
 from selenium.webdriver.common.action_chains    import ActionChains
 from selenium.webdriver.support.ui       import WebDriverWait
@@ -891,6 +892,22 @@ def check_unable_to_stream(driver):
 # Interactive Functions for main logic
 # These functions directly interact with the webpage
 # ----------------------------------------------------------------------------- 
+def handle_clear(driver, element):
+    # Wipes a text-input even when the browser/password-manager has
+    # pre-filled it.  Works around the fact that WebElement.clear()
+    # often leaves the text selected but still present.
+
+    # • element.clear() ................  normal Selenium clear  
+    # • JS “value = ''” ................. brute-force fallback  
+    # • CTRL/⌘ + A → DEL ............... belt-and-suspenders  
+    try:
+        element.clear()
+        driver.execute_script("arguments[0].value = '';", element)
+        element.send_keys(Keys.CONTROL, "a", Keys.DELETE)
+    except Exception:
+        # Best-effort – if this fails the subsequent send_keys will
+        # still overwrite the field in most cases.
+        pass
 def handle_elements(driver):
     # Removes ubiquiti's custom cursor from the page
     driver.execute_script("""
@@ -988,7 +1005,7 @@ def handle_login(driver):
         username_field = WebDriverWait(driver, WAIT_TIME).until(
             EC.element_to_be_clickable((By.NAME, 'username'))
         )
-        username_field.clear()
+        handle_clear(driver, username_field)
         username_field.send_keys(username)
         # Add small delay between fields (sometimes needed)
         time.sleep(0.5)
@@ -996,7 +1013,7 @@ def handle_login(driver):
         password_field = WebDriverWait(driver, WAIT_TIME).until(
             EC.element_to_be_clickable((By.NAME, 'password'))
         )
-        password_field.clear()
+        handle_clear(driver, password_field)
         password_field.send_keys(password)
         # Add another small delay before submitting
         time.sleep(0.5)
