@@ -362,9 +362,9 @@ def test_handle_view_offline_branch(
         ),
     ],
 )
-@patch("viewport.time.sleep")                       # we’ll configure side_effect in the test
+@patch("viewport.time.sleep")                      
 @patch("viewport.browser_restart_handler", side_effect=Exception)
-@patch("viewport.handle_retry")                     # no global exception here
+@patch("viewport.handle_retry")
 @patch("viewport.restart_handler", side_effect=Exception)
 @patch("viewport.api_status")
 @patch("viewport.log_error")
@@ -536,18 +536,18 @@ def test_handle_view_no_restart_times_does_not_call_restart(
     driver = MagicMock()
     url = "http://example.com"
 
-    # 1) No scheduled times at all
+    # No scheduled times at all
     monkeypatch.setattr(viewport, "RESTART_TIMES", [])
 
-    # 2) Our guard should skip get_next_restart altogether
-    #    so if it does get called, fail the test
+    # Our guard should skip get_next_restart altogether
+    # so if it does get called, fail the test
     monkeypatch.setattr(
         viewport,
         "get_next_restart",
         lambda now: (_ for _ in ()).throw(AssertionError("get_next_restart should not be called"))
     )
 
-    # 3) Break out of handle_view before it ever tries anything else
+    # Break out of handle_view before it ever tries anything else
     monkeypatch.setattr(
         viewport,
         "handle_page",
@@ -566,21 +566,21 @@ def test_handle_view_scheduled_restart_immediate_breaks_and_calls_restart(
     driver = MagicMock()
     url = "http://example.com"
 
-    # 1) Make it look like we do have at least one restart time
+    # Make it look like we do have at least one restart time
     monkeypatch.setattr(viewport, "RESTART_TIMES", [datetime.now().time()])
 
-    # 2) Force get_next_restart(now) == now so now >= next_run ⇒ restart branch
+    # Force get_next_restart(now) == now so now >= next_run ⇒ restart branch
     monkeypatch.setattr(
         viewport,
         "get_next_restart",
         lambda now: now
     )
 
-    # 3) Spy on restart_handler and make it raise so we can break the loop
+    # Spy on restart_handler and make it raise so we can break the loop
     mock_restart = MagicMock(side_effect=BreakLoop())
     monkeypatch.setattr(viewport, "restart_handler", mock_restart)
 
-    # 4) We let handle_page and check_driver succeed (base_setup takes care of that)
+    # We let handle_page and check_driver succeed (base_setup takes care of that)
 
     # Act
     with pytest.raises(BreakLoop):
@@ -597,10 +597,10 @@ def test_handle_view_scheduled_restart_not_due_does_not_call_restart(
     driver = MagicMock()
     url = "http://example.com"
 
-    # 1) Enable scheduling
+    # Enable scheduling
     monkeypatch.setattr(viewport, "RESTART_TIMES", [datetime.now().time()])
 
-    # 2) Return a time *in the future* so now < next_run
+    # Return a time *in the future* so now < next_run
     future = datetime.now() + timedelta(seconds=60)
     monkeypatch.setattr(
         viewport,
@@ -608,11 +608,11 @@ def test_handle_view_scheduled_restart_not_due_does_not_call_restart(
         lambda now: future
     )
 
-    # 3) Watch restart_handler so we can assert it was NOT called
+    # Watch restart_handler so we can assert it was NOT called
     mock_restart = MagicMock()
     monkeypatch.setattr(viewport, "restart_handler", mock_restart)
 
-    # 4) Break out of the loop via handle_page on its first use
+    # Break out of the loop via handle_page on its first use
     monkeypatch.setattr(
         viewport,
         "handle_page",
@@ -663,3 +663,120 @@ def test_handle_view_no_elements_when_hide_cursor_false(
         viewport.handle_view(driver, "http://example.com")
 
     mock_handle_elements.assert_not_called()
+    
+# ------------------------------------------------------------------
+# handle_view skips work while paused
+# ------------------------------------------------------------------
+@patch("viewport.handle_page",            return_value=True)
+@patch("viewport.check_driver",           return_value=True)
+@patch("viewport.check_crash",            return_value=False)
+@patch("viewport.WebDriverWait")
+@patch("viewport.handle_fullscreen_button", return_value=True)
+@patch("viewport.handle_loading_issue")
+@patch("viewport.handle_elements")
+@patch("viewport.check_unable_to_stream", return_value=False)
+@patch("viewport.get_next_interval",      return_value=time.time())
+@patch("viewport.api_status")
+def test_handle_view_pause_resume(
+    mock_api_status,
+    mock_next_interval,
+    mock_check_unable,
+    mock_handle_elements,
+    mock_loading_issue,
+    mock_fullscreen_btn,
+    mock_wdw,
+    mock_check_crash,
+    mock_check_driver,
+    mock_handle_page,
+    monkeypatch,
+    caplog
+):
+    # Stub out driver so we never hit offline/crash branches
+    driver = MagicMock()
+    # First execute_script(): offline check → None
+    # Next two: screen.width / screen.height
+    driver.execute_script.side_effect = [None, 1920, 1080]
+    driver.get_window_size.return_value = {"width": 1920, "height": 1080}
+
+    # Make pause_file.exists() return True once, then False forever
+    class DummyPause:
+        def __init__(self): self.calls = 0
+        def exists(self):
+            self.calls += 1
+            return self.calls == 1
+    monkeypatch.setattr(viewport, "pause_file", DummyPause())
+
+    # Replace time.sleep so it does nothing on first call (pause delay),
+    # then raises BreakLoop on the second call (healthy-path delay) to escape.
+    sleep_calls = []
+    def fake_sleep(sec):
+        sleep_calls.append(sec)
+        if len(sleep_calls) >= 2:
+            raise BreakLoop
+        # first call: swallow
+    monkeypatch.setattr(viewport.time, "sleep", fake_sleep)
+
+    # Run and expect our BreakLoop escape
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, "http://example.com")
+
+    # Verify logs and api_status for pause/resume :contentReference[oaicite:1]{index=1}
+    assert "Script paused; skipping health checks."  in caplog.text
+    assert "Script resumed; starting health checks again." in caplog.text
+
+    # `api_status` must have been called first with "Paused", then "Resumed"
+    calls = [args[0] for args, _ in mock_api_status.call_args_list]
+    assert calls[0] == "Paused"
+    assert calls[1] == "Resumed"
+    
+@patch("viewport.handle_page",            return_value=True)
+@patch("viewport.check_driver",           return_value=True)
+@patch("viewport.check_crash",            return_value=False)
+@patch("viewport.WebDriverWait")
+@patch("viewport.handle_fullscreen_button", return_value=True)
+@patch("viewport.handle_loading_issue")
+@patch("viewport.handle_elements")
+@patch("viewport.check_unable_to_stream", return_value=False)
+@patch("viewport.get_next_interval",      return_value=time.time())
+@patch("viewport.api_status")
+def test_handle_view_pause_branch_else(
+    mock_api_status,
+    mock_next_interval,
+    mock_check_unable,
+    mock_handle_elements,
+    mock_loading_issue,
+    mock_fullscreen_btn,
+    mock_wdw,
+    mock_check_crash,
+    mock_check_driver,
+    mock_handle_page,
+    monkeypatch,
+    caplog
+):
+    # Force “always paused”
+    class AlwaysPaused:
+        def exists(self): return True
+    monkeypatch.setattr(viewport, "pause_file", AlwaysPaused())
+
+    # Driver stub for health-check plumbing
+    driver = MagicMock()
+    driver.execute_script.side_effect = [None, 1920, 1080]
+    driver.get_window_size.return_value = {"width": 1920, "height": 1080}
+
+    # Fake sleep: 1st call → no-op (covers the if-block), 
+    #               2nd call → raise BreakLoop (covers the "else" path)
+    sleep_calls = []
+    def fake_sleep(sec):
+        sleep_calls.append(sec)
+        if len(sleep_calls) == 2:
+            raise BreakLoop()
+    monkeypatch.setattr(viewport.time, "sleep", fake_sleep)
+
+    # Run and bail out on the 2nd sleep()
+    with pytest.raises(BreakLoop):
+        viewport.handle_view(driver, "http://example.com")
+
+    # Assertions: pause log/API only once, proving we hit both 
+    # the if-block on the 1st iteration and the skip (else) on the 2nd.
+    assert caplog.text.count("Script paused; skipping health checks.") == 1
+    mock_api_status.assert_called_once_with("Paused")

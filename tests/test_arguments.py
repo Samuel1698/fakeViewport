@@ -2,7 +2,6 @@ import sys
 import pytest
 import viewport
 import subprocess
-import types
 from types import SimpleNamespace as Namespace
 from unittest.mock import MagicMock, patch, mock_open, call
 from test_config import write_base
@@ -27,7 +26,7 @@ def test_only_one_argument_allowed(monkeypatch, argv_flags):
 @patch("viewport.status_handler")
 def test_status_flag(mock_status_handler, mock_exit):
     mock_args = type("Args", (), {
-        "status": True, "logs": None, "background": False,
+        "status": True, "logs": None, "background": False, "pause": False,
         "quit": False, "diagnose": False, "api": False, "restart": False
     })()
     viewport.args_handler(mock_args)
@@ -38,7 +37,7 @@ def test_status_flag(mock_status_handler, mock_exit):
 @patch("viewport.open", new_callable=mock_open, read_data="[INFO] Something\n[WARNING] Be careful\n[ERROR] Uh oh\n")
 def test_logs_flag(mock_file, mock_exit):
     mock_args = type("Args", (), {
-        "status": False, "logs": 3, "background": False,
+        "status": False, "logs": 3, "background": False, "pause": False,
         "quit": False, "diagnose": False, "api": False, "restart": False
     })()
     with patch("viewport.print") as mock_print:
@@ -51,7 +50,7 @@ def test_logs_flag(mock_file, mock_exit):
 @patch("viewport.logging.info")
 def test_background_flag(mock_log, mock_popen, mock_exit):
     mock_args = type("Args", (), {
-        "status": False, "logs": None, "background": True,
+        "status": False, "logs": None, "background": True, "pause": False,
         "quit": False, "diagnose": False, "api": False, "restart": False
     })()
     viewport.args_handler(mock_args)
@@ -63,7 +62,7 @@ def test_background_flag(mock_log, mock_popen, mock_exit):
 @patch("viewport.process_handler")
 def test_quit_flag(mock_process_handler, mock_exit):
     mock_args = type("Args", (), {
-        "status": False, "logs": None, "background": False,
+        "status": False, "logs": None, "background": False, "pause": False,
         "quit": True, "diagnose": False, "api": False, "restart": False
     })()
     viewport.args_handler(mock_args)
@@ -77,7 +76,7 @@ def test_quit_flag(mock_process_handler, mock_exit):
 def test_diagnose_flag_success(mock_logging, mock_validate, mock_exit):
     mock_validate.return_value = True
     mock_args = type("Args", (), {
-        "status": False, "logs": None, "background": False,
+        "status": False, "logs": None, "background": False, "pause": False,
         "quit": False, "diagnose": True, "api": False, "restart": False
     })()
 
@@ -93,7 +92,7 @@ def test_diagnose_flag_success(mock_logging, mock_validate, mock_exit):
 def test_api_flag_stop_monitoring(mock_process_handler, mock_exit):
     mock_process_handler.side_effect = lambda proc, action=None: True if proc == "monitoring.py" and action == "check" else None
     mock_args = type("Args", (), {
-        "status": False, "logs": None, "background": False,
+        "status": False, "logs": None, "background": False, "pause": False,
         "quit": False, "diagnose": False, "api": True, "restart": False
     })()
     viewport.args_handler(mock_args)
@@ -114,7 +113,7 @@ def test_args_handler_api_enabled_calls_api_handler(mock_exit, monkeypatch):
 
     # Build args with api=True
     args = Namespace(
-        status=False, logs=None, background=False,
+        status=False, logs=None, background=False, pause=False,
         quit=False, diagnose=False, api=True, restart=False
     )
 
@@ -137,7 +136,7 @@ def test_args_handler_api_disabled_logs_message(mock_exit, monkeypatch, caplog):
     caplog.set_level("INFO")
 
     args = Namespace(
-        status=False, logs=None, background=False,
+        status=False, logs=None, background=False, pause=False,
         quit=False, diagnose=False, api=True, restart=False
     )
 
@@ -171,7 +170,7 @@ def test_restart_flag_when_running(monkeypatch, caplog):
     )
 
     args = Namespace(
-        status=False, logs=None, background=False,
+        status=False, logs=None, background=False, pause=False,
         quit=False, diagnose=False, api=False, restart=True
     )
 
@@ -208,7 +207,7 @@ def test_restart_flag_when_not_running(monkeypatch, caplog):
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
 
     args = Namespace(
-        status=False, logs=None, background=False,
+        status=False, logs=None, background=False, pause=False,
         quit=False, diagnose=False, api=False, restart=True
     )
 
@@ -228,7 +227,7 @@ def test_restart_flag_when_not_running(monkeypatch, caplog):
     
 def test_no_arguments_passed():
     mock_args = type("Args", (), {
-        "status": False, "logs": None, "background": False,
+        "status": False, "logs": None, "background": False, "pause": False,
         "quit": False, "diagnose": False, "api": False, "restart": False
     })()
     result = viewport.args_handler(mock_args)
@@ -249,14 +248,14 @@ def test_background_aliases_work(monkeypatch, flag):
     [
         # Drop api and logs, add --status
         (
-            {"status": False, "background": False, "restart": False, "quit": False, "api": True,  "logs": 5},
+            {"status": False, "background": False, "pause": False, "restart": False, "quit": False, "api": True,  "logs": 5},
             {"api", "logs"},
             {"status": None},
             ["--status"]
         ),
         # drop restart, add background
         (
-            {"status": False, "background": False, "restart": True,  "quit": False, "diagnose": False, "api": False, "logs": None},
+            {"status": False, "background": False, "pause": False, "restart": True,  "quit": False, "diagnose": False, "api": False, "logs": None},
             {"restart"},
             {"background": None},
             ["--background"]
@@ -270,7 +269,7 @@ def test_args_child_handler_various_cases(args_attrs, drop_flags, add_flags, exp
     assert result == expected
 def test_args_child_handler_override_list_and_single_value():
     args = type("Args", (), {
-        "status": False, "background": False, "restart": False,
+        "status": False, "background": False, "pause": False, "restart": False,
         "quit": False, "diagnose": False, "api": False, "logs": None
     })()
 
@@ -285,7 +284,7 @@ def test_args_child_handler_override_list_and_single_value():
 
 def test_args_child_handler_override_none_value():
     args = type("Args", (), {
-        "status": False, "background": False, "restart": False,
+        "status": False, "background": False, "pause": False, "restart": False,
         "quit": False, "diagnose": False, "api": False, "logs": None
     })()
 
@@ -300,7 +299,7 @@ def test_args_child_handler_override_none_value():
 
 def test_args_child_handler_add_flags_as_list_or_tuple():
     args = type("Args", (), {
-        "status": False, "background": False, "restart": False,
+        "status": False, "background": False, "pause": False, "restart": False,
         "quit": False, "diagnose": False, "api": False, "logs": None
     })()
 
@@ -317,7 +316,7 @@ def test_args_child_handler_add_flags_as_list_or_tuple():
 def test_logs_file_not_found(mock_exit):
     # Simulate open() raising FileNotFoundError in the logs branch
     mock_args = type("Args", (), {
-        "status": False, "logs": 5, "background": False,
+        "status": False, "logs": 5, "background": False, "pause": False,
         "quit": False, "diagnose": False, "api": False, "restart": False
     })()
     with patch("viewport.open", side_effect=FileNotFoundError), \
@@ -333,7 +332,7 @@ def test_logs_file_not_found(mock_exit):
 def test_logs_generic_exception(mock_log_error, mock_exit):
     # Simulate open() raising a generic Exception in the logs branch
     mock_args = type("Args", (), {
-        "status": False, "logs": 2, "background": False,
+        "status": False, "logs": 2, "background": False, "pause": False,
         "quit": False, "diagnose": False, "api": False, "restart": False
     })()
     with patch("viewport.open", side_effect=Exception("oops")):
@@ -348,7 +347,7 @@ def test_logs_generic_exception(mock_log_error, mock_exit):
 @patch("viewport.open", new_callable=mock_open, read_data="[DEBUG] debug message\n")
 def test_logs_debug_flag(mock_file, mock_exit):
     mock_args = type("Args", (), {
-        "status": False, "logs": 1, "background": False,
+        "status": False, "logs": 1, "background": False, "pause": False,
         "quit": False, "diagnose": False, "api": False, "restart": False
     })()
     with patch("viewport.print") as mock_print:
@@ -361,7 +360,7 @@ def test_logs_debug_flag(mock_file, mock_exit):
 @patch("viewport.open", new_callable=mock_open, read_data="plain line without tag\n")
 def test_logs_default_flag(mock_file, mock_exit):
     mock_args = type("Args", (), {
-        "status": False, "logs": 1, "background": False,
+        "status": False, "logs": 1, "background": False, "pause": False,
         "quit": False, "diagnose": False, "api": False, "restart": False
     })()
     with patch("viewport.print") as mock_print:
@@ -375,7 +374,7 @@ def test_logs_default_flag(mock_file, mock_exit):
 def test_api_flag_disabled(mock_info, mock_exit):
     # Simulate args.api=True but no monitoring process and API flag off
     mock_args = type("Args", (), {
-        "status": False, "logs": None, "background": False,
+        "status": False, "logs": None, "background": False, "pause": False,
         "quit": False, "diagnose": False, "api": True, "restart": False
     })()
     # ensure process_handler returns False for monitoring.py check
@@ -386,3 +385,79 @@ def test_api_flag_disabled(mock_info, mock_exit):
         "API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature."
     )
     mock_exit.assert_called_once_with(0)
+    
+def test_pause_flag_when_not_running(monkeypatch, caplog):
+    # Simulate viewport not running
+    monkeypatch.setattr(viewport, "process_handler", lambda name, action: False)
+
+    args = Namespace(
+        status=False, logs=None, background=False, pause=True,
+        quit=False, diagnose=False, api=False, restart=False
+    )
+
+    with pytest.raises(SystemExit):
+        viewport.args_handler(args)
+
+    # Should log that nothing was running, and not touch the pause file
+    assert "Fake Viewport is not running." in caplog.text
+    assert not viewport.pause_file.exists()
+
+@pytest.mark.parametrize("initial, expected_msg, expected_status", [
+    (False, "Pausing health checks.",  "Paused"),
+    (True,  "Resuming health checks.", "Resumed"),
+])
+def test_pause_flag_toggle(monkeypatch, caplog, initial, expected_msg, expected_status):
+    # Simulate viewport *is* running
+    monkeypatch.setattr(viewport, "process_handler", lambda name, action: True)
+
+    # Set up the .pause file in its initial state
+    pf = viewport.pause_file
+    if initial:
+        pf.touch()
+    else:
+        if pf.exists():
+            pf.unlink()
+
+    args = Namespace(
+        status=False, logs=None, background=False, pause=True,
+        quit=False, diagnose=False, api=False, restart=False
+    )
+
+    with pytest.raises(SystemExit):
+        viewport.args_handler(args)
+
+    # Check the right log and status
+    assert expected_msg in caplog.text
+    assert viewport.status_file.read_text() == expected_status
+
+    # And that the file was toggled
+    assert viewport.pause_file.exists() == (not initial)
+    
+
+def test_pause_flag_exception_branch(monkeypatch):
+    # Make process_handler raise, to force the exception path
+    def fake_process_handler(name, action):
+        raise RuntimeError("oh no")
+    monkeypatch.setattr(viewport, "process_handler", fake_process_handler)
+
+    # Capture calls to log_error
+    caught = []
+    monkeypatch.setattr(viewport, "log_error", lambda msg, err: caught.append((msg, err)))
+
+    # Build args with --pause
+    args = Namespace(
+        status=False, logs=None, background=False, pause=True,
+        quit=False, diagnose=False, api=False, restart=False
+    )
+
+    # Calling args_handler should sys.exit(0) after catching our error
+    with pytest.raises(SystemExit) as se:
+        viewport.args_handler(args)
+    assert se.value.code == 0
+
+    # Ensure we hit the exception branch
+    assert len(caught) == 1
+    msg, err = caught[0]
+    assert msg == "Error toggling pause state:"
+    assert isinstance(err, RuntimeError)
+    assert err.args[0] == "oh no"
