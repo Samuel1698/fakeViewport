@@ -415,8 +415,7 @@ def test_pause_flag_toggle(monkeypatch, caplog, initial, expected_msg, expected_
     if initial:
         pf.touch()
     else:
-        if pf.exists():
-            pf.unlink()
+        if pf.exists(): pf.unlink()
 
     args = Namespace(
         status=False, logs=None, background=False, pause=True,

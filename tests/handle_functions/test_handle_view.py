@@ -17,17 +17,32 @@ class BreakLoop(BaseException):
     pass
 def make_driver(window_size, screen_size, offline_status=None):
     # Returns a fake driver whose get_window_size and execute_script
-    # calls return the given window_size and screen_size values.
     driver = MagicMock()
     driver.get_window_size.return_value = window_size
 
     def exec_script(script):
+        if "pause-banner" in script:
+            return None           
         # offline_status check
         if "Console Offline" in script or "Protect Offline" in script:
             return offline_status
-
     driver.execute_script.side_effect = exec_script
     return driver
+
+@pytest.fixture(autouse=True)
+def base_setup(monkeypatch):
+    # handle_page and check_driver always succeed up to our branch
+    monkeypatch.setattr(viewport, "handle_page", lambda d: True)
+    monkeypatch.setattr(viewport, "check_driver", lambda d: True)
+    monkeypatch.setattr(viewport, "handle_fullscreen_button", lambda d: True)
+    # disable retry logic
+    monkeypatch.setattr(viewport, "handle_retry", lambda *a, **k: None)
+    # stub out everything after our branch so it won't error
+    monkeypatch.setattr(viewport, "handle_loading_issue", lambda d: None)
+    monkeypatch.setattr(viewport, "handle_elements", lambda d: None)
+    monkeypatch.setattr(viewport, "handle_pause_banner", lambda *a, **k: None)
+    monkeypatch.setattr(viewport, "check_unable_to_stream", lambda d: False)
+    monkeypatch.setattr(viewport, "api_status", lambda msg: None)
 # ----------------------------------------------------------------------------- 
 # Tests for handle_view function
 # ----------------------------------------------------------------------------- 
@@ -53,25 +68,25 @@ def test_handle_view_initial_load_failure(
 # ----------------------------------------------------------------------------- 
 @patch("viewport.time.sleep", side_effect=BreakLoop)
 @patch("viewport.get_next_interval", return_value=time.time())
-@patch("viewport.check_unable_to_stream", return_value=False)
-@patch("viewport.api_status")
-@patch("viewport.handle_elements")
-@patch("viewport.handle_loading_issue")
 @patch("viewport.handle_fullscreen_button", return_value=True)
 @patch("viewport.WebDriverWait")
-@patch("viewport.check_driver", return_value=True)
-@patch("viewport.handle_page", return_value=True)
 @patch("viewport.logging.info")
+@patch("viewport.handle_page")
+@patch("viewport.check_driver")
+@patch("viewport.handle_loading_issue")
+@patch("viewport.handle_elements")
+@patch("viewport.handle_pause_banner")
+@patch("viewport.api_status")
 def test_handle_view_healthy_iteration(
-    mock_log_info,
-    mock_handle_page,
+    mock_api_status,
+    mock_banner,
+    mock_elements,
+    mock_loading,
     mock_check_driver,
+    mock_handle_page,
+    mock_log_info,
     mock_wdw,
     mock_fs_btn,
-    mock_loading,
-    mock_elements,
-    mock_api_status,
-    mock_unable,
     mock_next_interval,
     mock_sleep,
 ):
@@ -80,7 +95,7 @@ def test_handle_view_healthy_iteration(
 
     # offline_status test → None
     # then two script calls for screen.width & height
-    drv.execute_script.side_effect = [None, 1920, 1080]
+    drv.execute_script.side_effect = [None, None, 1920, 1080]
     drv.get_window_size.return_value = {"width": 1920, "height": 1080}
 
     # WebDriverWait.until(...) succeeds
@@ -99,6 +114,7 @@ def test_handle_view_healthy_iteration(
     mock_check_driver.assert_called_once_with(drv)
     mock_loading.assert_called_once_with(drv)
     mock_elements.assert_called_once_with(drv)
+    mock_banner.assert_called_once_with(drv)
     mock_api_status.assert_called_with("Feed Healthy")
 # ----------------------------------------------------------------------------- 
 # Interval Logging Test
@@ -129,25 +145,13 @@ def test_handle_view_healthy_iteration(
     # at hh:46:45, 3-min  interval but sleep is 5m → effective interval=5m → boundary at :50
     (300,  3,  46, 45, 50),
 ])
-@patch("viewport.handle_page", return_value=True)
-@patch("viewport.check_driver", return_value=True)
 @patch("viewport.WebDriverWait")
 @patch("viewport.handle_fullscreen_button", return_value=True)
-@patch("viewport.handle_loading_issue")
-@patch("viewport.handle_elements")
-@patch("viewport.check_unable_to_stream", return_value=False)
-@patch("viewport.api_status")
 @patch("viewport.logging.info")
 def test_handle_view_video_feeds_healthy_logging(
     mock_log_info,
-    mock_api_status,
-    mock_unable,
-    mock_elements,
-    mock_loading,
     mock_fs_btn,
     mock_wdw,
-    mock_check_driver,
-    mock_handle_page,
     sleep_time,
     log_interval,
     now_minute,
@@ -155,7 +159,6 @@ def test_handle_view_video_feeds_healthy_logging(
     expected_minute,
     monkeypatch,
 ):
-
     # fake current time so we know exactly where the hour is
     fake_now = datetime(2025, 4, 27, 5, now_minute, now_second)
     monkeypatch.setattr(viewport, "datetime", MagicMock(now=MagicMock(return_value=fake_now)))
@@ -181,7 +184,7 @@ def test_handle_view_video_feeds_healthy_logging(
 
     # stub out driver
     driver = MagicMock()
-    driver.execute_script.side_effect = cycle([None, 1920, 1080])
+    driver.execute_script.side_effect = cycle([None, None, 1920, 1080])
     driver.get_window_size.return_value = {"width": 1920, "height": 1080}
     fake_wait = MagicMock(); fake_wait.until.return_value = True
     mock_wdw.return_value = fake_wait
@@ -203,39 +206,28 @@ def test_handle_view_video_feeds_healthy_logging(
         f"Expected final log at minute {expected_minute}, "
         f"but computed boundary at {datetime(2025,4,27,5, now_minute, now_second) + timedelta(seconds=secs_to_boundary)}"
     )
-
 # ----------------------------------------------------------------------------- 
 # Decoding Error
 # ----------------------------------------------------------------------------- 
 @patch("viewport.logging.warning")
-@patch("viewport.api_status")
 @patch("viewport.time.sleep", side_effect=BreakLoop)                       # break out after first sleep
 @patch("viewport.get_next_interval", return_value=time.time())
 @patch("viewport.check_unable_to_stream", return_value=True)               # simulate decoding error
-@patch("viewport.handle_elements")
-@patch("viewport.handle_loading_issue")
-@patch("viewport.handle_fullscreen_button", return_value=True)
+@patch("viewport.api_status")
 @patch("viewport.WebDriverWait")
-@patch("viewport.check_driver", return_value=True)
-@patch("viewport.handle_page", return_value=True)
 def test_handle_view_decoding_error_branch(
-    mock_handle_page,
-    mock_check_driver,
     mock_wdw,
-    mock_fs_btn,
-    mock_loading,
-    mock_elements,
+    mock_api_status,
     mock_check_unable,
     mock_next_interval,
     mock_sleep,
-    mock_api_status,
     mock_warning,
 ):
     driver = MagicMock()
     url = "http://example.com"
 
     # first two execute_script() calls: offline check → None, then width/height
-    driver.execute_script.side_effect = [None, 1920, 1080]
+    driver.execute_script.side_effect = [None, None, 1920, 1080]
     driver.get_window_size.return_value = {"width": 1920, "height": 1080}
 
     # stub out presence checks so we get past the wrapper logic
@@ -259,11 +251,7 @@ def test_handle_view_decoding_error_branch(
 @patch("viewport.api_status")
 @patch("viewport.logging.warning")
 @patch("viewport.WebDriverWait")
-@patch("viewport.check_driver", return_value=True)
-@patch("viewport.handle_page", return_value=True)
 def test_handle_view_offline_branch(
-    mock_handle_page,
-    mock_check_driver,
     mock_wdw,
     mock_log_warn,
     mock_api_status,
@@ -287,7 +275,6 @@ def test_handle_view_offline_branch(
     mock_log_warn.assert_any_call("Detected offline status: Console or Protect Offline.")
     mock_api_status.assert_called_with("Console or Protect Offline")
     mock_handle_retry.assert_called_once_with(drv, url, 1, viewport.MAX_RETRIES)
-
 # ----------------------------------------------------------------------------- 
 # All Exceptions branch
 # ----------------------------------------------------------------------------- 
@@ -371,11 +358,7 @@ def test_handle_view_offline_branch(
 @patch("viewport.logging.warning")
 @patch("viewport.logging.info")
 @patch("viewport.WebDriverWait")
-@patch("viewport.check_driver", return_value=True)
-@patch("viewport.handle_page", return_value=True)
 def test_handle_view_all_error_branches(
-    mock_handle_page,
-    mock_check_driver,
     mock_wdw,
     mock_log_info,
     mock_log_warn,
@@ -433,19 +416,6 @@ def test_handle_view_all_error_branches(
 
     rec.assert_called_once_with(*recovery_args(driver, url, viewport.MAX_RETRIES))
     
-@pytest.fixture(autouse=True)
-def base_setup(monkeypatch):
-    # handle_page and check_driver always succeed up to our branch
-    monkeypatch.setattr(viewport, "handle_page", lambda d: True)
-    monkeypatch.setattr(viewport, "check_driver", lambda d: True)
-    # disable retry logic
-    monkeypatch.setattr(viewport, "handle_retry", lambda *a, **k: None)
-    # stub out everything after our branch so it won't error
-    monkeypatch.setattr(viewport, "handle_loading_issue", lambda d: None)
-    monkeypatch.setattr(viewport, "handle_elements", lambda d: None)
-    monkeypatch.setattr(viewport, "check_unable_to_stream", lambda d: False)
-    monkeypatch.setattr(viewport, "api_status", lambda msg: None)
-
 def test_handle_view_fullscreen_mismatch(monkeypatch):
     # Simulate a screen‐size mismatch so that handle_view logs the
     # 'Attempting to make live-view fullscreen.' info and then
@@ -558,7 +528,6 @@ def test_handle_view_no_restart_times_does_not_call_restart(
     with pytest.raises(BreakLoop):
         viewport.handle_view(driver, url)
 
-
 def test_handle_view_scheduled_restart_immediate_breaks_and_calls_restart(
     monkeypatch
 ):
@@ -588,7 +557,6 @@ def test_handle_view_scheduled_restart_immediate_breaks_and_calls_restart(
 
     # Assert
     mock_restart.assert_called_once_with(driver)
-
 
 def test_handle_view_scheduled_restart_not_due_does_not_call_restart(
     monkeypatch
@@ -624,31 +592,16 @@ def test_handle_view_scheduled_restart_not_due_does_not_call_restart(
         viewport.handle_view(driver, url)
 
     mock_restart.assert_not_called()
-
 # ------------------------------------------------------------------
 # handle_view skips work while paused
 # ------------------------------------------------------------------
-@patch("viewport.handle_page",            return_value=True)
-@patch("viewport.check_driver",           return_value=True)
-@patch("viewport.check_crash",            return_value=False)
 @patch("viewport.WebDriverWait")
-@patch("viewport.handle_fullscreen_button", return_value=True)
-@patch("viewport.handle_loading_issue")
-@patch("viewport.handle_elements")
-@patch("viewport.check_unable_to_stream", return_value=False)
 @patch("viewport.get_next_interval",      return_value=time.time())
 @patch("viewport.api_status")
 def test_handle_view_pause_resume(
     mock_api_status,
     mock_next_interval,
-    mock_check_unable,
-    mock_handle_elements,
-    mock_loading_issue,
-    mock_fullscreen_btn,
     mock_wdw,
-    mock_check_crash,
-    mock_check_driver,
-    mock_handle_page,
     monkeypatch,
     caplog
 ):
@@ -690,27 +643,13 @@ def test_handle_view_pause_resume(
     assert calls[0] == "Paused"
     assert calls[1] == "Resumed"
     
-@patch("viewport.handle_page",            return_value=True)
-@patch("viewport.check_driver",           return_value=True)
-@patch("viewport.check_crash",            return_value=False)
 @patch("viewport.WebDriverWait")
-@patch("viewport.handle_fullscreen_button", return_value=True)
-@patch("viewport.handle_loading_issue")
-@patch("viewport.handle_elements")
-@patch("viewport.check_unable_to_stream", return_value=False)
 @patch("viewport.get_next_interval",      return_value=time.time())
 @patch("viewport.api_status")
 def test_handle_view_pause_branch_else(
     mock_api_status,
     mock_next_interval,
-    mock_check_unable,
-    mock_handle_elements,
-    mock_loading_issue,
-    mock_fullscreen_btn,
     mock_wdw,
-    mock_check_crash,
-    mock_check_driver,
-    mock_handle_page,
     monkeypatch,
     caplog
 ):

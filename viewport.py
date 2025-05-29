@@ -1302,8 +1302,7 @@ def handle_view(driver, url):
                 time.sleep(5)
                 continue
             if paused_logged:
-                if pause_file.exists():
-                    pause_file.unlink()
+                if pause_file.exists(): pause_file.unlink()
                 logging.info("Script resumed; starting health checks again.")
                 api_status("Resumed")
                 paused_logged = False

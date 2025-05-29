@@ -71,9 +71,10 @@ def test_handle_page_login_page_fails(
 
 # Covers looping until title becomes Dashboard, then hits the final sleep(3)
 @patch("viewport.handle_elements")
+@patch("viewport.handle_pause_banner")
 @patch("viewport.check_for_title")
 @patch("viewport.time.sleep", return_value=None)
-def test_handle_page_loops_then_dashboard(mock_sleep, mock_check_for_title, mock_handle_elements):
+def test_handle_page_loops_then_dashboard(mock_sleep, mock_check_for_title, mock_banner, mock_handle_elements):
     # Arrange: simulate driver.title changing over iterations
     titles = ["Loading...", "Still Loading", "Dashboard | Protect"]
     class DummyDriver:
@@ -100,7 +101,7 @@ def test_handle_page_loops_then_dashboard(mock_sleep, mock_check_for_title, mock
 
     # handle_elements should run exactly once when we hit Dashboard
     mock_handle_elements.assert_called_once_with(driver)
-
+    mock_banner.assert_called_once_with(driver)
     # We expect two outer sleep(3) calls:
     #   1) after "Loading..." iteration
     #   2) after "Still Loading" iteration
