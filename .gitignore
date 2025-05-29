@@ -5,6 +5,7 @@ nohup.out
 logs/
 api/sst.txt
 api/status.txt
+api/.pause
 venv/
 __pycache__/
 .coverage
