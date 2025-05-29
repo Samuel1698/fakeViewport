@@ -89,6 +89,12 @@ def args_helper():
         help="Stops the running Viewport script."
     )
     group.add_argument(
+        "-p", "--pause",
+        action="store_true",
+        dest="pause",
+        help="Toggle pause / resume of scheduled health-checks."
+    )
+    group.add_argument(
         "-l", "--logs",
         nargs="?",
         type=int,
@@ -137,6 +143,22 @@ def args_handler(args):
             print(f"{RED}Log file not found: {log_file}{NC}")
         except Exception as e:
             log_error(f"Error reading log file: {e}")
+        sys.exit(0)
+    if args.pause:
+        try:
+            if process_handler("viewport.py", action="check"):    
+                if pause_file.exists():
+                    pause_file.unlink()
+                    logging.info("Resuming health checks.")
+                    api_status("Resumed")
+                else:
+                    pause_file.touch()
+                    logging.info("Pausing health checks.")
+                    api_status("Paused")
+            else:
+                logging.info("Fake Viewport is not running.")
+        except Exception as e:
+            log_error("Error toggling pause state:", e)
         sys.exit(0)
     if args.background:
         logging.info("Starting the script in the background...")
@@ -217,6 +239,7 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
         "background": ["--background"],
         "restart":    ["--restart"],
         "quit":       ["--quit"],
+        "pause":      ["--pause"],
         "diagnose":   ["--diagnose"],
         "api":        ["--api"],
         "logs":       (["--logs", str(args.logs)] if args.logs is not None else []),
@@ -278,6 +301,7 @@ def clear_sst():
     try:
         # Opening with 'w' and immediately closing truncates the file to zero length
         if sst_file.exists(): open(sst_file, 'w').close()
+        if pause_file.exists(): pause_file.unlink()
     except Exception as e:
         log_error("Error clearing SST file:", e)
 def api_status(msg):
@@ -1147,6 +1171,7 @@ def handle_view(driver, url):
     # While on the main loop, it calls the handle_retry, handle_fullscreen_button, check_unable_to_stream handle_loading_issue, and handle_elements functions.
     retry_count = 0
     max_retries = MAX_RETRIES
+    paused_logged = False
     # how many loops between regular logs
     log_interval_iterations = round(max(LOG_INTERVAL * 60, SLEEP_TIME) / SLEEP_TIME)
     # Align the first log to the next "even" boundary:
@@ -1174,6 +1199,17 @@ def handle_view(driver, url):
         restart_handler(driver)
     while True:
         try:
+            if pause_file.exists():
+                if not paused_logged:
+                    logging.info("Script paused; skipping health checks.")
+                    api_status("Paused")
+                    paused_logged = True
+                time.sleep(5)
+                continue
+            elif paused_logged:
+                logging.info("Script resumed; starting health checks again.")
+                api_status("Resumed")
+                paused_logged = False
             now = datetime.now()
             if RESTART_TIMES and next_run and now >= next_run:
                 logging.info("Performing scheduled restart")
@@ -1281,6 +1317,7 @@ def main():
     # Write the start time to the SST file
     # Only if it's empty or if a crash likely happened
     if sst_size == 0 or crashed:
+        if pause_file.exists(): pause_file.unlink()
         with open(sst_file, 'w') as f:
             f.write(str(datetime.now()))
     driver = browser_handler(url)

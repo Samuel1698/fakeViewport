@@ -75,6 +75,7 @@ def provide_dummy_config(monkeypatch, tmp_path):
         sst_file=tmp_path / "sst.txt",
         status_file=tmp_path / "status.txt",
         restart_file=tmp_path / ".restart",
+        pause_file  = tmp_path / ".pause",
     )
     # Save the real config browser since it changes based on other variables
     real_browser = viewport.BROWSER
