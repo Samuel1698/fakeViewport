@@ -39,7 +39,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 - Detects if the console or application are offline and waits before reloading.
 - Detects if your browser is running too slow and restarts it.
 - Automatically clicks the full screen button and hides the cursor and controls from the cameras.
-- Very robust error handling and failsafes.
+- Very robust error handling and failsafe.
 - Customizable by changing the `config.ini` file.
 - Easy to set up by running the `setup.sh` bash script.
 - Most uptime I've seen is 6 months uninterrupted (v1.0.0). 
@@ -53,14 +53,14 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 ## Requirements
 
 ### Hardware
-- A **Dell Wyse Thin Client** or similar device.
-- Tested on:
+- A **Dell Wyse Thin Client**, **NUC**, **Raspberry Pi** or a similar small computer capable of running Linux.
+- Personally Tested on:
   - Dell Wyse 5070 with Linux Mint. 
-  - Dell Wyse Dx0Q with antiX Linux. (CPU Might be too weak for unifi.ui.com - Remains untested in local access)
+  - Dell Wyse Dx0Q with antiX Linux.
 
 ### Software
-- A lightweight Linux distribution of your choice (Preferably Debian based).
-- Firefox, Chrome, Chromium installed.
+- A lightweight Linux distribution of your choice (Must be Debian based).
+- Firefox, Chrome, or Chromium installed.
 - Python3
 - OPTIONAL but recommended: ssh installed and configured for remote monitoring.
 
@@ -90,6 +90,10 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ./setup.sh
    ```
 
+   After running the setup script, you will be prompted to refresh your shell. Depending on if you're using bash or zsh, run:
+
+   `source ~/.bashrc` or `source ~/.zshrc` (The script will tell you which).
+
 4. **Configure the `.env` file**  
    The `setup.sh` script will rename the `.env.example` file to `.env`. 
    
@@ -102,10 +106,13 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    USERNAME=YourLocalUsername
    PASSWORD=YourLocalPassword
    URL=http://192.168.100.100/protect/dashboard/multiviewurl
+   # Optional keys
    FLASK_RUN_HOST=0.0.0.0
    FLASK_RUN_PORT=5000
    SECRET=jgrkJvmTmCrF9Utt2dGAOS158Nh-sBoB_OykkAcjsh0
    ```
+
+   The `FLASK_RUN_HOST`, `FLASK_RUN_PORT` and `SECRET` are optional. Feel free to delete them if you're not using the API.
 
 5. **Configure the `config.ini` file**
 
@@ -282,18 +289,18 @@ Because this script simply displays the live view on a webpage, it has several a
 
 ### ✔ Advantages:
   - **Vintage Point Support** - Display several consoles' cameras in a single view.
-  - **Fully Customizable** - Adjust layout, use Enhanced Encoding.
+  - **Enhanced Encoding** - Native TV Apps are slow to adapt enhanced encoding, but firefox supports it on Linux.
   - **Cost Effective** - Less than $50 **total** as opposed to $100-$200+
   - **4K Streaming** - Some native TV Apps cannot display 4K cameras.
   - **WiFi Compatible** - Viewport requires wired connection.
-  - **No Vendor Lock-in** - AppleTV requiers an AppleID to use.
+  - **No Vendor Lock-in** - AppleTV requires an AppleID to use.
   - **Local & Private** - No cloud dependency; runs entirely on your local network.
-  - **360 Camera Support** - Protect Viewport does not support dewarping 360 camera feeds into separate views.
+  - **360 Camera Support** - Protect Viewport does not support de-warping 360 camera feeds into separate views.
 
 ### ⚠ Limitations:
   - **Initial Setup Required** – More configuration than plug-and-play alternatives
-  - **Limited Camera Controls** – No native PTZ/zoom controls (unless using a wireless mouse)
   - **Larger Footprint** – Slightly bulkier than some devices (but easily hidden behind a TV/monitor)
+  - **Requires internet access at least once** - If you want to run it locally you must have internet access once when running the script to download the drivers to control the browser.
 
 ---
 
@@ -324,5 +331,6 @@ Because this script simply displays the live view on a webpage, it has several a
 
 - The thin clients used in this setup only have DisplayPort outputs. Ensure your monitor or TV supports DisplayPort, or use a compatible adapter.
 - The tested Thin Clients do not include built-in WiFi antennas. However, you can use a USB WiFi adapter to connect wirelessly. Some thin clients do include wifi.
+- If you use the machine for things other than just a viewport display, make sure you do your other internet browsing in a different browser than the script uses. The browser window it launches is very limited and stripped of functionality (for better resource management), and the script will kill all other instances of the same browser when resurrecting itself. 
 
 ---
