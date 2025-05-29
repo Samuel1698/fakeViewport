@@ -926,7 +926,7 @@ def handle_clear(driver, element):
         pass
 def handle_elements(driver, hide_delay_ms: int = 3000):
     # • Hides the custom UniFi cursor.
-    # • Automatically *unhides* while the mouse is moving and
+    # • Automatically *un-hides* while the mouse is moving and
     #   re-hides after `hide_delay_ms` of inactivity.
     # • Hides Player-Options bar
     driver.execute_script(
@@ -940,8 +940,8 @@ def handle_elements(driver, hide_delay_ms: int = 3000):
             const DELAY    = arguments[2];
             const STYLE_ID = 'hideCursorAndOptionsStyle';
 
-            const cursorSel  = CURSORS.map(c => '.' + c).join(',');
-            const optionSel  = OPTIONS.map(c => '.' + c).join(',');
+            const cursorSel = CURSORS.map(c => '.' + c).join(',');
+            const optionSel = OPTIONS.map(c => '.' + c).join(',');
 
             function addStyle() {
                 if (!document.getElementById(STYLE_ID)) {
@@ -965,12 +965,100 @@ def handle_elements(driver, hide_delay_ms: int = 3000):
                 clearTimeout(t);
                 t = setTimeout(addStyle, DELAY);
             }, { passive: true });
-        })();
+        })(arguments[0], arguments[1], arguments[2]);
         """,
-        CSS_CURSOR,          
+        CSS_CURSOR,     
         CSS_PLAYER_OPTIONS,
         hide_delay_ms
     )
+def handle_pause_banner(driver):
+    driver.execute_script("""
+    (function(){
+      if (window.__pauseUIInit__) return;
+      window.__pauseUIInit__ = true;
+
+      // Build Ubiquiti-themed banner
+      const banner = document.createElement('div');
+      banner.id = 'pause-banner';
+      Object.assign(banner.style, {
+        position: 'fixed',
+        top: '0',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        height: '50px',
+        padding: '1.4rem',
+        background: '#131416',
+        color: '#f9fafa',
+        fontSize: '1.6rem',
+        fontWeight: 'bold',
+        display: 'none',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        borderRadius: '4px',
+        border: '1px solid rgb(52, 56, 61)',
+        zIndex: '99999'
+      });
+      banner.setAttribute('data-paused', 'false');
+
+      // Label
+      const label = document.createElement('span');
+      label.style.marginRight = '1em';
+      label.textContent = 'Toggle Health Checks';
+      banner.appendChild(label);
+
+      // Button
+      const btn = document.createElement('button');
+      btn.id = 'pause-toggle';
+      Object.assign(btn.style, {
+        padding: '8px 12px',
+        fontSize: '1.6rem',
+        background: '#4797ff',
+        color: '#f9fafa',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer'
+      });
+      btn.textContent = 'Pause';
+      banner.appendChild(btn);
+    
+      const hoverStyle = document.createElement('style');
+      hoverStyle.id = 'pause-toggle-hover';
+      hoverStyle.textContent = `
+        #pause-toggle:hover {
+          background: #80b7ff !important;
+        }
+      `;
+      document.head.appendChild(hoverStyle);
+      
+      // Append into full-screen-root if present, otherwise to body
+      const container = document.getElementById('full-screen-root') || document.body;
+      container.appendChild(banner);
+
+      let hideTimer;
+      function showBanner() {
+        banner.style.display = 'flex';
+        clearTimeout(hideTimer);
+        const paused = banner.getAttribute('data-paused') === 'true';
+        if (!paused) {
+          hideTimer = setTimeout(() => {
+            banner.style.display = 'none';
+          }, 3000);
+        }
+      }
+
+      window.addEventListener('mousemove', showBanner);
+
+      btn.addEventListener('click', function(){
+        const paused = banner.getAttribute('data-paused') === 'true';
+        const nextState = !paused;
+        banner.setAttribute('data-paused', String(nextState));
+        btn.textContent = paused ? 'Pause' : 'Resume';
+
+        showBanner();
+      });
+    })();
+    """)
 def handle_loading_issue(driver):
     # Checks if the loading dots are present in the live view
     # If they are, it starts a timer to check if the loading issue persists for 15 seconds and log as an error.
@@ -1100,6 +1188,7 @@ def handle_page(driver):
         if "Dashboard" in driver.title:
             time.sleep(3)
             handle_elements(driver)
+            handle_pause_banner(driver)
             return True
         elif "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
             logging.info("Log-in page found. Inputting credentials...")
@@ -1199,14 +1288,22 @@ def handle_view(driver, url):
         restart_handler(driver)
     while True:
         try:
-            if pause_file.exists():
+            state = driver.execute_script(
+                "const e = document.getElementById('pause-banner');"
+                "return e ? e.getAttribute('data-paused') : null;"
+            )
+            paused_ui   = (state == "true")
+            paused_file = pause_file.exists()
+            if paused_ui or paused_file:
                 if not paused_logged:
                     logging.info("Script paused; skipping health checks.")
                     api_status("Paused")
                     paused_logged = True
                 time.sleep(5)
                 continue
-            elif paused_logged:
+            if paused_logged:
+                if pause_file.exists():
+                    pause_file.unlink()
                 logging.info("Script resumed; starting health checks again.")
                 api_status("Resumed")
                 paused_logged = False
@@ -1246,6 +1343,7 @@ def handle_view(driver, url):
                 # Check for "Unable to Stream" message
                 handle_loading_issue(driver)
                 handle_elements(driver)
+                handle_pause_banner(driver)
                 api_status("Feed Healthy")
                 if check_unable_to_stream(driver):
                     logging.warning("Live view contains cameras that the browser cannot decode.")
