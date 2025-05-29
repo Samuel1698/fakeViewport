@@ -69,27 +69,6 @@ def test_handle_page_login_page_fails(
     # Since handle_login returned False, handle_page should return False
     assert result is False
 
-# handle_page should *not* call handle_elements when HIDE_CURSOR is False
-@patch("viewport.time.sleep", return_value=None)
-@patch("viewport.check_for_title")
-@patch("viewport.handle_elements")
-def test_handle_page_no_elements_when_hide_cursor_false(
-    mock_handle_elements,
-    mock_check_title,
-    mock_sleep,
-    monkeypatch,
-):
-    # Disable cursor-hiding
-    monkeypatch.setattr(viewport, "HIDE_CURSOR", False)
-
-    # Pretend we’re already on the dashboard
-    driver = MagicMock(title="Dashboard – Protect")
-    viewport.WAIT_TIME = 1
-    mock_check_title.return_value = None
-
-    assert viewport.handle_page(driver) is True
-    mock_handle_elements.assert_not_called()
-
 # Covers looping until title becomes Dashboard, then hits the final sleep(3)
 @patch("viewport.handle_elements")
 @patch("viewport.check_for_title")

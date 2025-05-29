@@ -1099,7 +1099,7 @@ def handle_page(driver):
     while True:
         if "Dashboard" in driver.title:
             time.sleep(3)
-            if HIDE_CURSOR: handle_elements(driver)
+            handle_elements(driver)
             return True
         elif "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
             logging.info("Log-in page found. Inputting credentials...")
@@ -1245,7 +1245,7 @@ def handle_view(driver, url):
                     or logging.warning("Failed to activate fullscreen, but continuing anyway.")
                 # Check for "Unable to Stream" message
                 handle_loading_issue(driver)
-                if HIDE_CURSOR: handle_elements(driver)
+                handle_elements(driver)
                 api_status("Feed Healthy")
                 if check_unable_to_stream(driver):
                     logging.warning("Live view contains cameras that the browser cannot decode.")

@@ -17,7 +17,6 @@ class AppConfig:
     WAIT_TIME: int
     MAX_RETRIES: int
     RESTART_TIMES: list[time]
-    HIDE_CURSOR: bool
     # Browser
     BROWSER_PROFILE_PATH: str
     BROWSER_BINARY: str
@@ -293,7 +292,6 @@ def validate_config(
         WAIT_TIME=wait_time,
         MAX_RETRIES=max_retries,
         RESTART_TIMES=restart_times,
-        HIDE_CURSOR=hide_cursor,
         BROWSER_PROFILE_PATH=profile_path,
         BROWSER_BINARY=binary,
         HEADLESS=headless,

@@ -47,7 +47,6 @@ def provide_dummy_config(monkeypatch, tmp_path):
         WAIT_TIME=30,
         MAX_RETRIES=3,
         RESTART_TIMES=[],
-        HIDE_CURSOR=True,
         # browser config
         BROWSER_PROFILE_PATH="",
         BROWSER_BINARY="chromium",

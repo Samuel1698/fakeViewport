@@ -10,9 +10,6 @@ MAX_RETRIES=3
 
 # Comma-separated 24h times (HH:MM) for automatic script restart (optional failsafe).
 # RESTART_TIMES=11:00, 23:00 
-
-# Hides the cursor element after making the live-view fullscreen. Set to False if you want to it visible.
-HIDE_CURSOR=True
 [Browser]
 # Optional: Custom profile directory (omit to use chrome's default)
 # • Go to chrome://version and copy "Profile Path" without the trailing "Default"
