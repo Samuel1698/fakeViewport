@@ -186,14 +186,9 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    source venv/bin/activate
    python3 viewport.py
    ```
-   Most convenient way is to use the alias. Run `./setup.sh` and then reload the shell:
-   ```bash
-   source ~/.bashrc
-   ```
-   or
-   ```bash
-   source ~/.zshrc
-   ```
+   Most convenient way is to use the alias. Run `./setup.sh` and then reload the shell by running:
+   
+   `source ~/.bashrc` or `source ~/.zshrc` (The script will tell you which).
 
 ### Stopping the Script
 If the script is running and you cannot use `CTRL+C` to stop it, you can call the script with the `-q` argument: 
@@ -204,6 +199,11 @@ or manually kill the process with pgrep:
 ```bash
 ps aux | grep viewport.py
 kill <pid>
+```
+
+If you want to do something else and temporarily pause the script's execution, you can run
+```bash
+viewport -p
 ```
 
 ---
