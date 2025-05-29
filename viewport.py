@@ -986,7 +986,10 @@ def handle_login(driver):
     try:
         # Clear and input username with explicit waits
         username_field = WebDriverWait(driver, WAIT_TIME).until(
-            EC.element_to_be_clickable((By.NAME, 'username'))
+            EC.element_to_be_clickable((
+                By.CSS_SELECTOR,
+                'input[name^="user"]'      # any name that begins with "user"
+            ))
         )
         username_field.clear()
         username_field.send_keys(username)
