@@ -900,31 +900,53 @@ def handle_clear(driver, element):
         # Best-effort – if this fails the subsequent send_keys will
         # still overwrite the field in most cases.
         pass
-def handle_elements(driver):
-    # Removes ubiquiti's custom cursor from the page
-    driver.execute_script("""
-    var styleId = 'hideCursorStyle';
-    var cssClass = arguments[0];
-    if (!document.getElementById(styleId)) {
-        var style = document.createElement('style');
-        style.type = 'text/css';
-        style.id = styleId;
-        style.innerHTML = '.' + cssClass + ' { cursor: none !important; }';
-        document.head.appendChild(style);
-    }
-    """, CSS_CURSOR)
-    # Remove visibility of the player options elements
-    driver.execute_script("""
-    var styleId = 'hidePlayerOptionsStyle';
-    var cssClass = arguments[0];
-    if (!document.getElementById(styleId)) {
-        var style = document.createElement('style');
-        style.type = 'text/css';
-        style.id = styleId;
-        style.innerHTML = '.' + cssClass + ' { z-index: 0 !important; }';
-        document.head.appendChild(style);
-    }
-    """, CSS_PLAYER_OPTIONS)
+def handle_elements(driver, hide_delay_ms: int = 3000):
+    # • Hides the custom UniFi cursor.
+    # • Automatically *unhides* while the mouse is moving and
+    #   re-hides after `hide_delay_ms` of inactivity.
+    # • Hides Player-Options bar
+    driver.execute_script(
+        """
+        (function () {
+            if (window.__cursorHideInit__) return;
+            window.__cursorHideInit__ = true;
+
+            const CURSORS  = Array.isArray(arguments[0]) ? arguments[0] : [arguments[0]];
+            const OPTIONS  = Array.isArray(arguments[1]) ? arguments[1] : [arguments[1]];
+            const DELAY    = arguments[2];
+            const STYLE_ID = 'hideCursorAndOptionsStyle';
+
+            const cursorSel  = CURSORS.map(c => '.' + c).join(',');
+            const optionSel  = OPTIONS.map(c => '.' + c).join(',');
+
+            function addStyle() {
+                if (!document.getElementById(STYLE_ID)) {
+                    const s = document.createElement('style');
+                    s.id = STYLE_ID;
+                    s.textContent = `
+                        ${cursorSel} { cursor: none !important; }
+                        ${optionSel} { z-index: 0 !important; }`;
+                    document.head.appendChild(s);
+                }
+            }
+            function removeStyle() {
+                const s = document.getElementById(STYLE_ID);
+                if (s) s.remove();
+            }
+
+            addStyle();                       // hidden at first
+            let t;
+            window.addEventListener('mousemove', () => {
+                removeStyle();                // show on movement
+                clearTimeout(t);
+                t = setTimeout(addStyle, DELAY);
+            }, { passive: true });
+        })();
+        """,
+        CSS_CURSOR,          
+        CSS_PLAYER_OPTIONS,
+        hide_delay_ms
+    )
 def handle_loading_issue(driver):
     # Checks if the loading dots are present in the live view
     # If they are, it starts a timer to check if the loading issue persists for 15 seconds and log as an error.
@@ -995,7 +1017,10 @@ def handle_login(driver):
     try:
         # Clear and input username with explicit waits
         username_field = WebDriverWait(driver, WAIT_TIME).until(
-            EC.element_to_be_clickable((By.NAME, 'username'))
+            EC.element_to_be_clickable((
+                By.CSS_SELECTOR,
+                'input[name^="user"]'      # any name that begins with "user"
+            ))
         )
         handle_clear(driver, username_field)
         username_field.send_keys(username)

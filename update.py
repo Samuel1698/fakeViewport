@@ -25,7 +25,7 @@ def latest_version() -> str:
     return data["tag_name"].lstrip("v")
 
 def _clean_worktree() -> bool:
-    """True ⇢ no uncommitted changes."""
+    # True ⇢ no uncommitted changes.
     out = subprocess.check_output(GIT + ["status", "--porcelain"], text=True)
     return out.strip() == ""
 
