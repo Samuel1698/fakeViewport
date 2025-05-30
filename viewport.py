@@ -770,7 +770,7 @@ def browser_handler(url):
             time.sleep(SLEEP_TIME/2)
         except NewConnectionError as e:
             # Connection refused
-            log_error(f"Connection refused while starting {BROWSER}; regtrying in {int(SLEEP_TIME/2)}s", e)
+            log_error(f"Connection refused while starting {BROWSER}; retrying in {int(SLEEP_TIME/2)}s", e)
             time.sleep(SLEEP_TIME/2)
         except MaxRetryError as e:
             # network issue resolving or fetching metadata
@@ -972,93 +972,130 @@ def handle_elements(driver, hide_delay_ms: int = 3000):
         hide_delay_ms
     )
 def handle_pause_banner(driver):
-    driver.execute_script("""
-    (function(){
-      if (window.__pauseUIInit__) return;
-      window.__pauseUIInit__ = true;
+    # Injects a self-healing “Pause / Resume Health Checks” banner into the page.
+    # The banner rebuilds itself on SPA URL changes and remembers its last state
+    # using localStorage.
+    driver.execute_script(
+        """
+        (function () {
+        // STATE PERSISTENCE 
+        const PAUSE_KEY = 'pauseBannerPaused';
+        const getPaused = () => localStorage.getItem(PAUSE_KEY) === 'true';
+        const setPaused = (v) => localStorage.setItem(PAUSE_KEY, v);
 
-      // Build Ubiquiti-themed banner
-      const banner = document.createElement('div');
-      banner.id = 'pause-banner';
-      Object.assign(banner.style, {
-        position: 'fixed',
-        top: '0',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        height: '50px',
-        padding: '1.4rem',
-        background: '#131416',
-        color: '#f9fafa',
-        fontSize: '1.6rem',
-        fontWeight: 'bold',
-        display: 'none',
-        alignItems: 'center',
-        justifyContent: 'center',
-        textAlign: 'center',
-        borderRadius: '4px',
-        border: '1px solid rgb(52, 56, 61)',
-        zIndex: '99999'
-      });
-      banner.setAttribute('data-paused', 'false');
+        //  BANNER CREATION 
+        function buildBanner() {
+            const container = document.getElementById('full-screen-root') || document.body;
+            const existing  = document.getElementById('pause-banner');
 
-      // Label
-      const label = document.createElement('span');
-      label.style.marginRight = '1em';
-      label.textContent = 'Toggle Health Checks';
-      banner.appendChild(label);
+            // if banner already exists, just move it to the right container
+            if (existing) {
+            if (existing.parentElement !== container) container.appendChild(existing);
+            return;
+            }
+            // ---------- container ---------- 
+            const banner = document.createElement('div');
+            banner.id = 'pause-banner';
+            Object.assign(banner.style, {
+            position: 'fixed',
+            top: '0',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            height: '50px',
+            padding: '1.4rem',
+            background: '#131416',
+            color: '#f9fafa',
+            fontSize: '1.6rem',
+            fontWeight: 'bold',
+            display: 'none',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            borderRadius: '4px',
+            border: '1px solid rgb(52, 56, 61)',
+            zIndex: '99999'
+            });
 
-      // Button
-      const btn = document.createElement('button');
-      btn.id = 'pause-toggle';
-      Object.assign(btn.style, {
-        padding: '8px 12px',
-        fontSize: '1.6rem',
-        background: '#4797ff',
-        color: '#f9fafa',
-        border: 'none',
-        borderRadius: '4px',
-        cursor: 'pointer'
-      });
-      btn.textContent = 'Pause';
-      banner.appendChild(btn);
-    
-      const hoverStyle = document.createElement('style');
-      hoverStyle.id = 'pause-toggle-hover';
-      hoverStyle.textContent = `
-        #pause-toggle:hover {
-          background: #80b7ff !important;
+            // ---------- label ---------- 
+            const label = document.createElement('span');
+            label.style.marginRight = '1em';
+            label.textContent = 'Toggle Health Checks';
+            banner.appendChild(label);
+
+            // ---------- button ---------- 
+            const btn = document.createElement('button');
+            btn.id = 'pause-toggle';
+            Object.assign(btn.style, {
+            padding: '8px 12px',
+            fontSize: '1.6rem',
+            background: '#4797ff',
+            color: '#f9fafa',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+            });
+            banner.appendChild(btn);
+
+            // ---------- hover style ---------- 
+            if (!document.getElementById('pause-toggle-hover')) {
+            const hover = document.createElement('style');
+            hover.id = 'pause-toggle-hover';
+            hover.textContent = '#pause-toggle:hover{background:#80b7ff!important;}';
+            document.head.appendChild(hover);
+            }
+
+            // ---------- initial state ---------- 
+            const paused = getPaused();
+            banner.setAttribute('data-paused', String(paused));
+            btn.textContent = paused ? 'Resume' : 'Pause';
+
+            // ---------- attach ---------- 
+            (document.getElementById('full-screen-root') || document.body)
+            .appendChild(banner);
+
+            // ---------- hide / show ---------- 
+            let hideTimer;
+            function showBanner() {
+            banner.style.display = 'flex';
+            clearTimeout(hideTimer);
+            if (!getPaused()) {
+                hideTimer = setTimeout(() => (banner.style.display = 'none'), 3000);
+            }
+            }
+            window.addEventListener('mousemove', showBanner, { passive: true });
+
+            // ---------- click ---------- 
+            btn.addEventListener('click', () => {
+            const next = !getPaused();
+            setPaused(next);
+            banner.setAttribute('data-paused', String(next));
+            btn.textContent = next ? 'Resume' : 'Pause';
+            showBanner();
+            });
         }
-      `;
-      document.head.appendChild(hoverStyle);
-      
-      // Append into full-screen-root if present, otherwise to body
-      const container = document.getElementById('full-screen-root') || document.body;
-      container.appendChild(banner);
 
-      let hideTimer;
-      function showBanner() {
-        banner.style.display = 'flex';
-        clearTimeout(hideTimer);
-        const paused = banner.getAttribute('data-paused') === 'true';
-        if (!paused) {
-          hideTimer = setTimeout(() => {
-            banner.style.display = 'none';
-          }, 3000);
+        //  URL CHANGE WATCHER (SPA)
+        function watchUrlChanges() {
+            const rebuild = () => setTimeout(buildBanner, 0);
+
+            ['pushState', 'replaceState'].forEach((fn) => {
+            const original = history[fn];
+            history[fn] = function () {
+                original.apply(this, arguments);
+                rebuild();
+            };
+            });
+
+            window.addEventListener('popstate', rebuild,  { passive: true });
+            window.addEventListener('hashchange', rebuild, { passive: true });
         }
-      }
 
-      window.addEventListener('mousemove', showBanner);
-
-      btn.addEventListener('click', function(){
-        const paused = banner.getAttribute('data-paused') === 'true';
-        const nextState = !paused;
-        banner.setAttribute('data-paused', String(nextState));
-        btn.textContent = paused ? 'Pause' : 'Resume';
-
-        showBanner();
-      });
-    })();
-    """)
+        //  INIT 
+        buildBanner();
+        watchUrlChanges();
+        })();
+        """
+    )
 def handle_loading_issue(driver):
     # Checks if the loading dots are present in the live view
     # If they are, it starts a timer to check if the loading issue persists for 15 seconds and log as an error.
