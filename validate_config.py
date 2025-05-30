@@ -109,7 +109,7 @@ def validate_env(env_file: Path, api: bool, errors: list[str]) -> tuple[str, str
         allowed = {
             "USERNAME", "PASSWORD", "URL",
             "FLASK_RUN_HOST", "FLASK_RUN_PORT",
-            "SECRET",
+            "SECRET", "GITHUB_TOKEN"
         }
 
         # Unexpected keys
