@@ -98,7 +98,7 @@ def _download_asset(tag: str, keyword: str) -> bytes | None:
 
 def update_via_tar(tag: str) -> bool:
     try:
-        blob = _download_asset(tag, "minimal")            # (1) keyword fixed
+        blob = _download_asset(tag, "minimal")
         if blob is None:
             logging.error("no 'minimal' asset found for v%s", tag)
             return False
@@ -106,10 +106,8 @@ def update_via_tar(tag: str) -> bool:
         with tarfile.open(fileobj=io.BytesIO(blob), mode="r:gz") as tf:
             members = []
             for m in tf.getmembers():
-                if "/" in m.name:
-                    m.name = m.name.split("/", 1)[1]       # (2) rewrite *name*
-                if m.name:                                  # skip top-level dir
-                    members.append(m)
+                if "/" in m.name: m.name = m.name.split("/", 1)[1]
+                if m.name: members.append(m)
             tf.extractall(ROOT, members=members)  
         return True
     except Exception as exc:

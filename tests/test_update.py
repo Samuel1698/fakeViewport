@@ -1,240 +1,375 @@
-import update as uu, importlib
+import io, importlib, types, base64, subprocess, json, tarfile, warnings
+from pathlib import Path
 from unittest.mock import patch
 import pytest, monitoring
-
+import update as uu
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 @pytest.fixture
 def dummy_repo(tmp_path, monkeypatch):
-    # Create an isolated fake repo tree: VERSION + .git dir.
-    (tmp_path / "VERSION").write_text("0.1.0\n")
+    # Create an isolated fake repo tree:  api/VERSION  +  .git dir
+    (tmp_path / "api").mkdir()
+    (tmp_path / "api" / "VERSION").write_text("0.1.0\n")
     (tmp_path / ".git").mkdir()
-    importlib.reload(uu)  # re-evaluate constants
-    # point update module at our fake repo
+
+    importlib.reload(uu)              # ensure constants are rebound
+
     monkeypatch.setattr(uu, "ROOT", tmp_path)
-    monkeypatch.setattr(uu, "VERS", tmp_path / "VERSION")
+    monkeypatch.setattr(uu, "VERS", tmp_path / "api" / "VERSION")
+    monkeypatch.setattr(uu, "GIT",  ["git", "-C", str(tmp_path)])
     yield tmp_path
-    importlib.reload(uu)  # clean up
+    importlib.reload(uu)              # restore globals for other tests
 
-
+class DummyCM:
+    def __enter__(self): return self
+    def __exit__(self, *args): pass
+    
 @pytest.fixture
 def app_client(dummy_repo, monkeypatch):
+    # Flask test-client with logging disabled for speed.
     monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
     app = monitoring.create_app()
     app.testing = True
     return app.test_client()
-
-
-@patch.object(uu, "latest_version", lambda: "0.2.0")
-def test_update_info_endpoint(app_client):
-    r = app_client.get("/update")
-    data = r.get_json()["data"]
-    assert data == {"current": "0.1.0", "latest": "0.2.0"}
-
-def test_update_info_endpoint_error(app_client, monkeypatch, caplog):
-    # /update returns 500 + logs when the version-check fails
-
-    # Force update.latest_version() to raise
-    def _boom():
-        raise RuntimeError("network unreachable")
-    monkeypatch.setattr(uu, "latest_version", _boom)
-
-    # capture the log produced by app.logger.exception(...)
-    caplog.set_level("ERROR")
-
-    resp = app_client.get("/update")
-
-    # Response 
-    assert resp.status_code == 500
-    payload = resp.get_json()
-    assert payload["status"] == "error"
-    assert "network unreachable" in payload["message"]
-
-    # Log message 
-    assert "version check failed" in caplog.text
-    
-@pytest.mark.parametrize("clean,expect_git", [(True, True), (False, False)])
-def test_perform_update_paths(dummy_repo, monkeypatch, clean, expect_git):
-    monkeypatch.setattr(uu, "latest_version", lambda: "0.2.0")
-    monkeypatch.setattr(uu, "_clean_worktree", lambda: clean)
-    called = {"git": False, "tar": False}
-
-    def fake_git(tag):
-        called["git"] = True
-        return clean
-
-    def fake_tar(tag):
-        called["tar"] = True
-        return not clean
-
-    monkeypatch.setattr(uu, "update_via_git", fake_git)
-    monkeypatch.setattr(uu, "update_via_tar", fake_tar)
-
-    result = uu.perform_update()
-    assert ("git" in result) is expect_git
-    assert called["git"] == expect_git
-    assert called["tar"] == (not expect_git)
-
-
-def test_apply_endpoint_isolated(app_client, monkeypatch):
-    # stub perform_update to avoid any real git/tar calls
-    monkeypatch.setattr(uu, "perform_update", lambda: "ok")
-    r = app_client.post("/update/apply", json={})
-    assert r.status_code == 202
-    assert r.get_json()["data"]["outcome"] == "ok"
-
-
-def test_perform_update_git_error_fallback_to_tar(dummy_repo, monkeypatch):
-    # Simulate git raising an exception; tar should then be called and succeed.
-    monkeypatch.setattr(uu, "latest_version", lambda: "0.2.0")
-    monkeypatch.setattr(uu, "_clean_worktree", lambda: True)
-    called = {"git": False, "tar": False}
-
-    def fake_git(tag):
-        called["git"] = True
-        raise RuntimeError("git checkout failed")
-
-    def fake_tar(tag):
-        called["tar"] = True
-        return True
-
-    monkeypatch.setattr(uu, "update_via_git", fake_git)
-    monkeypatch.setattr(uu, "update_via_tar", fake_tar)
-
-    result = uu.perform_update()
-    assert "tar" in result
-    assert called["git"] is True
-    assert called["tar"] is True
-    # And ensure the VERSION file got updated
-    assert (dummy_repo / "VERSION").read_text().strip() == "0.2.0"
-    
-def test_current_version_reads_text(dummy_repo):
-    # VERSION was written by the dummy_repo fixture -> "0.1.0\n"
-    import update as uu
+# ---------------------------------------------------------------------------
+# current_version / latest_version
+# ---------------------------------------------------------------------------
+def test_current_version_reads_file(dummy_repo):
     assert uu.current_version() == "0.1.0"
 
-
-@pytest.mark.parametrize("git_stdout,expected", [
-    ("",      True),        # clean work-tree
-    (" M x",  False),       # dirty    work-tree
-])
-def test_clean_worktree(monkeypatch, git_stdout, expected):
-    import update as uu
-    monkeypatch.setattr(uu.subprocess, "check_output",
-                        lambda *a, **k: git_stdout)
-    assert uu._clean_worktree() is expected
-
-
-@pytest.mark.parametrize("raises,expected", [
-    (False, True),                      # git OK
-    (True,  False),                     # git fails -> logs + False
-])
-def test_git_ok(monkeypatch, caplog, raises, expected):
-    import update as uu
-    def fake_check(cmd, **kw):
-        if raises:
-            raise uu.subprocess.CalledProcessError(1, cmd, "boom")
-        return "fine"
-    monkeypatch.setattr(uu.subprocess, "check_output", fake_check)
-    caplog.set_level("ERROR")
-    assert uu._git_ok(["git"]) is expected
-    if raises:
-        assert "git failed: boom" in caplog.text
-
-# ----------------------------------------------------------------------------- 
-# update_via_git paths (clean vs dirty tree, success vs failure)
-# -----------------------------------------------------------------------------
-@pytest.mark.parametrize("clean,step_ok,expected", [
-    (False, True,  False),   # dirty tree -> abort early
-    (True,  True,  True),    # all steps succeed
-    (True,  False, False),   # any step fails -> False
-])
-def test_update_via_git(monkeypatch, clean, step_ok, expected):
-    import update as uu
-    monkeypatch.setattr(uu, "_clean_worktree", lambda: clean)
-    # record every step that _git_ok receives
-    steps = []
-    monkeypatch.setattr(uu, "_git_ok", lambda cmd: steps.append(cmd) or step_ok)
-    assert uu.update_via_git("0.2.0") is expected
-    if not clean:
-        assert steps == []
-    else:
-        expected_len = 3 if step_ok else 1
-        assert len(steps) == expected_len
-# ----------------------------------------------------------------------------- 
-# update_via_tar success and failure paths
-# -----------------------------------------------------------------------------
-class _DummyHTTP:
-    def __enter__(self):  return self
-    def __exit__(self, *a): pass
-    def read(self):       return b"tar-bytes"
-
-class _DummyTar:
-    def __enter__(self):  return self
-    def __exit__(self, *a): pass
-    def extractall(self, path): self.extracted_to = path
-
-@pytest.mark.parametrize("should_fail", [False, True])
-def test_update_via_tar(monkeypatch, should_fail, tmp_path):
-    import update as uu
-    monkeypatch.setattr(uu, "ROOT", tmp_path)         # avoid writing outside tmp
-    # stub out urlopen and tarfile.open
-    if should_fail:
-        monkeypatch.setattr(uu, "urlopen",
-                            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("net down")))
-    else:
-        monkeypatch.setattr(uu, "urlopen", lambda *a, **k: _DummyHTTP())
-        monkeypatch.setattr(uu.tarfile, "open", lambda *a, **k: _DummyTar())
-    assert uu.update_via_tar("0.2.0") is (not should_fail)
-
-# ----------------------------------------------------------------------------- 
-# perform_update edge cases still missing
-# -----------------------------------------------------------------------------
-def test_perform_update_already_current(dummy_repo, monkeypatch):
-    import update as uu
-    monkeypatch.setattr(uu, "latest_version", lambda: "0.1.0")  # same as current
-    assert uu.perform_update() == "already-current"
-
-def test_perform_update_tar_only_path(dummy_repo, monkeypatch):
-    # No .git folder → perform_update must jump straight to the tar strategy.
-    import update as uu
-    # remove the .git dir created by fixture
-    (dummy_repo / ".git").rmdir()
-    monkeypatch.setattr(uu, "latest_version", lambda: "0.2.0")
-    monkeypatch.setattr(uu, "_clean_worktree", lambda: True)  # ignored, but safe
-    monkeypatch.setattr(uu, "update_via_tar", lambda tag: True)
-    res = uu.perform_update()
-    assert res.startswith("updated-to-0.2.0-via-tar")
-    # VERSION file should be updated
-    assert (dummy_repo / "VERSION").read_text().strip() == "0.2.0"
-
-def test_latest_version_parses_tag(monkeypatch):
-    import io, update as uu
-
-    class DummyResp(io.StringIO):
+def test_latest_version_success(monkeypatch):
+    class _JSON(io.StringIO):
         def __enter__(self): return self
         def __exit__(self, *exc): pass
 
-    # Fake GitHub API JSON payload
     monkeypatch.setattr(
-        uu, "urlopen",
-        lambda url, timeout=5: DummyResp('{"tag_name": "v9.9.9"}')
+        uu, "_github",
+        lambda url, **kw: _JSON('{"tag_name":"v9.9.9"}')
     )
-
     assert uu.latest_version() == "9.9.9"
 
-def test_perform_update_all_strategies_fail(dummy_repo, monkeypatch):
+def test_latest_version_http_error(monkeypatch):
+    from urllib.error import HTTPError
+    err = HTTPError(None, 403, "nope", None, None)
+    monkeypatch.setattr(uu, "_github", lambda *a, **k: (_ for _ in ()).throw(err))
+    assert uu.latest_version() == "update-failed"
+# ---------------------------------------------------------------------------
+# helpers: _clean_worktree / _current_branch / _default_branch
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("stdout,expected", [("", True), (" M file", False)])
+def test_clean_worktree(monkeypatch, stdout, expected):
+    monkeypatch.setattr(
+        uu.subprocess, "check_output",
+        lambda *a, **k: stdout
+    )
+    assert uu._clean_worktree() is expected
+
+def test_current_branch_detached(monkeypatch):
+    def boom(*a, **k):
+        raise uu.subprocess.CalledProcessError(1, a, "detached")
+    monkeypatch.setattr(uu.subprocess, "check_output", boom)
+    assert uu._current_branch() is None
+
+def test_default_branch_paths(monkeypatch):
+    # git answers -> strip "origin/"
+    monkeypatch.setattr(
+        uu.subprocess, "check_output",
+        lambda *a, **k: "origin/develop\n"
+    )
+    assert uu._default_branch() == "develop"
+
+    # git fails -> github JSON fallback
+    def git_fail(*a, **k): raise uu.subprocess.CalledProcessError(1, a, "no ref")
+    monkeypatch.setattr(uu.subprocess, "check_output", git_fail)
+
+    class _JSON(io.StringIO):
+        def __enter__(self): return self
+        def __exit__(self, *exc): pass
+    monkeypatch.setattr(
+        uu, "_github",
+        lambda url, **kw: _JSON('{"default_branch":"release"}')
+    )
+    assert uu._default_branch() == "release"
+
+    # both fail -> hard-coded 'main'
+    monkeypatch.setattr(uu, "_github", lambda *a, **k: (_ for _ in ()).throw(RuntimeError))
+    assert uu._default_branch() == "main"
+
+# ---------------------------------------------------------------------------
+# update_via_git
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("clean,step_ok,expected", [
+    (False, True,  False),   # dirty tree → abort
+    (True,  True,  True),    # all steps succeed
+    (True,  False, False),   # first step fails
+])
+def test_update_via_git(monkeypatch, clean, step_ok, expected, dummy_repo):
+    monkeypatch.setattr(uu, "_clean_worktree", lambda: clean)
+    monkeypatch.setattr(uu, "_current_branch", lambda: "main")
+    # record actual calls
+    calls = []
+    def fake_check(cmd, **kw):
+        calls.append(cmd)
+        if not step_ok:
+            raise uu.subprocess.CalledProcessError(1, cmd, "boom")
+    monkeypatch.setattr(uu.subprocess, "check_output", fake_check)
+    ok = uu.update_via_git("0.2.0")
+    assert ok is expected
+    if not clean:
+        assert calls == []                 # bailed early
+    else:
+        assert len(calls) >= (1 if not step_ok else 5)
+def test_update_via_git_real_file_change(dummy_repo, monkeypatch):
+    # point version file and seed old version
+    vers_path = dummy_repo / "api" / "VERSION"
+    vers_path.write_text("4.4.4\n")
+
+    # force clean repo and detached HEAD (so we pick up default branch)
+    monkeypatch.setattr(uu, "_clean_worktree", lambda: True)
+    monkeypatch.setattr(uu, "_current_branch", lambda: None)
+    monkeypatch.setattr(uu, "_default_branch", lambda: "main")
+
+    # fake subprocess: on the 'checkout' step, rewrite VERSION
+    def fake_check(cmd, **kwargs):
+        # cmd looks like ["git","-C", "/tmp/...", "checkout", "main"]
+        if len(cmd) >= 5 and cmd[3] == "checkout":
+            # simulate that the new commit contains the bumped version
+            vers_path.write_text("5.5.5\n")
+        return ""  # indicate success
+
+    monkeypatch.setattr(uu.subprocess, "check_output", fake_check)
+
+    # run the real update_via_git
+    ok = uu.update_via_git("5.5.5")
+    assert ok is True
+    # verify that our “pulled” branch truly updated the file on disk
+    assert vers_path.read_text().strip() == "5.5.5"
+# ---------------------------------------------------------------------------
+# update_via_tar
+# ---------------------------------------------------------------------------
+class _TarDummy:
+    def __init__(self): self.extracted = False
+    def __enter__(self): return self
+    def __exit__(self, *e): pass
+    def getmembers(self):
+        m = types.SimpleNamespace(name="dir/file.txt")
+        return [m]
+    def extractall(self, root, members):
+        self.extracted = True
+        self.root = root
+
+@pytest.mark.parametrize("asset_ok,tar_ok,expected", [
+    (False, True,  False),   # no asset found
+    (True,  False, False),   # tarfile.open blows
+    (True,  True,  True),    # everything fine
+])
+def test_update_via_tar(monkeypatch, asset_ok, tar_ok, expected, tmp_path):
+    monkeypatch.setattr(uu, "ROOT", tmp_path)
+
+    # _download_asset path
+    monkeypatch.setattr(
+        uu, "_download_asset",
+        lambda tag, kw="": b"blob" if asset_ok else None
+    )
+
+    if tar_ok:
+        monkeypatch.setattr(uu.tarfile, "open", lambda *a, **k: _TarDummy())
+    else:
+        monkeypatch.setattr(uu.tarfile, "open",
+                            lambda *a, **k: (_ for _ in ()).throw(RuntimeError))
+
+    assert uu.update_via_tar("0.2.0") is expected
+      
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_update_via_tar_real_extraction(dummy_repo, monkeypatch):
     import update as uu
 
-    monkeypatch.setattr(uu, "latest_version",   lambda: "0.2.0")
-    monkeypatch.setattr(uu, "_clean_worktree",  lambda: True)
+    # in-memory tar builder
+    def make_version_tar_bytes(tag: str) -> bytes:
+        import io, tarfile
+        topdir = f"v{tag}"
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+            data = f"{tag}\n".encode()
+            info = tarfile.TarInfo(name=f"{topdir}/api/VERSION")
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+        return buf.getvalue()
 
-    called = {"git": False, "tar": False}
+    # point ROOT at our dummy repo
+    monkeypatch.setattr(uu, "ROOT", dummy_repo)
+    # seed old version
+    api_dir = dummy_repo / "api"
+    (api_dir / "VERSION").write_text("3.0.0\n")
 
-    monkeypatch.setattr(uu, "update_via_git", lambda tag: called.update(git=True) or False)
-    monkeypatch.setattr(uu, "update_via_tar", lambda tag: called.update(tar=True) or False)
+    # stub only download; let real update_via_tar run
+    new_tag = "3.1.0"
+    tar_bytes = make_version_tar_bytes(new_tag)
+    monkeypatch.setattr(uu, "_download_asset", lambda tag, kw="": tar_bytes)
 
-    outcome = uu.perform_update()
+    ok = uu.update_via_tar(new_tag)
+    assert ok is True
+    # now verify the on-disk VERSION file was actually overwritten
+    assert (api_dir / "VERSION").read_text().strip() == new_tag
+# ---------------------------------------------------------------------------
+# perform_update – all branches
+# ---------------------------------------------------------------------------
+def _write_version(path: Path, val: str):
+    path.write_text(val + "\n")
 
-    assert outcome == "update-failed"
-    assert called == {"git": True, "tar": True}
-    # VERSION file must stay untouched
-    assert (dummy_repo / "VERSION").read_text().strip() == "0.1.0"
+@pytest.mark.parametrize("git_ok,tar_ok,expect", [
+    (True,  True,  "updated-to-0.2.0-via-git"),             # git wins
+    (False, True,  "updated-to-0.2.0-via-tar (git failed)"),# git fails → tar wins
+    (False, False, "update-failed"),                        # both fail
+])
+def test_perform_update_paths(dummy_repo, monkeypatch, git_ok, tar_ok, expect):
+    _write_version(dummy_repo / "api" / "VERSION", "0.1.0")
+
+    monkeypatch.setattr(uu, "latest_version", lambda: "0.2.0")
+    monkeypatch.setattr(uu, "_clean_worktree", lambda: True)
+
+    def fake_git(tag):
+        if git_ok:
+            _write_version(dummy_repo / "api" / "VERSION", tag)
+            return True
+        return False
+    def fake_tar(tag):
+        if tar_ok:
+            _write_version(dummy_repo / "api" / "VERSION", tag)
+            return True
+        return False
+    monkeypatch.setattr(uu, "update_via_git", fake_git)
+    monkeypatch.setattr(uu, "update_via_tar", fake_tar)
+
+    result = uu.perform_update()
+    assert result == expect
+    # VERSION file only updates when a strategy succeeds
+    updated = (dummy_repo / "api" / "VERSION").read_text().strip()
+    assert updated == ("0.2.0" if result != "update-failed" else "0.1.0")
+
+def test_perform_update_already_current(dummy_repo, monkeypatch):
+    monkeypatch.setattr(uu, "latest_version", lambda: "0.1.0")   # same
+    assert uu.perform_update() == "already-current"
+
+def test_perform_update_tar_only(dummy_repo, monkeypatch):
+    # No .git dir → straight to tar path.
+    (dummy_repo / ".git").rmdir()                         # remove repo
+    monkeypatch.setattr(uu, "latest_version", lambda: "0.2.0")
+    monkeypatch.setattr(uu, "update_via_tar", lambda t: True)
+    res = uu.perform_update()
+    assert res.startswith("updated-to-0.2.0-via-tar")
+# ---------------------------------------------------------------------------
+# Test token/no token
+# ---------------------------------------------------------------------------    
+def test__github_headers(monkeypatch):
+    # Without token
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    captured = {}
+    def fake_Request(url, headers):
+        captured.update(headers)
+        return "REQ"
+    monkeypatch.setattr(uu, "Request", fake_Request)
+    monkeypatch.setattr(uu, "urlopen", lambda req, timeout: DummyCM())
+    cm = uu._github("http://example.com")
+    assert cm.__enter__() is cm
+    assert captured == {"Accept": "application/vnd.github+json"}
+
+    # With token and custom accept
+    monkeypatch.setenv("GITHUB_TOKEN", "tok123")
+    captured.clear()
+    cm2 = uu._github("http://example.com", accept="foo/bar")
+    assert captured == {
+        "Accept": "foo/bar",
+        "Authorization": "Bearer tok123"
+    }
+
+@pytest.mark.parametrize("assets,keyword,expected", [
+    ([], "minimal", None),
+    ([{"name": "other-file", "url": "u"}], "minimal", None),
+    ([{"name": "pkg-Minimal-V1", "url": "u"}], "minimal", b"BYTES"),
+])
+def test__download_asset(monkeypatch, assets, keyword, expected):
+    tag = "1.2.3"
+    def fake__github(url, accept="application/vnd.github+json"):
+        # metadata call
+        if url.endswith(f"/tags/v{tag}"):
+            meta = {"assets": assets}
+            class Meta(DummyCM):
+                def read(self): return json.dumps(meta)
+            return Meta()
+        # download call
+        class Blob(DummyCM):
+            def read(self): return b"BYTES"
+        return Blob()
+
+    monkeypatch.setattr(uu, "_github", fake__github)
+    result = uu._download_asset(tag, keyword)
+    assert result == expected
+
+def test_update_via_git_injects_auth(monkeypatch):
+    tag = "4.5.6"
+    # Ensure clean worktree and branch resolution
+    monkeypatch.setattr(uu, "_clean_worktree", lambda: True)
+    monkeypatch.setenv("GITHUB_TOKEN", "secretToken")
+    monkeypatch.setattr(uu, "_current_branch", lambda: "main")
+    monkeypatch.setattr(uu, "_default_branch", lambda: "main")
+
+    captured_env = {}
+    def fake_check(cmd, stderr=None, text=None, env=None):
+        captured_env.update(env)
+        # Stop after first step
+        raise subprocess.CalledProcessError(1, cmd, "fail")
+    monkeypatch.setattr(uu.subprocess, "check_output", fake_check)
+
+    assert uu.update_via_git(tag) is False
+
+    # Verify auth headers in env
+    assert captured_env["GIT_TERMINAL_PROMPT"] == "0"
+    assert captured_env["GIT_CONFIG_COUNT"] == "1"
+    assert captured_env["GIT_CONFIG_KEY_0"] == "http.extraHeader"
+    expected_b64 = base64.b64encode(f"x-access-token:secretToken".encode()).decode()
+    assert captured_env["GIT_CONFIG_VALUE_0"] == f"Authorization: Basic {expected_b64}"
+
+def test_update_via_git_no_token(monkeypatch):
+    tag = "7.8.9"
+    monkeypatch.setattr(uu, "_clean_worktree", lambda: True)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(uu, "_current_branch", lambda: "main")
+    monkeypatch.setattr(uu, "_default_branch", lambda: "main")
+
+    captured_env = {}
+    def fake_check(cmd, stderr=None, text=None, env=None):
+        captured_env.update(env)
+        raise subprocess.CalledProcessError(1, cmd, "fail")
+    monkeypatch.setattr(uu.subprocess, "check_output", fake_check)
+
+    assert uu.update_via_git(tag) is False
+
+    # No auth-related keys should be present
+    for key in ("GIT_TERMINAL_PROMPT", "GIT_CONFIG_COUNT",
+                "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0"):
+        assert key not in captured_env
+# ---------------------------------------------------------------------------
+# Monitoring API endpoints
+# ---------------------------------------------------------------------------
+@patch.object(monitoring.update, "latest_version", lambda: "0.2.0")
+def test_update_info_endpoint(app_client):
+    r = app_client.get("/update")
+    assert r.status_code == 200
+    assert r.get_json()["data"] == {"current": "0.1.0", "latest": "0.2.0"}
+
+def test_update_info_endpoint_error(app_client, monkeypatch, caplog):
+    def boom(): raise RuntimeError("net down")
+    monkeypatch.setattr(uu, "latest_version", boom)
+    caplog.set_level("ERROR")
+    resp = app_client.get("/update")
+    assert resp.status_code == 500
+    assert "net down" in resp.get_json()["message"]
+    assert "version check failed" in caplog.text
+
+def test_update_apply_endpoint(app_client, monkeypatch):
+    monkeypatch.setattr(monitoring.update, "perform_update", lambda: "ok")
+    r = app_client.post("/update/apply")
+    assert r.status_code == 202
+    assert r.get_json()["data"]["outcome"] == "ok"
