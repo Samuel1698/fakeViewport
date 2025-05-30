@@ -80,7 +80,6 @@ def perform_update() -> str:
         except Exception:
             # on git error, fall back to tar
             pass
-
     if update_via_tar(new):
         VERS.write_text(f"{new}\n")
         return f"updated-to-{new}-via-tar" + (" (git failed)" if tried_git else "")
