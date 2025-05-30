@@ -125,7 +125,19 @@ def latest_version() -> str:
             return json.load(r)["tag_name"].lstrip("v")
     except HTTPError:
         return "update-failed"
-
+def latest_changelog() -> str:
+    # Fetch the body of the latest GitHub release and return it,
+    # truncating at the first occurrence of '---'.
+    try:
+        with _github(f"https://api.github.com/repos/{REPO}/releases/latest") as r:
+            data = json.load(r)
+        body = data.get("body", "")
+        # Truncate at delimiter '---'
+        parts = body.split('---', 1)
+        return parts[0].rstrip()
+    except Exception as e:
+        logging.error("Failed to fetch changelog: %s", e)
+        return ""
 def perform_update() -> str:
     # Try git first (if the work-tree is clean) then fall back to the tarball.
     # Whatever happens, write the outcome to the log and return it.

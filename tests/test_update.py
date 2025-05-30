@@ -25,6 +25,12 @@ class DummyCM:
     def __enter__(self): return self
     def __exit__(self, *args): pass
     
+class DummyResponse(io.StringIO):
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+    
 @pytest.fixture
 def app_client(dummy_repo, monkeypatch):
     # Flask test-client with logging disabled for speed.
@@ -373,3 +379,21 @@ def test_update_apply_endpoint(app_client, monkeypatch):
     r = app_client.post("/update/apply")
     assert r.status_code == 202
     assert r.get_json()["data"]["outcome"] == "ok"
+    
+@pytest.mark.parametrize("body, expected", [
+    ("Fix bug\nAdd feature\n",            "Fix bug\nAdd feature"),
+    ("Release notes\n---\n-- tar info\n",  "Release notes"),
+    ("Line1\nLine2\n--- Extra info\nLine3", "Line1\nLine2"),
+])
+def test_latest_changelog_splits_on_delimiter(monkeypatch, body, expected):
+    dummy_json = json.dumps({"body": body})
+    # _github should return a context-manager file-like with JSON text
+    monkeypatch.setattr(uu, "_github", lambda url, **kwargs: DummyResponse(dummy_json))
+    result = uu.latest_changelog()
+    assert result == expected
+
+def test_latest_changelog_handles_http_error(monkeypatch):
+    def raise_404(url, **kwargs):
+        raise HTTPError(url, 404, "Not Found", hdrs=None, fp=None)
+    monkeypatch.setattr(uu, "_github", raise_404)
+    assert uu.latest_changelog() == ""
