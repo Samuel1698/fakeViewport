@@ -1,9 +1,22 @@
 let lastScriptUptime = null;
 document.addEventListener('DOMContentLoaded', () => {
   loadInfo();
-  // auto-refresh every minute, but only if info is visible
+  checkForUpdate();
   setInterval(loadInfo, 60_000);
+  setInterval(checkForUpdate, 60 * 60 * 1000);
 });
+// compares version of updates
+function cmpVersions(a, b) {
+  const pa = a.split(".").map(Number),
+    pb = b.split(".").map(Number);
+  for (let i = 0, n = Math.max(pa.length, pb.length); i < n; i++) {
+    const x = pa[i] || 0,
+      y = pb[i] || 0;
+    if (x > y) return 1;
+    if (x < y) return -1;
+  }
+  return 0;
+}
 // format seconds → “Dd Hh Mm Ss”
 function formatDuration(sec) {
   // 1) break total seconds into days, leftover hours, minutes, seconds
@@ -40,6 +53,21 @@ async function fetchJSON(path) {
   } catch {
     return null;
   }
+}
+async function checkForUpdate() {
+  const res = await fetchJSON("/update");
+  if (!res?.data) return;
+  const { current, latest } = res.data;
+  if (cmpVersions(latest, current) <= 0) return;
+
+  const banner = document.getElementById("updateBanner");
+  if (!banner) return;
+  banner.querySelector(
+    "span"
+  ).textContent = `New version ${latest} available (running ${current})`;
+  banner.querySelector("#releaseLink").href =
+    "https://github.com/Samuel1698/fakeViewport/releases/latest";
+  banner.hidden = false;
 }
 // fetch+render all API data
 async function loadInfo() {
@@ -121,14 +149,12 @@ async function loadInfo() {
     srel.parentElement.setAttribute('hidden', '');
   }
 }
-
 // send control and update inline message
 async function control(action, btn) {
-  // 1) disable the button immediately
+  // disable the button immediately
   btn.setAttribute('disabled', '');
   setTimeout(() => { btn.removeAttribute('disabled') }, 15_000);
 
-  // 2) do your existing status-message logic
   const msgEl = document.querySelector('#statusMessage span');
   msgEl.textContent = '';
   msgEl.style.color = '';
@@ -156,8 +182,31 @@ async function control(action, btn) {
     msgEl.style.color   = 'red';
   }
 }
+// send update
+async function applyUpdate(btn) {
+  btn.disabled = true;
+  btn.textContent = "Updating…";
+  try {
+    const r = await fetch("/update/apply", { method: "POST" });
+    const js = await r.json();
+    btn.textContent = js?.data?.outcome?.startsWith("updated")
+      ? "Updated - restarting…"
+      : "Update failed";
+    // give the backend a moment, then reload
+    if (js?.data?.outcome?.startsWith("updated")) {
+      const res = await fetch(`/api/control/restart`, { method: "POST" });
+      const js = await res.json();
+      if (js.status === 'ok') {
+        setTimeout(() => location.reload(), 5000);
+      }
+    }
+  } catch {
+    btn.textContent = "Update failed";
+  }
+}
 
 const logsBtn = document.getElementById('showLogsBtn');
+const update = document.getElementById("applyUpdateBtn");
 const modal   = document.getElementById('logsModal');
 const closeX  = document.getElementById('closeLogs');
 const output  = document.getElementById('logOutput');
@@ -174,7 +223,7 @@ logsBtn.addEventListener('click', async () => {
     modal.setAttribute('hidden', '');
   }
 });
-
+update.addEventListener('click', e => applyUpdate(e.target));
 // close handlers
 closeX.addEventListener('click', () => modal.setAttribute('hidden',''));
 modal.addEventListener('click', e => {

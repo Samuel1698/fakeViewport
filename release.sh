@@ -32,7 +32,7 @@ git archive \
     api/VERSION \
     templates/ \
     static/main-min.js \
-    static/main.css \
+    static/main-min.css \
     static/favicon* \
     config.ini.example \
     .env.example

@@ -41,6 +41,9 @@ section:focus-visible, li:focus-visible {
     outline: 5px auto $white-outline;
   }
 }
+body {
+  margin-top: 5rem;
+}
 // --------------------------------------------------
 // Headings
 // --------------------------------------------------
@@ -50,7 +53,40 @@ h1 {
   margin-bottom: 1rem;
   text-align: center;
 }
+#updateBanner {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  z-index: 10;
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
 
+  background: #f9fafa;
+  color: $primary-color;
+  padding: 1rem 1.4rem;
+  border: 1px solid $white-outline;
+  border-radius: $border-radius;
+
+  a {
+    color: $secondary-color;
+    text-decoration: underline;
+  }
+  button {
+    padding: .5rem .9rem;
+    font-size: 1.4rem;
+    background: $primary-color;
+    color: #f9fafa;
+    border: none;
+    border-radius: $border-radius;
+    cursor: pointer;
+    transition: opacity $transition-speed;
+
+    &:hover { opacity: .85; }
+    &:disabled { cursor: not-allowed; opacity: .6; }
+  }
+}
 // --------------------------------------------------
 // Login Page Styles
 // --------------------------------------------------
@@ -172,9 +208,15 @@ h1 {
 }
 #controls {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  margin-bottom: 1rem;
+  flex-direction: row;
+  justify-content: center;
+  
+  button {
+    flex: 1;
+    margin: 0 0.5rem;
+    max-width: 150px;
+    margin-bottom: 0;
+  }
   #statusMessage {
     text-align: center;
     margin-top: 1rem;
@@ -246,18 +288,6 @@ h1 {
   }
   h1 {
     font-size: 2rem;
-  }
-
-  #controls {
-    flex-direction: row;
-    justify-content: center;
-
-    button {
-      flex: 1;
-      margin: 0 0.5rem;
-      max-width: 150px;
-      margin-bottom: 0;
-    }
   }
 }
 
