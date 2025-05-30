@@ -7,8 +7,13 @@ NC='\e[0m'
 
 echo -e "${YELLOW}===== FakeViewport Minimize =====${NC}"
 
-echo -ne "\n${YELLOW}This will delete all development files and tests. Continue? (y/n):${NC} "
-read -r confirm
+if [[ "$1" =~ ^(-f|--force)$ ]]; then
+    confirm="y"
+else
+    echo -ne "\n${YELLOW}This will delete all development files and tests. Continue? (y/n):${NC} "
+    read -r confirm
+fi
+
 if [[ ! "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then
     echo -e "${GREEN}Aborted.${NC}"
     exit 0
