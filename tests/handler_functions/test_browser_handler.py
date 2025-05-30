@@ -238,7 +238,7 @@ def test_driver_download_stuck_logs_and_kills(monkeypatch, browser):
     with pytest.raises(Breakout):
         viewport.browser_handler("http://example.com")
 
-    # Assert: Asser expecting 3 kills with the same signature
+    # Assert: expecting 3 kills with the same signature
     assert spy_kill.call_count == 3
     spy_kill.assert_has_calls([call(browser, action="kill")] * 3)
     # Assert log has the appropriate line

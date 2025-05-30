@@ -1,8 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, PropertyMock, patch
 from selenium.common.exceptions import TimeoutException, WebDriverException
-from datetime import datetime
-
 import viewport
 
 # ----------------------------------------------------------------------------- 

@@ -17,10 +17,9 @@ from flask import (
 )
 from flask_cors import CORS
 from collections import deque
-import viewport
 import update 
 from logging_config import configure_logging
-from validate_config import validate_config, AppConfig
+from validate_config import validate_config
 from dotenv import load_dotenv, find_dotenv
 
 _mon = sys.modules[__name__]

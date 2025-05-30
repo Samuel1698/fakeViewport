@@ -4,7 +4,6 @@ import viewport
 import subprocess
 from types import SimpleNamespace as Namespace
 from unittest.mock import MagicMock, patch, mock_open, call
-from test_config import write_base
 
 @pytest.fixture(autouse=True)
 def isolate_sst(tmp_path, monkeypatch):

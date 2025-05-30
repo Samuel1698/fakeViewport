@@ -1,4 +1,3 @@
-# tests/test_logging_config.py
 import logging
 import pytest
 from logging.handlers import TimedRotatingFileHandler

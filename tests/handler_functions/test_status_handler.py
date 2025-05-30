@@ -1,16 +1,8 @@
-import sys
-import logging
 import pytest
 import viewport
-import os
-from io import StringIO
 from datetime import datetime
-import time 
-from webdriver_manager.core.os_manager import ChromeType
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
-import signal
-import subprocess
 # ----------------------------------------------------------------------------- 
 # Helper function and fixture
 # ----------------------------------------------------------------------------- 

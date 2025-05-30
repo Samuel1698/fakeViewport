@@ -1,16 +1,9 @@
 import os
-import sys
 import subprocess
-import runpy
-import pathlib
-import types
 from pathlib import Path
 from types import SimpleNamespace
-from validate_config import validate_config
 from datetime import time as timecls
-from flask import url_for
 import pytest
-import psutil
 import monitoring
 from monitoring import create_app
 # ----------------------------------------------------------------------------- 

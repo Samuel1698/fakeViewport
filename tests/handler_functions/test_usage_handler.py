@@ -1,7 +1,7 @@
 import pytest
 import viewport
 from types import SimpleNamespace
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 # import your helper; adjust the path if needed
 from tests.handler_functions.test_process_handler import _make_proc
 

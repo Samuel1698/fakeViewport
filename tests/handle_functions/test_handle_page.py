@@ -1,4 +1,3 @@
-import pytest
 import viewport
 from unittest.mock import MagicMock, patch, call
 # ----------------------------------------------------------------------------- 

@@ -1,10 +1,8 @@
 import pytest
-import configparser
 from datetime import datetime as real_datetime, time as timecls, timedelta
 import pathlib
 from pathlib import Path
 import monitoring
-from monitoring import create_app
 from types import SimpleNamespace
 # ----------------------------------------------------------------------------- 
 # Fake out datetime.now() for determinism
@@ -42,8 +40,8 @@ def restart_times(request):
 # ----------------------------------------------------------------------------- 
 @pytest.fixture
 def client(tmp_path, monkeypatch, restart_times):
-    # 1) stub out the shared validate_config(...) to return exactly what we need
-    #    convert the restart_times string into a list of time objects
+    # stub out the shared validate_config(...) to return exactly what we need
+    # convert the restart_times string into a list of time objects
     times = [
         timecls(*map(int, t.split(':')))
         for t in restart_times.split(',') if t.strip()
@@ -67,16 +65,16 @@ def client(tmp_path, monkeypatch, restart_times):
     )
     monkeypatch.setattr(monitoring, 'validate_config', lambda **kw: cfg)
 
-    # 2) stub out configure_logging (so we don't reconfigure pytest's caplog)
+    # stub out configure_logging (so we don't reconfigure pytest's caplog)
     monkeypatch.setattr(monitoring, 'configure_logging', lambda *a, **k: None)
 
-    # 3) force script_dir → tmp_path, and create the subdirectories
+    # force script_dir → tmp_path, and create the subdirectories
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
     # make sure the dirs exist so endpoints that write/read them work:
     (tmp_path / 'api').mkdir(exist_ok=True)
     (tmp_path / 'logs').mkdir(exist_ok=True)
 
-    # 4) fake psutil / time
+    # fake psutil / time
     monkeypatch.setattr(monitoring.psutil, 'boot_time',    lambda: 1000)
     monkeypatch.setattr(monitoring.time,    'time',        lambda: 1010)
     class DummyVM:
@@ -84,7 +82,7 @@ def client(tmp_path, monkeypatch, restart_times):
         total = 67890
     monkeypatch.setattr(monitoring.psutil, 'virtual_memory', lambda: DummyVM)
 
-    # 5) build the Flask client
+    # build the Flask client
     app = monitoring.create_app()
     app.testing = True
     return app.test_client()
@@ -178,10 +176,10 @@ def test_script_uptime_missing(client):
     assert 'SST file not found' in obj['message']
 
 def test_script_uptime_malformed(client, tmp_path, monkeypatch):
-    # 1) point monitoring.script_dir at a tmp dir
+    # point monitoring.script_dir at a tmp dir
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
 
-    # 2) compute the api_dir exactly like the app does
+    # compute the api_dir exactly like the app does
     api_dir: Path = monitoring.script_dir / 'api'
     api_dir.mkdir(parents=True, exist_ok=True)
 
@@ -193,10 +191,10 @@ def test_script_uptime_malformed(client, tmp_path, monkeypatch):
     assert 'Malformed SST timestamp' in obj['message']
 
 def test_script_uptime_ok(client, tmp_path, monkeypatch):
-    # 1) point monitoring.script_dir at a tmp dir
+    # point monitoring.script_dir at a tmp dir
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
 
-    # 2) compute the api_dir exactly like the app does
+    # compute the api_dir exactly like the app does
     api_dir: Path = monitoring.script_dir / 'api'
     api_dir.mkdir(parents=True, exist_ok=True)
 
@@ -397,7 +395,7 @@ def test_invalid_limit_falls_back_to_default(client, tmp_path, monkeypatch):
     log_path.write_text("\n".join(lines) + "\n")
 
     # non-integer limit → default 100
-    resp = client_app.get("/api/logs?limit=notanumber")
+    resp = client_app.get("/api/logs?limit=string")
     assert resp.status_code == 200
     logs = resp.get_json()["data"]["logs"]
 

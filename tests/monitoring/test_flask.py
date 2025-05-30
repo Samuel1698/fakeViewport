@@ -1,6 +1,4 @@
-import sys
 import pytest
-import runpy
 import types
 import monitoring
 from unittest.mock import patch, MagicMock

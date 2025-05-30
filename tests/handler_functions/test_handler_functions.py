@@ -2,9 +2,8 @@ import os
 import logging
 import pytest
 import viewport
-from datetime import datetime, time as dt_time
+from datetime import time
 import time 
-from webdriver_manager.core.os_manager import ChromeType
 from unittest.mock import MagicMock, patch, call
 
 @pytest.fixture(autouse=True)
@@ -14,7 +13,7 @@ def isolate_sst(tmp_path, monkeypatch):
     fake.write_text("2025-01-01 00:00:00.000000")  # or leave empty
     monkeypatch.setattr(viewport, "sst_file", fake)
 # ----------------------------------------------------------------------------- 
-# Test for Singal Handler
+# Test for Signal Handler
 # ----------------------------------------------------------------------------- 
 @patch("viewport.logging")
 @patch("viewport.api_status")

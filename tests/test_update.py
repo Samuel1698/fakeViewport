@@ -1,5 +1,4 @@
-import json, types, update as uu, importlib
-from pathlib import Path
+import update as uu, importlib
 from unittest.mock import patch
 import pytest, monitoring
 
