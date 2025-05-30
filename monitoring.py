@@ -168,7 +168,24 @@ def create_app():
         except Exception as e:
             app.logger.exception("version check failed")
             return jsonify(status="error", message=str(e)), 500
-
+    @app.route("/update/changelog")
+    def api_update_changelog():
+        # Fetch and return the latest release changelog (up to the '---' delimiter),
+        # plus a link to the GitHub release page.
+        try:
+            changelog = update.latest_changelog()
+            # You can point directly at the “latest” redirect, or use a tag-specific URL:
+            release_url = f"https://github.com/{update.REPO}/releases/latest"
+            return jsonify(
+                status="ok",
+                data={
+                    "changelog": changelog,
+                    "release_url": release_url,
+                }
+            )
+        except Exception as e:
+            app.logger.exception("changelog fetch failed")
+            return jsonify(status="error", message=str(e)), 500
     @app.route("/update/apply", methods=["POST"])
     @login_required
     def api_update_apply():

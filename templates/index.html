@@ -10,10 +10,18 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='main-min.css') }}">
 </head>
 <body>
-  <div id="updateBanner" hidden>
-    <span></span>
-    <a id="releaseLink" href="#" target="_blank" rel="noopener">Changelog</a>
-    <button id="applyUpdateBtn">Update</button>
+  <button id="updateBanner" hidden>
+    <span>Update Available!</span>
+  </button>
+  <div id="changelogModal" class="modal" hidden>
+    <div class="modal-content">
+      <div class="container">
+        <h2>Update</h2>
+        <span class="close">&times;</span>
+      </div>
+      <div id="changelog-body"></div>
+      <a id="changelog-link" href="#" target="_blank">View on GitHub</a>
+    </div>
   </div>
   <h1>Viewport Control</h1>
   <section id="info">
@@ -44,11 +52,12 @@
     <div class="modal-content">
       <div class="container">
         <h2>Last 100 log lines</h2>
-        <span id="closeLogs" class="close">&times;</span>
+        <span class="close">&times;</span>
       </div>
       <pre id="logOutput"></pre>
     </div>
   </div>
+  <script src="{{ url_for('static', filename='marked-min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='main-min.js') }}" defer></script>
 </body>
 </html>

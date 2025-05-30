@@ -32,6 +32,7 @@ git archive \
     api/VERSION \
     templates/ \
     static/main-min.js \
+    static/marked-min.js \
     static/main-min.css \
     static/favicon* \
     config.ini.example \
