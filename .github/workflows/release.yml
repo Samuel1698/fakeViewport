@@ -1,6 +1,7 @@
 name: 📦 Build Releases
 permissions:
-  contents: write 
+  contents: write
+
 on:
   release:
     types: [published]
@@ -8,18 +9,109 @@ on:
 jobs:
   slice-and-upload:
     runs-on: ubuntu-latest
+
     steps:
+      # Checkout full history so we can push later
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Bump api/VERSION and push to the branch the tag was cut from
+      - name: Update VERSION file and push
+        env:
+          TAG:    ${{ github.event.release.tag_name }}              # e.g. v2.3.3
+          BRANCH: ${{ github.event.release.target_commitish }}      # e.g. main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch origin "$BRANCH"
+          git checkout "$BRANCH"
+
+          echo "${TAG#v}" > api/VERSION           # strip leading 'v'
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/VERSION
+          git commit -m "ci(release): bump VERSION to ${TAG}"
+          git push origin "$BRANCH"
+
+      # Build release bundles
       - name: Build bundles
         run: |
           chmod +x ./release.sh
           ./release.sh
 
+      # Publish the tarballs attached by release.sh
       - name: Publish assets
         uses: softprops/action-gh-release@v1
         with:
           files: dist/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-snapshot:
+    needs: slice-and-upload     # only run if release job succeeded
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout snapshot branch with credentials
+      - name: Checkout snapshot branch
+        uses: actions/checkout@v3
+        with:
+          ref: snapshot
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Merge the just-updated $default_branch → snapshot
+      - name: Merge main into snapshot
+        env:
+          BRANCH: ${{ github.event.repository.default_branch }}  # usually 'main'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "$BRANCH"
+          git merge --no-ff "origin/$BRANCH" -m "Merge $BRANCH → snapshot"
+          git push origin snapshot
+
+      # Rewrite README badge + add warning banner
+      - name: Replace badges and add SNAPSHOT warning
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const file = 'README.md';
+            let md = fs.readFileSync(file, 'utf8');
+
+            const warning = `# SNAPSHOT
+            You are currently seeing the snapshot branch. This is where I make rapid changes and experiment with new code. If this branch is ahead of main, it is most likely broken.
+            Check the [latest release](https://github.com/Samuel1698/fakeViewport/releases) or go to [main](https://github.com/Samuel1698/fakeViewport/tree/main) for a stable version of the code.
+
+            ---
+
+            `;
+
+            const badges = `
+            [![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg?branch=snapshot)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
+            `;
+
+            const regionRe = /<!-- \[START BADGES\] -->[\s\S]*?<!-- \[END BADGES\] -->/gm;
+            md = md.replace(regionRe, `<!-- [START BADGES] -->\n${badges}\n<!-- [END BADGES] -->`);
+
+            if (!md.includes('# SNAPSHOT')) {
+              const endBadges = '<!-- [END BADGES] -->';
+              const parts = md.split(endBadges);
+              if (parts.length >= 2) {
+                md = parts[0] + endBadges + '\n\n' + warning + parts[1];
+              }
+            }
+
+            fs.writeFileSync(file, md);
+
+      # Commit README changes (if any)
+      - name: Commit & push snapshot updates
+        run: |
+          git add README.md
+          git commit -m "docs(snapshot): update README" || echo "No changes to commit"
+          git push origin snapshot
