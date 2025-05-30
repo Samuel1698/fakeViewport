@@ -126,7 +126,7 @@ def test_browser_handler(
 
 @pytest.mark.parametrize("exc, expected_msg", [
     (NewConnectionError("conn refused", None),
-     "Connection refused while starting chrome; regtrying in 2s"),
+     "Connection refused while starting chrome; retrying in 2s"),
     (MaxRetryError("network down", None),
      "Network issue while starting chrome; retrying in 2s"),
     (NameResolutionError("dns fail", None, None),

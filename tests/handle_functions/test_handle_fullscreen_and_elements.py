@@ -27,6 +27,16 @@ def test_handle_elements_hides_cursor_and_player_options():
 
     # delay propagated
     assert delay == 3000
+
+@pytest.mark.parametrize("invocations", [1, 2, 3])
+def test_banner_script_always_injected(invocations):
+    driver = MagicMock()
+    for _ in range(invocations):
+        viewport.handle_pause_banner(driver)
+
+    assert driver.execute_script.call_count == invocations
+    script_source = driver.execute_script.call_args[0][0]
+    assert 'pauseBannerPaused' in script_source
 # ----------------------------------------------------------------------------- 
 # Test for handle_fullscreen_button function
 # ----------------------------------------------------------------------------- 
