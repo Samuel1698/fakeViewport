@@ -117,12 +117,21 @@ h1 {
 section.flex-parent {
   display: flex;
   justify-content: flex-start;
+  .button-group {
+    display: inline-flex;
+    position: relative;
+    background-color: color("diminished");
+    border-top-left-radius: $border-radius;
+    border-top-right-radius: $border-radius;
+    overflow: hidden; // This contains the hover effects
+  }
   button {
+    cursor: pointer;
     padding: 1rem;
     color: color("text");
-    background-color: color("diminished");
+    background: transparent;
     border: none;
-    border-bottom: 0;
+    position: relative;
     @include hover {
       background: color("blue", $lightness: -10%);
     }
@@ -130,20 +139,15 @@ section.flex-parent {
   button[aria-selected="true"] {
     background-color: color("box");
     color: color("blue");
+    cursor: unset;
     @include hover {
       background: color("box");
     }
   }
-  button:first-of-type {
-    border-top-left-radius: $border-radius;
-  }
-  button.last {
-    border-top-right-radius: $border-radius;
-  }
-  button:last-of-type {
+  #refreshButton {
     background: color("box");
+    padding: 0 16px;
     margin-left: auto;
-    cursor: pointer;
     border-radius: $border-radius $border-radius 0 0;
     svg {
       fill: color("text");
@@ -153,11 +157,6 @@ section.flex-parent {
       svg {
         fill: color("blue");
       }
-    }
-  }
-  #updateBanner {
-    span {
-      color: color("blue");
     }
   }
 }
@@ -296,7 +295,7 @@ section#changelog {
       border-bottom: 0;
       margin-bottom: unset;
     }
-    button[type="Submit"]{
+    button[type="submit"]{
       padding: 0.5rem 1.4rem;
       background-color: color("blue");
       color: color("text");

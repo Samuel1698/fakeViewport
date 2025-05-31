@@ -13,9 +13,11 @@
 <body>
   <h1>Viewport Control</h1>
   <section class="flex-parent">
-    <button id="status" aria-selected="true">Status</button>
-    <button id="logsBtn" class="last">Logs</button>
-    <button id="update" hidden>Update<span>!</span></button>
+    <div class="button-group">
+      <button id="status" aria-selected="true">Status</button>
+      <button id="logsBtn">Logs</button>
+      <button id="update" hidden>Update</button>
+    </div>
     <button id="refreshButton">
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
         <path
@@ -40,7 +42,6 @@
       <button onclick="control('start', this)" data-tooltip="Please wait before sending the same command again.">Start</button>
       <button onclick="control('restart', this)" data-tooltip="Please wait before sending the same command again.">Restart</button>
       <button onclick="control('quit', this)" data-tooltip="Please wait before sending the same command again.">Quit</button>
-  
     </div>
     <div id="statusMessage"><span></span></div>
   </section>
@@ -60,8 +61,9 @@
       <div id="changelog-body"></div>
       <div class="flex">
         <a id="changelog-link" href="#" target="_blank">View on GitHub</a>
-        <button type="Submit">Update</button>
+        <button type="submit"><span>Update</span></button>
       </div>
+      <div id="updateMessage"><span></span></div>
     </div>
   </section>
   <script src="{{ url_for('static', filename='marked-min.js') }}" defer></script>

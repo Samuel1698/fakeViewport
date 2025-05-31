@@ -35,9 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
   buttons.logs.removeAttribute("aria-selected", "false");
   buttons.updateBanner.removeAttribute("aria-selected", "false");
 
-  // Update button classes initially
-  updateButtonClasses();
-
   // Add click handlers for all buttons
   buttons.status.addEventListener("click", () => {
     toggleSection("status");
@@ -52,6 +49,9 @@ document.addEventListener("DOMContentLoaded", () => {
       output.textContent = res.data.logs.join("");
     }
   });
+  // Wire up the update button
+  pushUpdate = sections.updateBanner.querySelector('button[type="submit"]');
+  pushUpdate.addEventListener("click", () => applyUpdate(pushUpdate));
 
   buttons.updateBanner.addEventListener("click", () => {
     toggleSection("updateBanner");
@@ -78,21 +78,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Hide refresh button unless "status"
     if (buttonId != "status") {
       buttons.refreshButton.setAttribute("hidden", "true");
-    }
-    // Update button classes
-    updateButtonClasses();
-  }
-
-  function updateButtonClasses() {
-    const updateBtn = buttons.updateBanner;
-    const logsBtn = buttons.logs;
-
-    if (updateBtn.hasAttribute("hidden")) {
-      logsBtn.classList.add("last");
-      updateBtn.classList.remove("last");
-    } else {
-      logsBtn.classList.remove("last");
-      updateBtn.classList.add("last");
     }
   }
 });
@@ -177,20 +162,20 @@ function showChangelog() {
 }
 // format seconds → “Dd Hh Mm Ss”
 function formatDuration(sec) {
-  // 1) break total seconds into days, leftover hours, minutes, seconds
+  // break total seconds into days, leftover hours, minutes, seconds
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = Math.floor(sec % 60);
 
-  // 2) collect non-zero components
+  // collect non-zero components
   const parts = [];
   if (d > 0) parts.push(`${d}d`);
   if (h > 0) parts.push(`${h}h`);
   if (m > 0) parts.push(`${m}m`);
   if (s > 0) parts.push(`${s}s`);
 
-  // 3) join with spaces, or return “0s” if none
+  // join with spaces, or return “0s” if none
   return parts.length > 0 ? parts.join(" ") : "0s";
 }
 const formatter = new Intl.DateTimeFormat("en-US", {
@@ -267,9 +252,9 @@ async function loadInfo() {
   // intervals
   const hi = await fetchJSON("/api/health_interval");
   if (hi?.data) {
-    // 1) convert seconds → minutes (round to nearest whole minute)
+    // convert seconds → minutes (round to nearest whole minute)
     const minutes = Math.round(hi.data.health_interval_sec / 60);
-    // 2) render in “X min” format
+    // render in “X min” format
     document.getElementById("healthInterval").textContent = `${minutes} min`;
   }
   const li = await fetchJSON("/api/log_interval");
@@ -350,23 +335,105 @@ async function control(action, btn) {
 }
 // send update
 async function applyUpdate(btn) {
+  const updateMessage = document.querySelector("#updateMessage span");
+  const originalBtnText = btn.querySelector("span").textContent;
+  const originalBtnDisabled = btn.disabled;
+
+  // Reset message state
+  updateMessage.textContent = "";
+  updateMessage.className = "";
   btn.disabled = true;
-  btn.textContent = "Updating…";
+  updateMessage.textContent = "Fetching Update...";
+  updateMessage.classList.add("Green"); 
   try {
-    const r = await fetch("/update/apply", { method: "POST" });
-    const js = await r.json();
-    btn.textContent = js?.data?.outcome?.startsWith("updated")
-      ? "Updated - restarting…"
-      : "Update failed";
-    // give the backend a moment, then reload
-    if (js?.data?.outcome?.startsWith("updated")) {
-      const res = await fetch(`/api/control/restart`, { method: "POST" });
-      const js = await res.json();
-      if (js.status === "ok") {
-        setTimeout(() => location.reload(), 5000);
+    // First API call - apply update
+    const updateResponse = await fetch("/update/apply", { method: "POST" });
+
+    if (!updateResponse.ok) {
+      throw new Error(`Update failed with status ${updateResponse.status}`);
+    }
+
+    const updateData = await updateResponse.json();
+    const outcome = updateData?.data?.outcome || updateData?.outcome;
+
+    // Handle different outcome cases
+    if (outcome === "already-current") {
+      updateMessage.textContent = "✓ Your system is already up to date";
+      updateMessage.classList.remove("Red");
+      updateMessage.classList.add("Green");
+      btn.querySelector("span").textContent = "Up to date";
+      setTimeout(() => {
+        btn.querySelector("span").textContent = originalBtnText;
+        btn.disabled = originalBtnDisabled;
+        updateMessage.textContent = "";
+        updateMessage.className = "";
+      }, 10_000);
+      return;
+    }
+
+    // Handle successful updates
+    if (outcome.startsWith("updated-to-")) {
+      updateMessage.textContent =
+        "✓ Update successful, preparing to restart...";
+      updateMessage.classList.remove("Red");
+      updateMessage.classList.add("Green");
+
+      // Start restart sequence
+      try {
+        const [restartResponse, selfRestartResponse] = await Promise.all([
+          fetch(`/api/control/restart`, { method: "POST" }),
+          fetch(`/api/self/restart`, { method: "POST" }),
+        ]);
+
+        if (!restartResponse.ok || !selfRestartResponse.ok) {
+          throw new Error("Restart commands failed");
+        }
+
+        const [restartData, selfRestartData] = await Promise.all([
+          restartResponse.json(),
+          selfRestartResponse.json(),
+        ]);
+
+        if (restartData.status === "ok" && selfRestartData.status === "ok") {
+          updateMessage.textContent = "✓ System restarting...";
+          setTimeout(() => location.reload(), 5000);
+        } else {
+          updateMessage.textContent =
+            "✓ Update complete - please restart manually";
+          btn.querySelector("span").textContent = "Restart required";
+        }
+      } catch (restartError) {
+        updateMessage.textContent =
+          "✓ Update complete - automatic restart failed";
+        btn.querySelector("span").textContent = "Restart required";
+        console.error("Restart failed:", restartError);
       }
     }
-  } catch {
-    btn.textContent = "Update failed";
+    // Handle failure case
+    else if (outcome === "update-failed") {
+      throw new Error("Update process failed");
+    }
+    // Unknown response
+    else {
+      throw new Error("Unexpected update response");
+    }
+  } catch (error) {
+    console.error("Update failed:", error);
+    updateMessage.classList.remove("Green");
+    updateMessage.classList.add("Red");
+
+    // More specific error messages
+    if (error.message.includes("Failed to fetch")) {
+      updateMessage.textContent =
+        "✗ Network error - please check your connection";
+    } else if (error.message.includes("Update process failed")) {
+      updateMessage.textContent = "✗ Update failed - please try again";
+    } else {
+      updateMessage.textContent = "✗ Update error - please check logs";
+    }
+
+    // Revert button state
+    btn.querySelector("span").textContent = "Retry";
+    btn.disabled = false;
   }
 }
