@@ -6,14 +6,14 @@ VERSION=$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HE
 OUTDIR=dist
 mkdir -p "$OUTDIR"
 
-# 1️⃣ Full repo
+# Full repo
 git archive \
   --format=tar.gz \
   --prefix="viewport ${VERSION}/" \
   -o "${OUTDIR}/viewport-${VERSION}-full.tar.gz" \
   HEAD
 
-# 2️⃣ Minimal: only runtime files
+# Minimal: only runtime files
 git archive \
   --format=tar.gz \
   --prefix="viewport ${VERSION}/" \
@@ -35,10 +35,11 @@ git archive \
     static/marked-min.js \
     static/main-min.css \
     static/favicon* \
+    static/*woff2 \
     config.ini.example \
     .env.example
 
-# 3️⃣ Barebones: viewport.py + deps
+# Bare-bones: viewport.py + deps
 git archive \
   --format=tar.gz \
   --prefix="viewport ${VERSION}/" \

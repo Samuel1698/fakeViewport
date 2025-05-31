@@ -1,20 +1,32 @@
+@use '_variables' as *;
+@use "sass:map";
+@use 'sass:color';
 @import '_normalize';
-@import '_variables';
 
-@mixin respond-above($breakpoint) {
-  @media (min-width: $breakpoint) {
-    @content;
-  }
-}
 // --------------------------------------------------
 // Base Styles
 // --------------------------------------------------
+html {
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+body {
+  min-width: 320px;
+  margin-top: 5rem;
+}
+@font-face {
+  font-family: "UI Sans";
+  src: url("../static/UI_Sans.woff2") format("woff2");
+  font-weight: normal;
+  font-display: fallback;
+}
 html, body {
   margin: 0;
   padding: 0;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  background-color: $background-color;
-  color: $text-color;
+  font-family: "UI Sans", Arial, sans-serif;
+  background-color: color("background");
+  color: color("text");
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -23,7 +35,7 @@ img:focus-visible {
   padding: 2px;
   outline: 5px auto -webkit-focus-ring-color;
   outline: 5px auto Highlight;
-  outline: 5px auto $white-outline;
+  outline: 5px auto color("red");
 }
 /* prettier-ignore */
 a:focus-visible, button:focus-visible,div:focus-visible,
@@ -38,60 +50,35 @@ section:focus-visible, li:focus-visible {
     bottom: -2px;
     outline: 5px auto -webkit-focus-ring-color;
     outline: 5px auto Highlight;
-    outline: 5px auto $white-outline;
+    outline: 5px auto color("red");
   }
 }
-body {
-  margin-top: 5rem;
+.Green {
+  color: color("green");
+}
+.Red {
+  color: color("red");
+}
+.Blue {
+  color: color("blue");
+}
+.Yellow {
+  color: color("yellow");
 }
 // --------------------------------------------------
 // Headings
 // --------------------------------------------------
 h1 {
   font-size: 1.5rem;
-  color: $primary-color;
+  color: color("text");
   margin-bottom: 1rem;
   text-align: center;
-}
-#updateBanner {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  z-index: 10;
-  position: fixed;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-
-  background: #f9fafa;
-  color: $primary-color;
-  padding: 1rem 1.4rem;
-  border: 1px solid $white-outline;
-  border-radius: $border-radius;
-
-  a {
-    color: $secondary-color;
-    text-decoration: underline;
-  }
-  button {
-    padding: .5rem .9rem;
-    font-size: 1.4rem;
-    background: $primary-color;
-    color: #f9fafa;
-    border: none;
-    border-radius: $border-radius;
-    cursor: pointer;
-    transition: opacity $transition-speed;
-
-    &:hover { opacity: .85; }
-    &:disabled { cursor: not-allowed; opacity: .6; }
-  }
 }
 // --------------------------------------------------
 // Login Page Styles
 // --------------------------------------------------
 #login {
-  background-color: #fff;
+  background-color: color("background");
   padding: 1.5rem;
   border-radius: $border-radius;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -102,76 +89,130 @@ h1 {
     margin-bottom: 0.5rem;
     font-weight: bold;
   }
-
   input[type="password"] {
     width: 100%;
     padding: 0.75rem;
-    border: 1px solid $primary-color;
+    border: 1px solid color("diminished");
     border-radius: $border-radius;
     margin-bottom: 1rem;
     box-sizing: border-box;
   }
-
   button {
     width: 100%;
     padding: 0.75rem;
-    background-color: $primary-color;
+    background-color: color("blue");
     color: #fff;
     border: none;
     border-radius: $border-radius;
     cursor: pointer;
     transition: background $transition-speed;
-
-    &:hover {
-      background-color: $secondary-color;
+    @include hover {
+      background-color: color("blue", $lightness: -10%);
     }
   }
 }
-
 // --------------------------------------------------
 // Index Page Styles
 // --------------------------------------------------
-#info {
-  background-color: #fff;
-  padding: 1rem;
-  border-radius: $border-radius;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin: 1rem 0;
-  div.flex-parent {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    position: relative;
+section.flex-parent {
+  display: flex;
+  justify-content: flex-start;
+  button {
+    padding: 1rem;
+    color: color("text");
+    background-color: color("diminished");
+    border: none;
+    border-bottom: 0;
+    @include hover {
+      background: color("blue", $lightness: -10%);
+    }
   }
-  ul {
-    list-style: none;
-    padding: 0;
-
-    li {
-      margin-bottom: 0.5rem;
-
-      span {
-        font-weight: bold;
+  button[aria-selected="true"] {
+    background-color: color("box");
+    color: color("blue");
+    @include hover {
+      background: color("box");
+    }
+  }
+  button:first-of-type {
+    border-top-left-radius: $border-radius;
+  }
+  button.last {
+    border-top-right-radius: $border-radius;
+  }
+  button:last-of-type {
+    background: color("box");
+    margin-left: auto;
+    cursor: pointer;
+    border-radius: $border-radius $border-radius 0 0;
+    svg {
+      fill: color("text");
+    }
+    @include hover {
+      background: color("box");
+      svg {
+        fill: color("blue");
       }
     }
   }
+  #updateBanner {
+    span {
+      color: color("blue");
+    }
+  }
 }
-#controls,
+.wrapper {
+  background-color: color("box");
+  padding: 1.2rem;
+  border-radius: $border-radius;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 0;
+}
 #info {
+  ul {
+    list-style: none;
+    padding: 0;
+    li {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      gap: 8px;
+      line-height: 20px;
+    }
+    li:last-of-type > span:first-child {
+      white-space: nowrap;
+    }
+  }
+}
+#controls {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  margin: 1rem 0;
+  #statusMessage {
+    text-align: center;
+    margin-top: 1rem;
+  }
   button {
+    flex: 1;
+    margin: 0 0.5rem;
+    max-width: 150px;
+    margin-bottom: 0;
     padding: 0.75rem;
-    background-color: $primary-color;
-    color: #fff;
+    background-color: color("box");
+    color: color("white");
     border: none;
     border-radius: $border-radius;
     cursor: pointer;
     transition: background $transition-speed;
     margin-bottom: 0.75rem;
     &:hover {
-      background-color: $secondary-color;
+      background-color: color("blue");
     }
     &:disabled {
-      background-color: $secondary-color;
+      background-color: color("blue");
       cursor: unset;
     }
     &[disabled][data-tooltip]{
@@ -195,7 +236,7 @@ h1 {
         left: 50%;                  /* center horizontally */
         transform: translate(-50%, -6px);
         background: rgba(0, 0, 0, 0.8);
-        color: #fff;
+        color: color("text");
         padding: 8px 12px;
         border-radius: 8px;
         white-space: nowrap;
@@ -206,53 +247,78 @@ h1 {
     }
   }
 }
-#controls {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  
-  button {
-    flex: 1;
-    margin: 0 0.5rem;
-    max-width: 150px;
-    margin-bottom: 0;
-  }
-  #statusMessage {
-    text-align: center;
-    margin-top: 1rem;
-  }
-}
-#showLogsBtn {
-  position: absolute;
-  right: 0;
-  bottom: -3.5rem;
-}
-// --------------------------------------------------
-// Status Div
-// --------------------------------------------------
 #statusMessage {
   text-align: center;
   .danger {
-    color: $white-outline;
+    color: color("red");
   }
 }
-.modal[hidden]{
-  display: none;
+// --------------------------------------------------
+// Sections
+// --------------------------------------------------
+section#changelog {
+  padding-bottom: 2rem;
 }
-.modal {
-  position: fixed;
-  top: 0; left: 0; right:0; bottom:0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.changelog-content {
+  code {
+    font-style: italic;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    padding: 0 4px;
+  }
+  a {
+    display: inline-block;
+    color: color("blue");
+    border-bottom: 2px solid;
+    margin-bottom: -2px;
+    @include hover {
+      color: color("yellow");
+    }
+  }
+  li {
+    list-style: disc;
+    margin-left: 2rem;
+    margin-bottom: 0.3rem;
+    line-height: 1.5rem;
+    a {
+      margin-top: 0;
+    }
+  }
+  p {
+    display: none;
+  }
+  div.flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 1rem;
+    a {
+      border-bottom: 0;
+      margin-bottom: unset;
+    }
+    button[type="Submit"]{
+      padding: 0.5rem 1.4rem;
+      background-color: color("blue");
+      color: color("text");
+      border: 0;
+      border-radius: $border-radius;
+      @include hover {
+        background-color: color("blue", $lightness: -10%);
+      }
+    }
+  }
+}
+section.wrapper {
+  h2 {
+    margin: 0;
+  }
   .container {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
   }
-  .modal-content {
-    background: white;
+  .logs-content {
+    // background: color("text");
     padding: 1rem;
     max-width: 90%;
     max-height: 80%;
@@ -273,7 +339,6 @@ h1 {
     word-wrap: break-word;       /* Internet Explorer 5.5+ */
   }
 }
-
 // --------------------------------------------------
 // Responsive Adjustments
 // --------------------------------------------------
@@ -282,15 +347,15 @@ h1 {
   #login{
     max-width: 450px;
   }
-  #info {
+  body {
+    margin-right: auto;
+    margin-left: auto;
     max-width: 600px;
-    margin: 1rem auto;
   }
   h1 {
     font-size: 2rem;
   }
 }
-
 @include respond-above($medium) {
   // Additional padding and larger containers for desktops
   html, body {
@@ -298,7 +363,7 @@ h1 {
   }
   #login {
     max-width: 600px;
-    margin: 1rem auto;
+    margin: 0 auto;
   }
 
   h1 {

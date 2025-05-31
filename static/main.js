@@ -3,12 +3,98 @@ let updateCache = {
   data: null,    // { current, latest, changelog, releaseUrl }
 };
 let lastScriptUptime = null;
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const CACHE_TTL = 60 * 15 * 1000; // 15 minutes
 document.addEventListener("DOMContentLoaded", () => {
   loadInfo();
   checkForUpdate();
   setInterval(loadInfo, 60_000);
   setInterval(checkForUpdate, CACHE_TTL);
+});
+document.addEventListener("DOMContentLoaded", () => {
+  // Initialize sections and buttons
+  const sections = {
+    status: document.getElementById("info"),
+    logs: document.getElementById("logs"),
+    updateBanner: document.getElementById("changelog"),
+  };
+  const buttons = {
+    status: document.getElementById("status"),
+    logs: document.getElementById("logsBtn"),
+    updateBanner: document.getElementById("update"),
+    refreshButton: document.getElementById("refreshButton"),
+  };
+  
+  const output = document.getElementById("logOutput");
+  // Set initial state
+  sections.status.removeAttribute("hidden");
+  sections.logs.setAttribute("hidden", "");
+  sections.updateBanner.setAttribute("hidden", "");
+
+  // Set initial aria-selected
+  buttons.status.setAttribute("aria-selected", "true");
+  buttons.logs.removeAttribute("aria-selected", "false");
+  buttons.updateBanner.removeAttribute("aria-selected", "false");
+
+  // Update button classes initially
+  updateButtonClasses();
+
+  // Add click handlers for all buttons
+  buttons.status.addEventListener("click", () => {
+    toggleSection("status");
+    buttons.refreshButton.removeAttribute("hidden", "");
+  });
+
+  buttons.logs.addEventListener("click", async () => {
+    toggleSection("logs");
+    // Keep your existing log loading functionality
+    const res = await fetchJSON(`/api/logs?limit=100`);
+    if (res?.data?.logs) {
+      output.textContent = res.data.logs.join("");
+    }
+  });
+
+  buttons.updateBanner.addEventListener("click", () => {
+    toggleSection("updateBanner");
+    showChangelog();
+  });
+  buttons.refreshButton.addEventListener("click", () => {
+    toggleSection("status");
+    loadInfo();
+  });
+  function toggleSection(buttonId) {
+    // Hide all sections first
+    Object.values(sections).forEach((section) => {
+      section.setAttribute("hidden", "");
+    });
+
+    // Show the selected section
+    sections[buttonId].removeAttribute("hidden");
+
+    // Update aria-selected for all buttons
+    Object.entries(buttons).forEach(([id, button]) => {
+      button.setAttribute("aria-selected", id === buttonId ? "true" : "false");
+    });
+
+    // Hide refresh button unless "status"
+    if (buttonId != "status") {
+      buttons.refreshButton.setAttribute("hidden", "true");
+    }
+    // Update button classes
+    updateButtonClasses();
+  }
+
+  function updateButtonClasses() {
+    const updateBtn = buttons.updateBanner;
+    const logsBtn = buttons.logs;
+
+    if (updateBtn.hasAttribute("hidden")) {
+      logsBtn.classList.add("last");
+      updateBtn.classList.remove("last");
+    } else {
+      logsBtn.classList.remove("last");
+      updateBtn.classList.add("last");
+    }
+  }
 });
 // compares version of updates
 function cmpVersions(a, b) {
@@ -59,7 +145,7 @@ async function checkForUpdate() {
     const { current, latest } = await loadUpdateData();
     if (cmpVersions(latest, current) <= 0) return;
 
-    const banner = document.getElementById('updateBanner');
+    const banner = document.getElementById("update");
     if (banner) banner.removeAttribute('hidden');
   } catch (err) {
     console.error('Update check failed:', err);
@@ -75,15 +161,18 @@ function showChangelog() {
   }
   const { latest, changelog, releaseUrl } = info;
 
-  document
-    .querySelector('#changelogModal .container h2')
-    .textContent = `Release v${latest}`;
+  const title =  document.querySelector('#changelog .container h2');
+  if (latest.includes("failed-to-fetch")) {
+    title.textContent = "Failed to Fetch Changelog";
+  } else {
+    title.textContent = `Release v${latest}`;
+  }
 
   document.getElementById('changelog-body').innerHTML =
     marked.parse(changelog);
 
   document.getElementById('changelog-link').href = releaseUrl;
-  document.getElementById('changelogModal')
+  document.getElementById('changelog')
     .removeAttribute('hidden');
 }
 // format seconds → “Dd Hh Mm Ss”
@@ -127,19 +216,21 @@ async function loadInfo() {
   const el = document.getElementById("scriptUptime");
   if (sud?.data && typeof sud.data.script_uptime === "number") {
     const current = sud.data.script_uptime;
-
-    // 2) If we’ve seen one value before and it didn’t change → Not Running
+    el.classList.remove("Green", "Red");
+    // If we’ve seen one value before and it didn’t change → Not Running
     if (lastScriptUptime !== null && current === lastScriptUptime) {
       el.textContent = "Not Running";
+      el.classList.add("Red");
     } else {
       el.textContent = formatDuration(current);
+      el.classList.add("Green");
     }
-
-    // 3) Update our “last seen” value
+    // Update our “last seen” value
     lastScriptUptime = current;
   } else {
     // no data at all (empty file, 404, parse error…)
     el.textContent = "Not Running";
+    el.classList.add("Red");
     lastScriptUptime = null;
   }
   // system uptime
@@ -153,9 +244,24 @@ async function loadInfo() {
   // RAM usage (GiB)
   const ram = await fetchJSON("/api/ram");
   if (ram?.data) {
-    const used = (ram.data.ram_used / 1024 ** 3).toFixed(1),
-      tot = (ram.data.ram_total / 1024 ** 3).toFixed(1);
-    document.getElementById("ram").textContent = `${used} GiB / ${tot} GiB`;
+      const used = (ram.data.ram_used / 1024 ** 3).toFixed(1);
+      const tot = (ram.data.ram_total / 1024 ** 3).toFixed(1);
+      const ramElement = document.getElementById("ram");
+
+      // Calculate percentage used (0-100)
+      const pctUsed = (ram.data.ram_used / ram.data.ram_total) * 100;
+
+      ramElement.textContent = `${used} GiB / ${tot} GiB`;
+      ramElement.classList.remove("Green", "Yellow", "Red");
+
+      // Add the appropriate class based on percentage
+      if (pctUsed <= 35) {
+          ramElement.classList.add("Green");
+      } else if (pctUsed <= 60) {
+          ramElement.classList.add("Yellow");
+      } else {
+          ramElement.classList.add("Red");
+      }
   }
 
   // intervals
@@ -180,7 +286,16 @@ async function loadInfo() {
   }
   const le = await fetchJSON("/api/log_entry");
   if (le?.data) {
-    document.getElementById("logEntry").textContent = le.data.log_entry;
+    const entry = document.getElementById("logEntry");
+    entry.textContent = le.data.log_entry;
+    entry.classList.remove("Green", "Blue", "Red");
+    if (entry.textContent.includes("[INFO]")) {
+      entry.classList.add("Green");
+    } else if (entry.textContent.includes("[ERROR]")) {
+      entry.classList.add("Red");
+    } else if (entry.textContent.includes("[DEBUG]")) {
+      entry.classList.add("Blue");
+    }
   }
   const sr = await fetchJSON("/api/next_restart");
   const srel = document.getElementById("scheduledRestart");
@@ -205,33 +320,32 @@ async function control(action, btn) {
   btn.setAttribute("disabled", "");
   setTimeout(() => {
     btn.removeAttribute("disabled");
-  }, 15_000);
+  }, 5_000);
 
   const msgEl = document.querySelector("#statusMessage span");
   msgEl.textContent = "";
-  msgEl.style.color = "";
-
+  msgEl.classList.remove("Green", "Red");
   try {
     const res = await fetch(`/api/control/${action}`, { method: "POST" });
     const js = await res.json();
 
     if (js.status === "ok") {
       msgEl.textContent = "✓ " + js.message;
-      msgEl.style.color = "green";
+      msgEl.classList.add("Green");
     } else {
       msgEl.textContent = "✗ " + js.message;
-      msgEl.style.color = "red";
+      msgEl.classList.add("Red");
     }
     await loadInfo();
     // reset the message after 15 seconds
     setTimeout(() => {
       msgEl.textContent = "";
-      msgEl.style.color = "";
-    }, 15_000);
-    setTimeout(loadInfo, 15_000);
+      msgEl.classList.remove("Green", "Red");
+    }, 5_000);
+    setTimeout(loadInfo, 5_000);
   } catch (e) {
     msgEl.textContent = "✗ " + e;
-    msgEl.style.color = "red";
+    msgEl.classList.add("Red");
   }
 }
 // send update
@@ -256,41 +370,3 @@ async function applyUpdate(btn) {
     btn.textContent = "Update failed";
   }
 }
-const logsBtn   = document.getElementById("showLogsBtn");
-const update    = document.getElementById("updateBanner");
-const output    = document.getElementById("logOutput");
-const modal     = document.getElementById("logsModal");
-const modals    = document.querySelectorAll(".modal");
-const closeBtns = document.querySelectorAll(".close");
-
-logsBtn.addEventListener("click", async () => {
-  // fetch the last 100 lines
-  const res = await fetchJSON(`/api/logs?limit=100`);
-  if (res?.data?.logs) {
-    // join the array into one blob of text
-    output.textContent = res.data.logs.join("");
-    modal.removeAttribute("hidden");
-  } else {
-    // you could alert or console.error here
-    modal.setAttribute("hidden", "");
-  }
-});
-update.addEventListener("click", showChangelog);
-// update.addEventListener('click', e => applyUpdate(e.target));
-// close handlers
-// clicking the backdrop (i.e. the modal itself) hides it
-modals.forEach(modal => {
-  modal.addEventListener('click', e => {
-    if (e.target === modal) {
-      modal.setAttribute('hidden', '');
-    }
-  });
-});
-
-// clicking any .close button hides *its* containing modal
-closeBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
-    const modal = btn.closest('.modal');
-    if (modal) modal.setAttribute('hidden', '');
-  });
-});
