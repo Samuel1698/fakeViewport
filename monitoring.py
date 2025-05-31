@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-import sys
-import os
-import time
-import configparser
-import psutil
-import subprocess
-import logging
+import sys, os, time, configparser, psutil, subprocess, logging, threading
 from functools import wraps
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -141,9 +135,10 @@ def create_app():
 
         flag = {"start":"--background", "restart":"--restart", "quit":"--quit"}[action]
         try:
+            viewport_dir = str(script_dir / "viewport.py")
             subprocess.Popen(
-                [sys.executable, str(script_dir / "viewport.py"), flag],
-                cwd=str(script_dir),
+                [sys.executable, viewport_dir, flag],
+                cwd=viewport_dir,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -193,6 +188,33 @@ def create_app():
         # tries git first (if clean) then falls back to tar
         outcome = update.perform_update()
         return jsonify(status="ok", data={"outcome": outcome}), 202
+    # ----------------------------------------------------------------------------- 
+    @app.route("/api/self/restart", methods=["POST"])
+    @login_required
+    def api_restart():
+        # Spawn a new monitoring.py process, then terminate this one.
+        try:
+            # Launch a new monitoring.py in the background
+            monitoring_dir = str(script_dir / "monitoring.py")
+            subprocess.Popen(
+                [sys.executable, monitoring_dir],
+                cwd=monitoring_dir,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                start_new_session=True
+            )
+            # After a brief delay, exit this process so the new one takes over
+            def _exit_later():
+                time.sleep(1)
+                os._exit(0)
+            threading.Thread(target=_exit_later, daemon=True).start()
+            return jsonify(status="ok", message="API restart initiated"), 202
+
+        except Exception as e:
+            app.logger.exception("Failed to restart API")
+            return jsonify(status="error", message=str(e)), 500
     # ----------------------------------------------------------------------------- 
     @app.route("/api")
     @app.route("/api/")
