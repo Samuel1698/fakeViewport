@@ -1,7 +1,11 @@
-import io, importlib, types, base64, subprocess, json, tarfile, warnings
+import io, importlib, types, base64, subprocess, json, tarfile, warnings, logging
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
-import pytest, monitoring
+from urllib.error import HTTPError
+
+import pytest
+import monitoring
 import update as uu
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -24,13 +28,7 @@ def dummy_repo(tmp_path, monkeypatch):
 class DummyCM:
     def __enter__(self): return self
     def __exit__(self, *args): pass
-    
-class DummyResponse(io.StringIO):
-    def __enter__(self):
-        return self
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
-    
+
 @pytest.fixture
 def app_client(dummy_repo, monkeypatch):
     # Flask test-client with logging disabled for speed.
@@ -38,6 +36,7 @@ def app_client(dummy_repo, monkeypatch):
     app = monitoring.create_app()
     app.testing = True
     return app.test_client()
+
 # ---------------------------------------------------------------------------
 # current_version / latest_version
 # ---------------------------------------------------------------------------
@@ -49,17 +48,170 @@ def test_latest_version_success(monkeypatch):
         def __enter__(self): return self
         def __exit__(self, *exc): pass
 
+    # Reset cache before test
+    uu.last_release_fetched = None
+    uu.cached_release_data = None
+
     monkeypatch.setattr(
         uu, "_github",
         lambda url, **kw: _JSON('{"tag_name":"v9.9.9"}')
     )
-    assert uu.latest_version() == "9.9.9"
+    result = uu.latest_version()
+    assert result == "9.9.9"
+    # Ensure cache is set to the parsed dict
+    assert isinstance(uu.cached_release_data, dict)
+    assert uu.cached_release_data["tag_name"] == "v9.9.9"
+    assert uu.last_release_fetched is not None
 
-def test_latest_version_http_error(monkeypatch):
-    from urllib.error import HTTPError
-    err = HTTPError(None, 403, "nope", None, None)
-    monkeypatch.setattr(uu, "_github", lambda *a, **k: (_ for _ in ()).throw(err))
-    assert uu.latest_version() == "update-failed"
+def test_latest_version_http_error_cache_fresh(monkeypatch):
+    # Seed fresh cache
+    uu.cached_release_data = {"tag_name": "v5.5.5"}
+    uu.last_release_fetched = datetime.now()
+
+    # Simulate HTTPError on fetch
+    err = HTTPError(None, 403, "rate limit", hdrs={"X-RateLimit-Remaining": "0"}, fp=None)
+    monkeypatch.setattr(uu, "_get_release_data", lambda: (_ for _ in ()).throw(err))
+
+    result = uu.latest_version()
+    assert result == "5.5.5"  # from cache
+
+def test_latest_version_http_error_no_cache(monkeypatch):
+    # No cache present
+    uu.cached_release_data = None
+    uu.last_release_fetched = None
+
+    err = HTTPError(None, 404, "Not Found", hdrs=None, fp=None)
+    monkeypatch.setattr(uu, "_get_release_data", lambda: (_ for _ in ()).throw(err))
+    result = uu.latest_version()
+    assert result == "failed-to-fetch"
+    # Ensure cache not set
+    assert uu.cached_release_data is None
+
+def test_latest_version_exception(monkeypatch):
+    # Any non-HTTP exception should yield "failed-to-fetch"
+    uu.cached_release_data = None
+    uu.last_release_fetched = None
+
+    monkeypatch.setattr(uu, "_get_release_data", lambda: (_ for _ in ()).throw(ValueError("oops")))
+    result = uu.latest_version()
+    assert result == "failed-to-fetch"
+    assert uu.cached_release_data is None
+
+def test_latest_version_cache_expired(monkeypatch):
+    # Seed old cache (older than CACHE_DURATION)
+    uu.cached_release_data = {"tag_name": "v0.0.1"}
+    uu.last_release_fetched = datetime.now() - timedelta(hours=2)
+
+    # Provide new version
+    class _JSON(io.StringIO):
+        def __enter__(self): return self
+        def __exit__(self, *exc): pass
+
+    monkeypatch.setattr(uu, "_github", lambda url, **kw: _JSON('{"tag_name":"v2.0.0"}'))
+    new = uu.latest_version()
+    assert new == "2.0.0"
+    # Ensure cache updated to new dict
+    assert uu.cached_release_data["tag_name"] == "v2.0.0"
+    assert uu.last_release_fetched is not None
+
+def test__get_release_data_cache_expired(monkeypatch):
+    # If last_release_fetched is older than CACHE_DURATION, _get_release_data should proceed
+    # to call GitHub (and update the cache). We simulate that here to cover the 'false' branch
+    # of the initial if.
+
+    uu.cached_release_data = {"tag_name": "v0.0.1"}
+    uu.last_release_fetched = datetime.now() - timedelta(hours=2)
+
+    class _JSON(io.StringIO):
+        def __enter__(self): return self
+        def __exit__(self, *exc): pass
+
+    # Return a fresh JSON payload
+    monkeypatch.setattr(
+        uu,
+        "_github",
+        lambda url, **kw: _JSON('{"tag_name":"v9.9.9","body":"notes"}')
+    )
+
+    new_data = uu._get_release_data()
+    assert new_data["tag_name"] == "v9.9.9"
+    assert uu.cached_release_data["tag_name"] == "v9.9.9"
+    assert uu.last_release_fetched is not None
+def test__get_release_data_rate_limit_branch(monkeypatch, caplog):
+    # Ensure no fresh cache
+    uu.cached_release_data = None
+    uu.last_release_fetched = None
+
+    # Create a 403 HTTPError with “rate limit” in its message
+    err = HTTPError(
+        url="https://api.github.com",
+        code=403,
+        msg="Rate limit exceeded",
+        hdrs={"X-RateLimit-Remaining": "7"},
+        fp=None
+    )
+
+    # Monkeypatch _github to immediately raise our HTTPError
+    monkeypatch.setattr(uu, "_github", lambda *args, **kwargs: (_ for _ in ()).throw(err))
+
+    caplog.set_level(logging.WARNING)
+    with pytest.raises(HTTPError):
+        uu._get_release_data()
+
+    # Verify that the rate-limit warning was logged with the correct remaining value
+    assert "GitHub rate limit exceeded (remaining: 7)" in caplog.text
+
+def test__get_release_data_other_http_error_branch(monkeypatch, caplog):
+    # Ensure no fresh cache
+    uu.cached_release_data = None
+    uu.last_release_fetched = None
+
+    # Create a 404 HTTPError (not a rate-limit case)
+    err = HTTPError(
+        url="https://api.github.com",
+        code=404,
+        msg="Not Found",
+        hdrs=None,
+        fp=None
+    )
+
+    monkeypatch.setattr(uu, "_github", lambda *args, **kwargs: (_ for _ in ()).throw(err))
+
+    caplog.set_level(logging.WARNING)
+    with pytest.raises(HTTPError):
+        uu._get_release_data()
+
+    # Verify that a generic HTTPError warning was logged
+    assert "HTTPError: HTTP Error 404" in caplog.text
+
+def test__get_release_data_generic_exception_branch(monkeypatch):
+    # Ensure no fresh cache
+    uu.cached_release_data = None
+    uu.last_release_fetched = None
+
+    # Simulate a non-HTTPError (e.g., ValueError) being thrown by _github
+    monkeypatch.setattr(uu, "_github", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("network down")))
+
+    # The ValueError should propagate unchanged
+    with pytest.raises(ValueError) as excinfo:
+        uu._get_release_data()
+    assert "network down" in str(excinfo.value)
+    
+def test__get_release_data_returns_cached(monkeypatch):
+    # If cached_release_data is set and last_release_fetched is recent,
+    # _get_release_data should short-circuit and return the cache without calling GitHub.
+    from datetime import datetime, timedelta
+
+    # Seed the cache with a dummy payload and mark fetched as ‘now’
+    uu.cached_release_data = {"tag_name": "vX.Y.Z", "body": "ignored"}
+    uu.last_release_fetched = datetime.now()
+
+    # Monkey‐patch _github to raise if called (to ensure we hit the 'return cached_release_data' path)
+    monkeypatch.setattr(uu, "_github", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("GitHub should not be called")))
+
+    result = uu._get_release_data()
+    assert result == {"tag_name": "vX.Y.Z", "body": "ignored"}
+    
 # ---------------------------------------------------------------------------
 # helpers: _clean_worktree / _current_branch / _default_branch
 # ---------------------------------------------------------------------------
@@ -85,7 +237,7 @@ def test_default_branch_paths(monkeypatch):
     )
     assert uu._default_branch() == "develop"
 
-    # git fails -> github JSON fallback
+    # git fails -> GitHub API fallback
     def git_fail(*a, **k): raise uu.subprocess.CalledProcessError(1, a, "no ref")
     monkeypatch.setattr(uu.subprocess, "check_output", git_fail)
 
@@ -126,6 +278,7 @@ def test_update_via_git(monkeypatch, clean, step_ok, expected, dummy_repo):
         assert calls == []                 # bailed early
     else:
         assert len(calls) >= (1 if not step_ok else 5)
+
 def test_update_via_git_real_file_change(dummy_repo, monkeypatch):
     # point version file and seed old version
     vers_path = dummy_repo / "api" / "VERSION"
@@ -151,6 +304,51 @@ def test_update_via_git_real_file_change(dummy_repo, monkeypatch):
     assert ok is True
     # verify that our “pulled” branch truly updated the file on disk
     assert vers_path.read_text().strip() == "5.5.5"
+
+def test_update_via_git_injects_auth(monkeypatch):
+    tag = "4.5.6"
+    # Ensure clean worktree and branch resolution
+    monkeypatch.setattr(uu, "_clean_worktree", lambda: True)
+    monkeypatch.setenv("GITHUB_TOKEN", "secretToken")
+    monkeypatch.setattr(uu, "_current_branch", lambda: "main")
+    monkeypatch.setattr(uu, "_default_branch", lambda: "main")
+
+    captured_env = {}
+    def fake_check(cmd, stderr=None, text=None, env=None):
+        captured_env.update(env)
+        # Stop after first step
+        raise subprocess.CalledProcessError(1, cmd, "fail")
+    monkeypatch.setattr(uu.subprocess, "check_output", fake_check)
+
+    assert uu.update_via_git(tag) is False
+
+    # Verify auth headers in env
+    assert captured_env["GIT_TERMINAL_PROMPT"] == "0"
+    assert captured_env["GIT_CONFIG_COUNT"] == "1"
+    assert captured_env["GIT_CONFIG_KEY_0"] == "http.extraHeader"
+    expected_b64 = base64.b64encode(f"x-access-token:secretToken".encode()).decode()
+    assert captured_env["GIT_CONFIG_VALUE_0"] == f"Authorization: Basic {expected_b64}"
+
+def test_update_via_git_no_token(monkeypatch):
+    tag = "7.8.9"
+    monkeypatch.setattr(uu, "_clean_worktree", lambda: True)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(uu, "_current_branch", lambda: "main")
+    monkeypatch.setattr(uu, "_default_branch", lambda: "main")
+
+    captured_env = {}
+    def fake_check(cmd, stderr=None, text=None, env=None):
+        captured_env.update(env)
+        raise subprocess.CalledProcessError(1, cmd, "fail")
+    monkeypatch.setattr(uu.subprocess, "check_output", fake_check)
+
+    assert uu.update_via_git(tag) is False
+
+    # No auth-related keys should be present
+    for key in ("GIT_TERMINAL_PROMPT", "GIT_CONFIG_COUNT",
+                "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0"):
+        assert key not in captured_env
+
 # ---------------------------------------------------------------------------
 # update_via_tar
 # ---------------------------------------------------------------------------
@@ -218,6 +416,7 @@ def test_update_via_tar_real_extraction(dummy_repo, monkeypatch):
     assert ok is True
     # now verify the on-disk VERSION file was actually overwritten
     assert (api_dir / "VERSION").read_text().strip() == new_tag
+
 # ---------------------------------------------------------------------------
 # perform_update – all branches
 # ---------------------------------------------------------------------------
@@ -265,9 +464,10 @@ def test_perform_update_tar_only(dummy_repo, monkeypatch):
     monkeypatch.setattr(uu, "update_via_tar", lambda t: True)
     res = uu.perform_update()
     assert res.startswith("updated-to-0.2.0-via-tar")
+
 # ---------------------------------------------------------------------------
-# Test token/no token
-# ---------------------------------------------------------------------------    
+# _github helper / API integration
+# ---------------------------------------------------------------------------
 def test__github_headers(monkeypatch):
     # Without token
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
@@ -290,6 +490,43 @@ def test__github_headers(monkeypatch):
         "Authorization": "Bearer tok123"
     }
 
+def test__github_rate_limit_warning(monkeypatch, caplog):
+    import logging
+
+    # Capture warnings at WARNING level
+    caplog.set_level(logging.WARNING)
+
+    # Stub Request so it doesn’t actually try to build a real request
+    monkeypatch.setattr(uu, "Request", lambda url, headers: "DUMMY_REQ")
+
+    # Make urlopen always raise a 403 HTTPError with "rate limit" in its message
+    def fake_urlopen(req, timeout):
+        raise HTTPError(
+            url="http://api.github.com",
+            code=403,
+            msg="rate limit exceeded",
+            hdrs={"X-RateLimit-Remaining": "2"},
+            fp=None,
+        )
+    monkeypatch.setattr(uu, "urlopen", fake_urlopen)
+
+    # Now calling _github should log a warning and re-raise the HTTPError
+    with pytest.raises(HTTPError):
+        uu._github("http://api.github.com/repos/foo/bar")
+
+    # Verify that the warning about rate limiting was emitted
+    assert "GitHub rate limit exceeded (remaining: 2)" in caplog.text
+    
+def test__github_other_http_error_logging(monkeypatch, caplog):
+    # Simulate a non-403 HTTPError (e.g., 404 Not Found)
+    err = HTTPError(url="http://example.com", code=404, msg="Not Found", hdrs=None, fp=None)
+    monkeypatch.setattr(uu, "Request", lambda url, headers: "REQ")
+    monkeypatch.setattr(uu, "urlopen", lambda req, timeout: (_ for _ in ()).throw(err))
+    caplog.set_level("WARNING")
+    with pytest.raises(HTTPError):
+        uu._github("http://example.com")
+    assert "HTTP Error 404" in caplog.text  
+    
 @pytest.mark.parametrize("assets,keyword,expected", [
     ([], "minimal", None),
     ([{"name": "other-file", "url": "u"}], "minimal", None),
@@ -313,49 +550,6 @@ def test__download_asset(monkeypatch, assets, keyword, expected):
     result = uu._download_asset(tag, keyword)
     assert result == expected
 
-def test_update_via_git_injects_auth(monkeypatch):
-    tag = "4.5.6"
-    # Ensure clean worktree and branch resolution
-    monkeypatch.setattr(uu, "_clean_worktree", lambda: True)
-    monkeypatch.setenv("GITHUB_TOKEN", "secretToken")
-    monkeypatch.setattr(uu, "_current_branch", lambda: "main")
-    monkeypatch.setattr(uu, "_default_branch", lambda: "main")
-
-    captured_env = {}
-    def fake_check(cmd, stderr=None, text=None, env=None):
-        captured_env.update(env)
-        # Stop after first step
-        raise subprocess.CalledProcessError(1, cmd, "fail")
-    monkeypatch.setattr(uu.subprocess, "check_output", fake_check)
-
-    assert uu.update_via_git(tag) is False
-
-    # Verify auth headers in env
-    assert captured_env["GIT_TERMINAL_PROMPT"] == "0"
-    assert captured_env["GIT_CONFIG_COUNT"] == "1"
-    assert captured_env["GIT_CONFIG_KEY_0"] == "http.extraHeader"
-    expected_b64 = base64.b64encode(f"x-access-token:secretToken".encode()).decode()
-    assert captured_env["GIT_CONFIG_VALUE_0"] == f"Authorization: Basic {expected_b64}"
-
-def test_update_via_git_no_token(monkeypatch):
-    tag = "7.8.9"
-    monkeypatch.setattr(uu, "_clean_worktree", lambda: True)
-    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-    monkeypatch.setattr(uu, "_current_branch", lambda: "main")
-    monkeypatch.setattr(uu, "_default_branch", lambda: "main")
-
-    captured_env = {}
-    def fake_check(cmd, stderr=None, text=None, env=None):
-        captured_env.update(env)
-        raise subprocess.CalledProcessError(1, cmd, "fail")
-    monkeypatch.setattr(uu.subprocess, "check_output", fake_check)
-
-    assert uu.update_via_git(tag) is False
-
-    # No auth-related keys should be present
-    for key in ("GIT_TERMINAL_PROMPT", "GIT_CONFIG_COUNT",
-                "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0"):
-        assert key not in captured_env
 # ---------------------------------------------------------------------------
 # Monitoring API endpoints
 # ---------------------------------------------------------------------------
@@ -379,21 +573,82 @@ def test_update_apply_endpoint(app_client, monkeypatch):
     r = app_client.post("/update/apply")
     assert r.status_code == 202
     assert r.get_json()["data"]["outcome"] == "ok"
-    
+
+def test_update_changelog_endpoint_success(app_client, monkeypatch):
+    # Simulate a normal response from latest_changelog
+    import monitoring
+    monkeypatch.setattr(monitoring.update, "latest_changelog", lambda: "Example notes")
+    response = app_client.get("/update/changelog")
+    assert response.status_code == 200
+
+    data = response.get_json()
+    assert data["status"] == "ok"
+    assert data["data"]["changelog"] == "Example notes"
+    # The release_url should point to the GitHub releases/latest for the configured REPO
+    assert monitoring.update.REPO in data["data"]["release_url"]
+    assert data["data"]["release_url"].startswith("https://github.com/")
+
+def test_update_changelog_endpoint_error(app_client, monkeypatch, caplog):
+    # Simulate an exception in latest_changelog to hit the error branch
+    import monitoring
+    caplog.set_level("ERROR")
+    monkeypatch.setattr(
+        monitoring.update,
+        "latest_changelog",
+        lambda: (_ for _ in ()).throw(RuntimeError("fetch failed"))
+    )
+
+    response = app_client.get("/update/changelog")
+    assert response.status_code == 500
+
+    data = response.get_json()
+    assert data["status"] == "error"
+    assert "fetch failed" in data["message"]
+    # The log should contain the "changelog fetch failed" message
+    assert "changelog fetch failed" in caplog.text
+
+# ---------------------------------------------------------------------------
+# latest_changelog: error & cache branches
+# ---------------------------------------------------------------------------
 @pytest.mark.parametrize("body, expected", [
     ("Fix bug\nAdd feature\n",            "Fix bug\nAdd feature"),
     ("Release notes\n---\n-- tar info\n",  "Release notes"),
     ("Line1\nLine2\n--- Extra info\nLine3", "Line1\nLine2"),
 ])
 def test_latest_changelog_splits_on_delimiter(monkeypatch, body, expected):
-    dummy_json = json.dumps({"body": body})
-    # _github should return a context-manager file-like with JSON text
-    monkeypatch.setattr(uu, "_github", lambda url, **kwargs: DummyResponse(dummy_json))
+    # Stub _get_release_data to return a dict with "body"
+    monkeypatch.setattr(uu, "_get_release_data", lambda: {"body": body})
     result = uu.latest_changelog()
     assert result == expected
 
-def test_latest_changelog_handles_http_error(monkeypatch):
-    def raise_404(url, **kwargs):
-        raise HTTPError(url, 404, "Not Found", hdrs=None, fp=None)
-    monkeypatch.setattr(uu, "_github", raise_404)
+def test_latest_changelog_http_error_no_cache(monkeypatch):
+    # No cache, HTTPError should return empty string
+    uu.cached_release_data = None
+    uu.last_release_fetched = None
+    monkeypatch.setattr(uu, "_get_release_data", lambda: (_ for _ in ()).throw(HTTPError("", 404, "Not Found", hdrs=None, fp=None)))
+    assert uu.latest_changelog() == ""
+
+def test_latest_changelog_http_error_cache_stale(monkeypatch):
+    # Seed stale cache
+    uu.cached_release_data = {"body": "Old notes\n--- extraneous"}
+    uu.last_release_fetched = datetime.now() - timedelta(hours=2)
+    # HTTPError should bypass cache (stale) and return ""
+    monkeypatch.setattr(uu, "_get_release_data", lambda: (_ for _ in ()).throw(HTTPError("", 403, "rate limit", hdrs={"X-RateLimit-Remaining": "0"}, fp=None)))
+    assert uu.latest_changelog() == ""
+
+def test_latest_changelog_http_error_cache_fresh(monkeypatch):
+    # Seed fresh cache
+    raw_body = "Cached notes\n--- more"
+    uu.cached_release_data = {"body": raw_body}
+    uu.last_release_fetched = datetime.now()
+    # HTTPError should cause return of truncated cached body
+    monkeypatch.setattr(uu, "_get_release_data", lambda: (_ for _ in ()).throw(HTTPError("", 403, "rate limit", hdrs={"X-RateLimit-Remaining": "0"}, fp=None)))
+    result = uu.latest_changelog()
+    assert result == "Cached notes"
+
+def test_latest_changelog_exception(monkeypatch):
+    # Non-HTTP exception should return empty string
+    uu.cached_release_data = None
+    uu.last_release_fetched = None
+    monkeypatch.setattr(uu, "_get_release_data", lambda: (_ for _ in ()).throw(ValueError("oops")))
     assert uu.latest_changelog() == ""

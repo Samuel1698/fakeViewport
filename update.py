@@ -9,20 +9,34 @@ import json, os
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 import base64
+from datetime import datetime, timedelta
 
+CACHE_DURATION = timedelta(hours=1)
 REPO  = "Samuel1698/fakeViewport"
 ROOT  = Path(__file__).resolve().parent
 GIT   = ["git", "-C", str(ROOT)]
 VERS  = ROOT / "api" / "VERSION"
+last_release_fetched: datetime | None = None
+cached_release_data: dict | None = None
 # ----------------------------------------------------------------------------- 
 # Helper functions
 # ----------------------------------------------------------------------------- 
 def _github(url: str, *, accept="application/vnd.github+json"):
     hdr = {"Accept": accept}
+    # Always use token if available
     if (tok := os.getenv("GITHUB_TOKEN")):
         hdr["Authorization"] = f"Bearer {tok}"
-    return urlopen(Request(url, headers=hdr), timeout=30)
-
+    req = Request(url, headers=hdr)
+    try:
+        return urlopen(req, timeout=30)
+    except HTTPError as e:
+        if e.code == 403 and 'rate limit' in str(e):
+            remaining = e.headers.get('X-RateLimit-Remaining', '?')
+            logging.warning(f"GitHub rate limit exceeded (remaining: {remaining})")
+        else:
+            logging.warning(str(e))
+        raise
+    
 def _clean_worktree() -> bool:
     return subprocess.check_output(GIT + ["status", "--porcelain"], text=True).strip() == ""
 
@@ -119,25 +133,84 @@ def update_via_tar(tag: str) -> bool:
 def current_version() -> str:
     return VERS.read_text().strip()
 
-def latest_version() -> str:
+def _get_release_data() -> dict:
+    # Fetches the GitHub “latest release” JSON once per CACHE_DURATION.
+    # Caches the raw JSON dict (including 'tag_name', 'body', etc.)
+    # so that subsequent calls within CACHE_DURATION reuse it.
+    # Raises HTTPError for GitHub 4xx/5xx. Any other exception bubbles up.
+    global last_release_fetched, cached_release_data
+
+    now = datetime.now()
+    if (
+        cached_release_data is not None
+        and last_release_fetched is not None
+        and (now - last_release_fetched) < CACHE_DURATION
+    ):  
+        return cached_release_data
+    url = f"https://api.github.com/repos/{REPO}/releases/latest"
     try:
-        with _github(f"https://api.github.com/repos/{REPO}/releases/latest") as r:
-            return json.load(r)["tag_name"].lstrip("v")
-    except HTTPError:
-        return "update-failed"
-def latest_changelog() -> str:
-    # Fetch the body of the latest GitHub release and return it,
-    # truncating at the first occurrence of '---'.
-    try:
-        with _github(f"https://api.github.com/repos/{REPO}/releases/latest") as r:
-            data = json.load(r)
-        body = data.get("body", "")
-        # Truncate at delimiter '---'
-        parts = body.split('---', 1)
-        return parts[0].rstrip()
+        with _github(url) as resp:
+            data = json.load(resp)
+            cached_release_data = data
+            last_release_fetched = now
+            return data
+
+    except HTTPError as e:
+        # Log rate-limit (403 with “rate limit” in message) differently from other HTTP errors
+        if e.code == 403 and "rate limit" in str(e).lower():
+            remaining = e.headers.get("X-RateLimit-Remaining", "?")
+            logging.warning(f"GitHub rate limit exceeded (remaining: {remaining})")
+        else:
+            logging.warning(f"HTTPError: {e}")
+        raise
+
     except Exception as e:
-        logging.error("Failed to fetch changelog: %s", e)
+        # Any other exception (network down, JSON parse error, etc.) – re-raise so callers know
+        raise
+
+def latest_version() -> str:
+    # Returns the latest release tag (without the leading 'v').
+    # If anything fails (HTTPError or other), returns "failed-to-fetch".
+    global cached_release_data, last_release_fetched
+    now = datetime.now()
+    try:
+        data = _get_release_data()
+        return data["tag_name"].lstrip("v")
+    except HTTPError:
+        # If cache exists and is still fresh, return cached tag_name
+        if (
+            cached_release_data is not None
+            and last_release_fetched is not None
+            and (now - last_release_fetched) < CACHE_DURATION
+        ):
+            return cached_release_data["tag_name"].lstrip("v")
+        return "failed-to-fetch"
+    except Exception:
+        return "failed-to-fetch"
+
+def latest_changelog() -> str:
+    # Returns the latest release body, truncated at the first '---' line.
+    # If any HTTPError occurs, returns an empty string. Any other exception → empty string.
+    global cached_release_data, last_release_fetched
+    now = datetime.now()
+    try:
+        data = _get_release_data()
+        raw_body = data.get("body", "") or ""
+        # Split on the first "\n---" (or just '---') and strip trailing whitespace/newlines
+        return raw_body.split("\n---", 1)[0].rstrip("\n")
+    except HTTPError:
+        # If cache exists and is still fresh, return truncated cached body
+        if (
+            cached_release_data is not None
+            and last_release_fetched is not None
+            and (now - last_release_fetched) < CACHE_DURATION
+        ):
+            cached_body = cached_release_data.get("body", "") or ""
+            return cached_body.split("\n---", 1)[0].rstrip("\n")
         return ""
+    except Exception:
+        return ""
+    
 def perform_update() -> str:
     # Try git first (if the work-tree is clean) then fall back to the tarball.
     # Whatever happens, write the outcome to the log and return it.
