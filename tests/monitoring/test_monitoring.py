@@ -1,4 +1,4 @@
-import os, subprocess, threading, sys
+import os, subprocess, sys
 from pathlib import Path
 from types import SimpleNamespace
 from datetime import time as timecls
@@ -185,24 +185,6 @@ def test_api_restart_success(monkeypatch, client):
 
     monkeypatch.setattr(subprocess, "Popen", DummyPopen)
 
-    # Patch os._exit to record its call instead of exiting the test runner
-    def fake_exit(code):
-        recorded["exit_called_with"] = code
-    monkeypatch.setattr(os, "_exit", fake_exit)
-    # Patch time.sleep to be a no-op (so _exit_later runs immediately)
-    monkeypatch.setattr("time.sleep", lambda s: None)
-
-    # Stub out threading.Thread so it records target and allows us to invoke it manually
-    class DummyThread:
-        def __init__(self, target=None, daemon=None):
-            recorded["thread_target"] = target
-            recorded["thread_daemon"] = daemon
-
-        def start(self):
-            recorded["thread_started"] = True
-
-    monkeypatch.setattr(threading, "Thread", DummyThread)
-
     # Perform the POST to the restart endpoint
     resp = client.post("/api/self/restart")
     assert resp.status_code == 202
@@ -213,25 +195,13 @@ def test_api_restart_success(monkeypatch, client):
 
     # Compute what the code uses for the script path and cwd
     expected_script_path = str(monitoring.script_dir / "monitoring.py")
-    expected_cwd = expected_script_path  # per the updated implementation
+    expected_cwd = str(monitoring.script_dir)
 
     popen_args = recorded.get("popen_args")
     assert popen_args is not None, "subprocess.Popen was not called"
     assert popen_args[0] == sys.executable
     assert popen_args[1] == expected_script_path
     assert recorded["popen_cwd"] == expected_cwd
-
-    # Ensure that a thread was created and start() was invoked
-    assert recorded.get("thread_target") is not None, "thread target was not recorded"
-    assert recorded.get("thread_started") is True
-
-    # Manually invoke the captured _exit_later function to cover its logic
-    exit_func = recorded["thread_target"]
-    exit_func()  # this should call our fake_exit
-
-    # Verify that os._exit(0) was called inside _exit_later
-    assert recorded.get("exit_called_with") == 0
-
 
 def test_api_restart_fails_when_popen_raises(monkeypatch, client):
     def fake_popen(*args, **kwargs):

@@ -193,7 +193,6 @@ def create_app():
     @app.route("/api/self/restart", methods=["POST"])
     @login_required
     def api_restart():
-        # Spawn a new monitoring.py process, then terminate this one.
         try:
             # Launch a new monitoring.py in the background
             monitoring_dir = str(script_dir / "monitoring.py")
@@ -207,7 +206,7 @@ def create_app():
                 start_new_session=True,
             )
             return jsonify(status="ok",
-                        message=f"Api restart initiated"), 202
+                        message=f"API restart initiated"), 202
         except Exception as e:
             app.logger.exception("Failed to restart API")
             return jsonify(status="error", message=str(e)), 500
@@ -321,9 +320,12 @@ def main():
         cfg = validate_config()
         for name, val in vars(cfg).items():
             setattr(_mon, name, val)
-    if process_handler("monitoring.py", action="check"):
+    
+    should_kill_process = process_handler("monitoring.py", action="check")
+    if should_kill_process:
         time.sleep(3)
         process_handler("monitoring.py", action="kill")
+    else: pass
     logging.info(f"Starting server with http://{host}:{port}")
     create_app().run(host=host or None,
                      port=port or None)
