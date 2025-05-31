@@ -14,17 +14,8 @@
 </head>
 <body>
   <h1>Viewport Login</h1>
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div id="statusMessage">
-        {% for cat, msg in messages %}
-          <span class="{{ cat }}">{{ msg }}</span>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
   <form id="login" method="post">
-    <label for="key">API Key:</label>
+    <label for="key">API Secret:</label>
     <input id="key" name="key" type="password" required>
     <button type="submit">Login</button>
   </form>

@@ -65,9 +65,6 @@ section:focus-visible, li:focus-visible {
 .Yellow {
   color: color("yellow");
 }
-// --------------------------------------------------
-// Headings
-// --------------------------------------------------
 h1 {
   font-size: 1.5rem;
   color: color("text");
@@ -114,7 +111,7 @@ h1 {
 // --------------------------------------------------
 // Index Page Styles
 // --------------------------------------------------
-section.flex-parent {
+section#navigation {
   display: flex;
   justify-content: flex-start;
   .button-group {
@@ -158,6 +155,20 @@ section.flex-parent {
         fill: color("blue");
       }
     }
+    #refresh {
+      transform-origin: center;
+    }
+    &.refreshing #refresh {
+      animation: spin-3-times 1s ease-out;
+    }
+    @keyframes spin-3-times {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(1080deg);
+      }
+    }
   }
 }
 .wrapper {
@@ -167,9 +178,11 @@ section.flex-parent {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin: 0;
 }
-#info {
+// --------------------------------------------------
+// Sections
+// --------------------------------------------------
+section#info {
   ul {
     list-style: none;
     padding: 0;
@@ -184,160 +197,212 @@ section.flex-parent {
       white-space: nowrap;
     }
   }
-}
-#controls {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-around;
-  margin: 1rem 0;
+  #controls {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    margin: 1rem 0;
+    #statusMessage {
+      text-align: center;
+      margin-top: 1rem;
+    }
+    button {
+      flex: 1;
+      margin: 0 0.5rem;
+      max-width: 150px;
+      margin-bottom: 0;
+      padding: 0.75rem;
+      background-color: color("box");
+      color: color("white");
+      border: none;
+      border-radius: $border-radius;
+      cursor: pointer;
+      transition: background $transition-speed;
+      margin-bottom: 0.75rem;
+      &:hover {
+        background-color: color("blue");
+      }
+      &:disabled {
+        background-color: color("blue");
+        cursor: unset;
+      }
+      &[disabled][data-tooltip]{
+        position: relative;
+        &:hover::before {
+          content: '';
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          border-width: 6px 6px 0 6px;
+          border-style: solid;
+          border-color: rgba(0,0,0,0.8) transparent transparent transparent;
+          pointer-events: none;
+          opacity: 1;
+        }
+        &:hover::after {
+          content: attr(data-tooltip);
+          position: absolute;
+          bottom: 100%;               /* sit just above the button */
+          left: 50%;                  /* center horizontally */
+          transform: translate(-50%, -6px);
+          background: rgba(0, 0, 0, 0.8);
+          color: color("text");
+          padding: 8px 12px;
+          border-radius: 8px;
+          white-space: nowrap;
+          font-size: 1.15em;
+          pointer-events: none;       /* so it doesn’t block the hover state */
+          z-index: 10;
+        }
+      }
+    }
+  }
   #statusMessage {
     text-align: center;
-    margin-top: 1rem;
-  }
-  button {
-    flex: 1;
-    margin: 0 0.5rem;
-    max-width: 150px;
-    margin-bottom: 0;
-    padding: 0.75rem;
-    background-color: color("box");
-    color: color("white");
-    border: none;
-    border-radius: $border-radius;
-    cursor: pointer;
-    transition: background $transition-speed;
-    margin-bottom: 0.75rem;
-    &:hover {
-      background-color: color("blue");
-    }
-    &:disabled {
-      background-color: color("blue");
-      cursor: unset;
-    }
-    &[disabled][data-tooltip]{
-      position: relative;
-      &:hover::before {
-        content: '';
-        position: absolute;
-        bottom: 100%;
-        left: 50%;
-        transform: translateX(-50%);
-        border-width: 6px 6px 0 6px;
-        border-style: solid;
-        border-color: rgba(0,0,0,0.8) transparent transparent transparent;
-        pointer-events: none;
-        opacity: 1;
-      }
-      &:hover::after {
-        content: attr(data-tooltip);
-        position: absolute;
-        bottom: 100%;               /* sit just above the button */
-        left: 50%;                  /* center horizontally */
-        transform: translate(-50%, -6px);
-        background: rgba(0, 0, 0, 0.8);
-        color: color("text");
-        padding: 8px 12px;
-        border-radius: 8px;
-        white-space: nowrap;
-        font-size: 1.15em;
-        pointer-events: none;       /* so it doesn’t block the hover state */
-        z-index: 10;
-      }
+    .danger {
+      color: color("red");
     }
   }
 }
-#statusMessage {
-  text-align: center;
-  .danger {
-    color: color("red");
-  }
-}
-// --------------------------------------------------
-// Sections
 // --------------------------------------------------
 section#changelog {
   padding-bottom: 2rem;
-}
-.changelog-content {
-  code {
-    font-style: italic;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
-    padding: 0 4px;
-  }
-  a {
-    display: inline-block;
-    color: color("blue");
-    border-bottom: 2px solid;
-    margin-bottom: -2px;
-    @include hover {
-      color: color("yellow");
+  .wrapper {
+    code {
+      font-style: italic;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      padding: 0 4px;
     }
-  }
-  li {
-    list-style: disc;
-    margin-left: 2rem;
-    margin-bottom: 0.3rem;
-    line-height: 1.5rem;
     a {
-      margin-top: 0;
-    }
-  }
-  p {
-    display: none;
-  }
-  div.flex {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-top: 1rem;
-    a {
-      border-bottom: 0;
-      margin-bottom: unset;
-    }
-    button[type="submit"]{
-      padding: 0.5rem 1.4rem;
-      background-color: color("blue");
-      color: color("text");
-      border: 0;
-      border-radius: $border-radius;
+      display: inline-block;
+      color: color("blue");
+      border-bottom: 2px solid;
+      margin-bottom: -2px;
       @include hover {
-        background-color: color("blue", $lightness: -10%);
+        color: color("yellow");
+      }
+    }
+    li {
+      list-style: disc;
+      margin-left: 2rem;
+      margin-bottom: 0.3rem;
+      line-height: 1.5rem;
+      a {
+        margin-top: 0;
+      }
+    }
+    p {
+      display: none;
+    }
+    div.flex {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-top: 1rem;
+      a {
+        border-bottom: 0;
+        margin-bottom: unset;
+      }
+      button[type="submit"]{
+        padding: 0.5rem 1.4rem;
+        background-color: color("blue");
+        color: color("text");
+        border: 0;
+        border-radius: $border-radius;
+        @include hover {
+          background-color: color("blue", $lightness: -10%);
+        }
       }
     }
   }
 }
-section.wrapper {
-  h2 {
-    margin: 0;
-  }
-  .container {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-  }
-  .logs-content {
-    // background: color("text");
+// --------------------------------------------------
+section#logs {
+  .wrapper {
     padding: 1rem;
-    max-width: 90%;
-    max-height: 80%;
-    overflow: auto;
-    border-radius: 4px;
-    position: relative;
-  }
-  .close {
-    cursor: pointer;
-    font-size: 1.5rem;
-    padding: 24px;
-  }
-  #logOutput {
-    white-space: pre-wrap;       /* Since CSS 2.1 */
-    white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
-    white-space: -pre-wrap;      /* Opera 4-6 */
-    white-space: -o-pre-wrap;    /* Opera 7 */
-    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+    .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      h2 {
+        margin: 1rem 0;
+      }
+      .log-controls {
+        display: flex;
+        border-radius: $border-radius;
+        background-color: color("diminished");
+        color: color("search");
+      }
+      input#logLimit {
+        background-color: transparent;
+        color: inherit;
+        width: 70px;
+        padding: 8px 8px 8px 16px;
+        font-size: 24px;
+        border: none;
+        text-align: right;
+      }
+      button#searchLogs {
+        background-color: transparent;
+        color: inherit;
+        padding: 16px;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        svg {
+          width: 24px;
+          height: 24px;
+          stroke: color("search");
+
+        }
+        @include hover {
+          svg {
+            stroke: color("blue");
+          }
+        }
+      }
+    }
+    pre#logOutput {
+      white-space: pre-wrap;       /* Since CSS 2.1 */
+      white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+      white-space: -pre-wrap;      /* Opera 4-6 */
+      white-space: -o-pre-wrap;    /* Opera 7 */
+      word-wrap: break-word;       /* Internet Explorer 5.5+ */
+    }
   }
 }
+// --------------------------------------------------
+// Input field
+// --------------------------------------------------
+div.log-controls{
+  position: relative;
+  div.custom-spinners {
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+  }
+  button.custom-spinner-btn {
+    background: transparent;
+    color: color("search");
+    border: none;
+    padding: 2px 8px;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    @include hover {
+      color: color("blue");
+    }
+  }
+}
+
 // --------------------------------------------------
 // Responsive Adjustments
 // --------------------------------------------------
@@ -346,10 +411,14 @@ section.wrapper {
   #login{
     max-width: 450px;
   }
-  body {
+  section {
     margin-right: auto;
     margin-left: auto;
     max-width: 600px;
+  }
+  .wrapper {
+    margin-right: auto;
+    margin-left: auto;
   }
   h1 {
     font-size: 2rem;
@@ -364,7 +433,12 @@ section.wrapper {
     max-width: 600px;
     margin: 0 auto;
   }
-
+  section#logs {
+    max-width: 900px;
+    .wrapper {
+      border-radius: $border-radius;
+    }
+  }
   h1 {
     font-size: 2.5rem;
   }

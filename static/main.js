@@ -3,6 +3,7 @@ let updateCache = {
   data: null,    // { current, latest, changelog, releaseUrl }
 };
 let lastScriptUptime = null;
+let lastLogLimit = 50; 
 const CACHE_TTL = 60 * 15 * 1000; // 15 minutes
 document.addEventListener("DOMContentLoaded", () => {
   loadInfo();
@@ -23,8 +24,11 @@ document.addEventListener("DOMContentLoaded", () => {
     updateBanner: document.getElementById("update"),
     refreshButton: document.getElementById("refreshButton"),
   };
-  
-  const output = document.getElementById("logOutput");
+  // Declare log variables
+  const logCountSpan = document.getElementById('logCount');
+  const logLimitInput = document.getElementById('logLimit');
+  const searchLogsButton = document.getElementById('searchLogs');
+  const logOutput = document.getElementById('logOutput');
   // Set initial state
   sections.status.removeAttribute("hidden");
   sections.logs.setAttribute("hidden", "");
@@ -41,13 +45,66 @@ document.addEventListener("DOMContentLoaded", () => {
     buttons.refreshButton.removeAttribute("hidden", "");
   });
 
+  // LOGS
+  async function fetchAndDisplayLogs(limit = lastLogLimit) {
+    // Sanitize the input - ensure it's a number between 10-600
+    limit = Math.max(10, Math.min(600, parseInt(limit) || lastLogLimit));
+
+    // Store the valid limit for future use
+    lastLogLimit = limit;
+
+    // Update the input and display to match the sanitized value
+    logLimitInput.value = limit;
+    logCountSpan.textContent = limit;
+
+    const res = await fetchJSON(`/api/logs?limit=${limit}`);
+    if (res?.data?.logs) {
+      logOutput.textContent = res.data.logs.join("");
+    }
+  }
+  document.querySelectorAll(".custom-spinner-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const input = document.getElementById("logLimit");
+      const step = parseInt(input.step) || 10;
+      let currentValue = parseInt(input.value) || lastLogLimit;
+
+      if (btn.dataset.action === "increment") {
+        currentValue = Math.min(600, currentValue + step);
+      } else {
+        currentValue = Math.max(10, currentValue - step);
+      }
+
+      input.value = currentValue;
+      // Trigger the input event to update the display
+      input.dispatchEvent(new Event("input"));
+    });
+  });
   buttons.logs.addEventListener("click", async () => {
     toggleSection("logs");
-    // Keep your existing log loading functionality
-    const res = await fetchJSON(`/api/logs?limit=100`);
-    if (res?.data?.logs) {
-      output.textContent = res.data.logs.join("");
+    await fetchAndDisplayLogs(lastLogLimit); // Use stored value instead of default
+  });
+  // Search button click handler
+  searchLogsButton.addEventListener("click", async () => {
+    await fetchAndDisplayLogs(logLimitInput.value);
+  });
+
+  // Also allow Enter key in the input field
+  logLimitInput.addEventListener("keypress", async (e) => {
+    if (e.key === "Enter") {
+      await fetchAndDisplayLogs(logLimitInput.value);
     }
+  });
+  logLimitInput.addEventListener("blur", () => {
+    let value = parseInt(logLimitInput.value) || lastLogLimit;
+    value = Math.max(10, Math.min(600, value));
+    logLimitInput.value = value;
+    logCountSpan.textContent = value;
+    lastLogLimit = value;
+  });
+  logLimitInput.addEventListener("input", () => {
+    let value = parseInt(logLimitInput.value) || lastLogLimit;
+    // Don't show values above 600 even if typed
+    logCountSpan.textContent = Math.min(600, value);
   });
   // Wire up the update button
   pushUpdate = sections.updateBanner.querySelector('button[type="submit"]');
@@ -60,6 +117,12 @@ document.addEventListener("DOMContentLoaded", () => {
   buttons.refreshButton.addEventListener("click", () => {
     toggleSection("status");
     loadInfo();
+    buttons.refreshButton.classList.add("refreshing");
+
+    // Remove the class after animation completes (1000ms in this case)
+    setTimeout(() => {
+      buttons.refreshButton.classList.remove("refreshing");
+    }, 1000);
   });
   function toggleSection(buttonId) {
     // Hide all sections first

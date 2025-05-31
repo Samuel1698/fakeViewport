@@ -15,7 +15,7 @@
 </head>
 <body>
   <h1>Viewport Control</h1>
-  <section class="flex-parent">
+  <section id="navigation">
     <div class="button-group">
       <button id="status" aria-selected="true">Status</button>
       <button id="logsBtn">Logs</button>
@@ -23,8 +23,10 @@
     </div>
     <button id="refreshButton">
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-        <path
-          d="M7.59375 3L9.0625 5L13 5C16.324219 5 19 7.675781 19 11L19 15L16 15L20 20.46875L24 15L21 15L21 11C21 6.59375 17.40625 3 13 3ZM4 3.53125L0 9L3 9L3 13C3 17.40625 6.59375 21 11 21L16.40625 21L14.9375 19L11 19C7.675781 19 5 16.324219 5 13L5 9L8 9Z" />
+        <g id="refresh">
+          <path
+            d="M7.59375 3L9.0625 5L13 5C16.324219 5 19 7.675781 19 11L19 15L16 15L20 20.46875L24 15L21 15L21 11C21 6.59375 17.40625 3 13 3ZM4 3.53125L0 9L3 9L3 13C3 17.40625 6.59375 21 11 21L16.40625 21L14.9375 19L11 19C7.675781 19 5 16.324219 5 13L5 9L8 9Z" />
+        </g>
       </svg>
     </button>
   </section>
@@ -48,16 +50,29 @@
     </div>
     <div id="statusMessage"><span></span></div>
   </section>
-  <section id="logs" class="wrapper" hidden>
-    <div class="logs-content">
+  <section id="logs" hidden>
+    <div class="wrapper">
       <div class="container">
-        <h2>Last 100 log lines</h2>
+        <h2>Last <span id="logCount">50</span> Log Entries</h2>
+        <div class="log-controls">
+          <div class="custom-spinners">
+            <button class="custom-spinner-btn" data-action="increment">▲</button>
+            <button class="custom-spinner-btn" data-action="decrement">▼</button>
+          </div>
+          <input type="number" id="logLimit" min="10" max="600" value="50" step="10">
+          <button id="searchLogs">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </button>
+        </div>
       </div>
       <pre id="logOutput"></pre>
     </div>
   </section>
-  <section id="changelog" class="wrapper" hidden>
-    <div class="changelog-content">
+  <section id="changelog" hidden>
+    <div class="wrapper">
       <div class="container">
         <h2>Update</h2>
       </div>
