@@ -4,9 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Viewport Control</title>
-  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
-  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
-  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon-96x96.png')}}" sizes="96x96" />
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg')}}" />
+  <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico')}}" />
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png')}}" />
+  <meta name="apple-mobile-web-app-title" content="Viewport" />
+  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest')}}" />
   <link rel="preload" href="{{ url_for('static', filename='UI_Sans.woff2') }}" as="font" type="font/woff2">
   <link rel="stylesheet" href="{{ url_for('static', filename='main-min.css') }}">
 </head>

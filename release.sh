@@ -36,6 +36,8 @@ git archive \
     static/main-min.css \
     static/favicon* \
     static/*woff2 \
+    static/*.png \
+    static/site* \
     config.ini.example \
     .env.example
 
