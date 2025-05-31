@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, os, time, configparser, psutil, subprocess, logging, threading
+import sys, os, time, configparser, psutil, subprocess, logging
 from functools import wraps
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -15,6 +15,7 @@ import update
 from logging_config import configure_logging
 from validate_config import validate_config
 from dotenv import load_dotenv, find_dotenv
+from viewport import process_handler
 
 _mon = sys.modules[__name__]
 dotenv_file = find_dotenv()
@@ -138,7 +139,7 @@ def create_app():
             viewport_dir = str(script_dir / "viewport.py")
             subprocess.Popen(
                 [sys.executable, viewport_dir, flag],
-                cwd=viewport_dir,
+                cwd=str(script_dir),
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -198,20 +199,15 @@ def create_app():
             monitoring_dir = str(script_dir / "monitoring.py")
             subprocess.Popen(
                 [sys.executable, monitoring_dir],
-                cwd=monitoring_dir,
+                cwd=str(script_dir),
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 close_fds=True,
-                start_new_session=True
+                start_new_session=True,
             )
-            # After a brief delay, exit this process so the new one takes over
-            def _exit_later():
-                time.sleep(1)
-                os._exit(0)
-            threading.Thread(target=_exit_later, daemon=True).start()
-            return jsonify(status="ok", message="API restart initiated"), 202
-
+            return jsonify(status="ok",
+                        message=f"Api restart initiated"), 202
         except Exception as e:
             app.logger.exception("Failed to restart API")
             return jsonify(status="error", message=str(e)), 500
@@ -325,6 +321,9 @@ def main():
         cfg = validate_config()
         for name, val in vars(cfg).items():
             setattr(_mon, name, val)
+    if process_handler("monitoring.py", action="check"):
+        time.sleep(3)
+        process_handler("monitoring.py", action="kill")
     logging.info(f"Starting server with http://{host}:{port}")
     create_app().run(host=host or None,
                      port=port or None)
