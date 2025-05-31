@@ -972,16 +972,20 @@ def handle_elements(driver, hide_delay_ms: int = 3000):
         hide_delay_ms
     )
 def handle_pause_banner(driver):
-    # Injects a self-healing “Pause / Resume Health Checks” banner into the page.
-    # The banner rebuilds itself on SPA URL changes and remembers its last state
-    # using localStorage.
+    # Injects a self-healing "Pause / Resume Health Checks" banner into the page.
+    # The banner rebuilds itself on SPA URL changes but does NOT persist state between browser sessions.
     driver.execute_script(
         """
         (function () {
-        // STATE PERSISTENCE 
+        // STATE MANAGEMENT
         const PAUSE_KEY = 'pauseBannerPaused';
-        const getPaused = () => localStorage.getItem(PAUSE_KEY) === 'true';
-        const setPaused = (v) => localStorage.setItem(PAUSE_KEY, v);
+        const getPaused = () => window[PAUSE_KEY] === true;
+        const setPaused = (v) => window[PAUSE_KEY] = v;
+
+        // Initialize to false if not set
+        if (window[PAUSE_KEY] === undefined) {
+            window[PAUSE_KEY] = false;
+        }
 
         //  BANNER CREATION 
         function buildBanner() {
