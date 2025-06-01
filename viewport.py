@@ -190,9 +190,15 @@ def args_handler(args):
     if args.api:
         if process_handler("monitoring.py", action="check"):
             logging.info("Stopping the API...")
-            process_handler('monitoring.py', action="kill")
-        elif API: api_handler()
-        else: logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
+            output = process_handler('monitoring.py', action="kill")
+            if output:
+                logging.info(f"API shutdown output: {output}")
+            api_status("API Stopped")
+        elif API: 
+            if not api_handler():
+                sys.exit(1)  # Exit with error if API failed to start
+        else:
+            logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
         sys.exit(0)
     if args.restart:
         # --restart from the CLI should kill the existing daemon
@@ -310,22 +316,59 @@ def api_status(msg):
     with open(status_file, 'w') as f:
         f.write(msg)
 def api_handler():
-    if not process_handler('monitoring.py', action="check"):
-        logging.info("Starting API...")
-        api_script = _base / 'monitoring.py'
-        try:
-            subprocess.Popen(
-                [sys.executable, api_script],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-                close_fds=True,
-                start_new_session=True  # Detach from the terminal
-            )
-            api_status("Starting API...")
-        except Exception as e:
-            log_error("Error starting API: ", e)
-            api_status("Error Starting API")
+    if process_handler('monitoring.py', action="check"):
+        logging.info("API is already running")
+        api_status("API Running")
+        return True
+
+    logging.info("Starting API...")
+    api_script = _base / 'monitoring.py'
+    
+    try:
+        # Start process with output capture
+        process = subprocess.Popen(
+            [sys.executable, api_script],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            close_fds=True,
+            bufsize=1,
+            universal_newlines=True,
+            start_new_session=True
+        )
+
+        # Filter and log output
+        def filter_output(stream):
+            for line in stream:
+                line = line.strip()
+                if line:
+                    # Skip Werkzeug server messages
+                    if any(msg in line for msg in [
+                        "WARNING: This is a development server",
+                        "Press CTRL+C to quit",
+                        "Serving Flask app",
+                        "Debug mode:",
+                        "Running on"
+                    ]):
+                        continue
+                    logging.info(line)
+
+        # Start output filtering threads
+        threading.Thread(target=filter_output, args=(process.stdout,), daemon=True).start()
+        threading.Thread(target=filter_output, args=(process.stderr,), daemon=True).start()
+
+        # Verify process started
+        time.sleep(1)
+        if process.poll() is not None:
+            raise RuntimeError(f"API failed to start (code {process.returncode})")
+
+        logging.info("API started successfully")
+        return True
+    except Exception as e:
+        log_error("Error starting API: ", e)
+        api_status(f"Error: {str(e)}")
+        return False
+
 # ----------------------------------------------------------------------------- 
 # Signal Handler (Closing gracefully with CTRL+C)
 # ----------------------------------------------------------------------------- 

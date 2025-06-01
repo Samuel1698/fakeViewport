@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, os, time, configparser, psutil, subprocess, logging
+import sys, os, time, configparser, psutil, subprocess, logging, socket  
 from functools import wraps
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from flask import (
     Flask, render_template, request,
     session, redirect, url_for, flash,
-    jsonify
+    jsonify, cli
 )
 from flask_cors import CORS
 from collections import deque
@@ -215,19 +215,14 @@ def create_app():
     @app.route("/api/")
     def api_index():
         return jsonify({
-            "script_uptime":   url_for("api_script_uptime",   _external=True),
-            "system_uptime":   url_for("api_system_uptime",   _external=True),
-            "ram":             url_for("api_ram",             _external=True),
-            "health_interval": url_for("api_health_interval", _external=True),
-            "log_interval":    url_for("api_log_interval",    _external=True),
-            "logs":            url_for("api_logs",            _external=True),
-            "status":          url_for("api_status",          _external=True),
-            "next_restart":    url_for("api_next_restart",    _external=True),
-            "log_entry":       url_for("api_log_entry",       _external=True),
             "update":          url_for("api_update_info",     _external=True),
             "update/changelog":url_for("api_update_changelog",_external=True),
+            "script_uptime":   url_for("api_script_uptime",   _external=True),
+            "system_info":     url_for("api_system_info",     _external=True),
+            "logs":            url_for("api_logs",            _external=True),
+            "status":          url_for("api_status",          _external=True),
+            "config":          url_for("api_config",          _external=True),
         })
-
     @app.route("/api/script_uptime")
     def api_script_uptime():
         raw = _read_api_file(sst_file)
@@ -239,28 +234,52 @@ def create_app():
             return jsonify(status="ok", data={"script_uptime": uptime})
         except ValueError:
             return jsonify(status="error", message="Malformed SST timestamp"), 400
-
-    @app.route("/api/system_uptime")
-    def api_system_uptime():
+    @app.route("/api/system_info")
+    def api_system_info():
         try:
+            # Get OS info
+            with open('/etc/os-release', 'r') as f:
+                os_release = f.read()
+            pretty_name = next(
+                line.split('=', 1)[1].strip('"') 
+                for line in os_release.split('\n') 
+                if line.startswith('PRETTY_NAME=')
+            )
+            # Get hardware model (works for Raspberry Pi and many x86 systems)
+            hardware_model = "Unknown"
+            try:
+                # Try Raspberry Pi first
+                with open('/proc/device-tree/model', 'r') as f:
+                    hardware_model = f.read().strip('\x00')
+                if not hardware_model:  # Fallback to x86 systems
+                    with open('/sys/class/dmi/id/product_name', 'r') as f:
+                        hardware_model = f.read().strip()
+            except:
+                pass  # Keep "Unknown" if both methods fail
+            # Get available disk space (root partition)
+            disk_info = subprocess.check_output(
+                ['df', '-h', '--output=avail', '/']
+            ).decode().split('\n')[1].strip()
+            # Uptime
             uptime = time.time() - psutil.boot_time()
-            return jsonify(status="ok", data={"system_uptime": uptime})
-        except Exception:
-            return jsonify(status="error",
-                           message="Could not determine system uptime"), 500
-
-    @app.route("/api/ram")
-    def api_ram():
-        vm = psutil.virtual_memory()
-        return jsonify(status="ok", data={"ram_used": vm.used, "ram_total": vm.total})
-
-    @app.route("/api/health_interval")
-    def api_health_interval():
-        return jsonify(status="ok", data={"health_interval_sec": SLEEP_TIME})
-
-    @app.route("/api/log_interval")
-    def api_log_interval():
-        return jsonify(status="ok", data={"log_interval_min": LOG_INTERVAL})
+            # Get RAM
+            vm = psutil.virtual_memory()
+            return jsonify(
+                status="ok",
+                data={
+                    "os_name": pretty_name,
+                    "system_uptime": uptime,
+                    "hardware_model": hardware_model,
+                    "disk_available": disk_info,
+                    "ram_used": vm.used, 
+                    "ram_total": vm.total
+                }
+            )
+        except Exception as e:
+            return jsonify(
+                status="error",
+                message=f"System info error: {str(e)}"
+            ), 500
     @app.route("/api/log")
     @app.route("/api/logs")
     def api_logs():
@@ -269,7 +288,6 @@ def create_app():
             limit = int(request.args.get("limit", 100))
         except ValueError:
             limit = 100
-
         try:
             # tail the file
             with open(log_file, 'r') as f:
@@ -284,40 +302,69 @@ def create_app():
         line = _read_api_file(status_file)
         if line is None:
             return jsonify(status="error", message="Status file not found"), 404
-        return jsonify(status="ok", data={"status": line})
-    @app.route("/api/next_restart")
-    def api_next_restart():
-        if not RESTART_TIMES:
-            return jsonify(status="error", message="No restart times configured"), 404
-        now = datetime.now()
-        # compute next run for each time
-        next_runs = []
-        for t in RESTART_TIMES:
-            run_dt = datetime.combine(now.date(), t)
-            if run_dt <= now:
-                run_dt += timedelta(days=1)
-            next_runs.append(run_dt)
-        next_run = min(next_runs)
-        return jsonify(status="ok", data={"next_restart": next_run.isoformat()})
-    @app.route("/api/log_entry")
-    def api_log_entry():
-        if not log_file.exists():
-            return jsonify(status="error", message="Log file not found"), 404
+        return jsonify(status="ok", data={"status": line})    
+    @app.route("/api/config")
+    def api_config():
         try:
-            lines = log_file.read_text().splitlines()
-            entry = lines[-1] if lines else None
-            return jsonify(status="ok", data={"log_entry": entry})
+            # Re-parse config on each call
+            cfg = validate_config(strict=False)
+            # pull everything out into locals/globals
+            for name, val in vars(cfg).items():
+                setattr(_mon, name, val)
+                
+            restart_times = None
+            next_restart = None
+            
+            if RESTART_TIMES:  # Checks if not None and not empty
+                now = datetime.now()
+                # compute next run for each time
+                next_runs = []
+                for t in RESTART_TIMES:
+                    run_dt = datetime.combine(now.date(), t)
+                    if run_dt <= now:
+                        run_dt += timedelta(days=1)
+                    next_runs.append(run_dt)
+                next_run = min(next_runs)
+                restart_times = [t.strftime('%H:%M') for t in RESTART_TIMES]
+                next_restart = next_run.isoformat()
+                
+            return jsonify(
+                status="ok",
+                data={
+                    "general": {
+                        "health_interval_sec": getattr(_mon, "SLEEP_TIME", None),
+                        "wait_time_sec": getattr(_mon, "WAIT_TIME", None),
+                        "max_retries": getattr(_mon, "MAX_RETRIES", None),
+                        "restart_times": restart_times,
+                        "next_restart": next_restart,
+                    },
+                    "browser": {
+                        "profile_path": getattr(_mon, "BROWSER_PROFILE_PATH", None),
+                        "binary_path": getattr(_mon, "BROWSER_BINARY", None),
+                        "headless": getattr(_mon, "HEADLESS", None),
+                    },
+                    "logging": {
+                        "log_file_flag": getattr(_mon, "LOG_FILE_FLAG", None),
+                        "log_console_flag": getattr(_mon, "LOG_CONSOLE", None),
+                        "debug_logging": getattr(_mon, "DEBUG_LOGGING", None),
+                        "error_logging": getattr(_mon, "ERROR_LOGGING", None),
+                        "ERROR_PRTSCR": getattr(_mon, "ERROR_PRTSCR", None),
+                        "log_days": getattr(_mon, "LOG_DAYS", None),
+                        "log_interval_min": getattr(_mon, "LOG_INTERVAL", None),
+                    },
+                })
         except Exception as e:
-            app.logger.error(f"Error reading log file: {e}")
-            return jsonify(status="error", message="Error reading log file"), 500
-
+            return jsonify(
+                status="error",
+                message=f"Config error: {str(e)}"
+            ), 500
+            
     return app
 
 # ----------------------------------------------------------------------------- 
 # Run server when invoked directly
 # ----------------------------------------------------------------------------- 
 def main():
-    # This is only needed to inject the different configs we test with
     if "pytest" in sys.modules:
         cfg = validate_config()
         for name, val in vars(cfg).items():
@@ -327,10 +374,9 @@ def main():
     if should_kill_process:
         time.sleep(3)
         process_handler("monitoring.py", action="kill")
-    else: pass
-    logging.info(f"Starting server with http://{host}:{port}")
-    create_app().run(host=host or None,
-                     port=port or None)
     
+    logging.info(f"Starting server with http://{host}:{port}")
+    create_app().run(host=host or None, port=port or None)
+
 if __name__ == '__main__':
     main()
