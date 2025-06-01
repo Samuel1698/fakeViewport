@@ -1,13 +1,7 @@
 import { loadInfo } from "./_info.js";
 
 // send control and update inline message
-export async function control(action, btn) {
-  // disable the button immediately
-  btn.setAttribute("disabled", "");
-  setTimeout(() => {
-    btn.removeAttribute("disabled");
-  }, 5_000);
-
+export async function control(action) {
   const msgEls = document.querySelectorAll(".statusMessage span");
   msgEls.forEach((el) => {
     el.textContent = "";

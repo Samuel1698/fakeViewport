@@ -181,6 +181,67 @@ section#navigation {
   border-top-right-radius: 0;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
+.tooltip {
+  position: relative;
+  display: inline-block;
+  cursor: help;
+  .tooltip-text {
+    visibility: hidden;
+    width: 200px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 4px;
+    padding: 8px;
+    position: absolute;
+    z-index: 1000;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 14px;
+    font-weight: normal;
+    pointer-events: none;
+    &::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      margin-left: -5px;
+      border-width: 5px;
+      border-style: solid;
+      border-color: #333 transparent transparent transparent;
+    }
+  }
+  @include hover {
+    .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+  }
+}
+section#status, section#info {
+  // Reset tooltip for Control buttons
+  .tooltip {
+    display: block;
+    cursor: unset;
+    @include hover {
+      .tooltip-text {
+        visibility: hidden;
+        opacity: 0;
+      }
+    }
+    &.show {
+      @include hover {
+        .tooltip-text {
+          visibility: visible;
+          opacity: 1;
+        }
+      }
+    }
+  }
+}
 // --------------------------------------------------
 // Sections
 // --------------------------------------------------
@@ -194,12 +255,10 @@ section.display {
       margin-bottom: 8px;
       gap: 8px;
       line-height: 20px;
-    }
-    li:last-of-type {
-      span:first-child{
+      &>span:first-child {
         white-space: nowrap;
       }
-      span:last-child {
+      &>span:last-child {
         text-align: right;
       }
     }
@@ -217,7 +276,6 @@ section.display {
       flex: 1;
       margin: 0 0.5rem;
       max-width: 150px;
-      margin-bottom: 0;
       padding: 0.75rem;
       background-color: color("box");
       color: color("white");
@@ -226,49 +284,41 @@ section.display {
       cursor: pointer;
       transition: background $transition-speed;
       margin-bottom: 0.75rem;
-      &:hover {
+      @include hover {
         background-color: color("blue");
       }
-      &:disabled {
-        background-color: color("blue");
-        cursor: unset;
-      }
-      &[disabled][data-tooltip]{
-        position: relative;
-        &:hover::before {
-          content: '';
-          position: absolute;
-          bottom: 100%;
-          left: 50%;
-          transform: translateX(-50%);
-          border-width: 6px 6px 0 6px;
-          border-style: solid;
-          border-color: rgba(0,0,0,0.8) transparent transparent transparent;
-          pointer-events: none;
-          opacity: 1;
-        }
-        &:hover::after {
-          content: attr(data-tooltip);
-          position: absolute;
-          bottom: 100%;               /* sit just above the button */
-          left: 50%;                  /* center horizontally */
-          transform: translate(-50%, -6px);
-          background: rgba(0, 0, 0, 0.8);
-          color: color("text");
-          padding: 8px 12px;
-          border-radius: 8px;
-          white-space: nowrap;
-          font-size: 1.15em;
-          pointer-events: none;       /* so it doesn’t block the hover state */
-          z-index: 10;
-        }
-      }
+    }
+  }
+  .controls.disabled {
+    button {
+      background-color: color("diminished");
+      cursor: unset;
     }
   }
   .statusMessage {
     text-align: center;
     .danger {
       color: color("red");
+    }
+  }
+}
+// --------------------------------------------------
+section#status {
+  li:last-of-type {
+    position: relative;
+    span:last-child {
+      position: absolute;
+      right: 0;
+      margin-left: 105px;
+    }
+  }
+}
+// --------------------------------------------------
+section#config {
+  .wrapper {
+    margin-bottom: 2rem;
+    &:not(:first-child){
+      border-radius: $border-radius;
     }
   }
 }

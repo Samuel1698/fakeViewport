@@ -2,6 +2,7 @@
 export const sections = {
   status: document.getElementById("status"),
   info: document.getElementById("info"),
+  config: document.getElementById("config"),
   logs: document.getElementById("logs"),
   updateBanner: document.getElementById("update"),
 };
@@ -9,6 +10,7 @@ export const sections = {
 export const buttons = {
   status: document.getElementById("statusBtn"),
   info: document.getElementById("infoBtn"),
+  config: document.getElementById("configBtn"),
   logs: document.getElementById("logsBtn"),
   updateBanner: document.getElementById("updateBtn"),
   refreshButton: document.getElementById("refreshButton"),
@@ -33,8 +35,8 @@ export function toggleSection(buttonId) {
     button.setAttribute("aria-selected", id === buttonId ? "true" : "false");
   });
 
-  // Hide refresh button unless "status" or "info"
-  if (buttonId === "status" || buttonId === "info") {
+  // Hide refresh button unless "status" or "info" or "config"
+  if (buttonId === "status" || buttonId === "info" || buttonId === "config") {
     buttons.refreshButton.removeAttribute("hidden");
   } else {
     buttons.refreshButton.setAttribute("hidden", "true");
@@ -67,6 +69,10 @@ export function initSections() {
     toggleSection("info");
     setActiveTab("info");
   });
+  buttons.config.addEventListener("click", () => {
+    toggleSection("config");
+    setActiveTab("config");
+  });
   buttons.logs.addEventListener("click", async () => {
     toggleSection("logs");
     await fetchAndDisplayLogs();
@@ -78,7 +84,7 @@ export function initSections() {
   });
 
   buttons.refreshButton.addEventListener("click", () => {
-    loadInfo(); // This will only refresh the current active tab
+    loadInfo({ forceRefreshConfig: true });
     buttons.refreshButton.classList.add("refreshing");
     setTimeout(() => {
       buttons.refreshButton.classList.remove("refreshing");

@@ -1,5 +1,5 @@
 let lastScriptUptime = null;
-let activeTab = "status"; 
+let activeTab = "status";
 import { loadUpdateData } from "./_update.js";
 
 // -----------------------------------------------------------------------------
@@ -14,55 +14,187 @@ export async function fetchJSON(path) {
     return null;
   }
 }
-// format seconds → “Dd Hh Mm Ss”
+
+// Config cache with refresh capability
+let configCache = {
+  data: null,
+  lastUpdated: 0,
+  ttl: 360_0000, // 1 hour
+
+  async get(forceRefresh = false) {
+    const now = Date.now();
+    if (forceRefresh || !this.data || now - this.lastUpdated > this.ttl) {
+      this.data = await fetchJSON("/api/config");
+      this.lastUpdated = now;
+      this.updateConfigElements();
+    }
+    return this.data;
+  },
+
+  updateConfigElements() {
+    if (!this.data?.data) return;
+
+    const config = this.data.data;
+
+    // Formatting functions
+    const formatTime = {
+      seconds: (value) => `${value} Second${value !== 1 ? "s" : ""}`,
+      minutes: (value) => `${value} Minute${value !== 1 ? "s" : ""}`,
+      days: (value) => `${value} Day${value !== 1 ? "s" : ""}`,
+      hours: (value) => `${value} Hour${value !== 1 ? "s" : ""}`,
+      boolean: (value) => (value ? "Yes" : "No"),
+    };
+
+    // Element configuration with formatting rules
+    const elementConfig = [
+      // General Section
+      {
+        id: "healthInterval",
+        path: "general.health_interval_sec",
+        format: (v) => formatTime.minutes(Math.round(v / 60)),
+      },
+      {
+        id: "waitTime",
+        path: "general.wait_time_sec",
+        format: formatTime.seconds,
+      },
+      { id: "maxRetries", path: "general.max_retries" },
+      {
+        id: "restartTimes",
+        path: "general.restart_times",
+        format: (v) => (Array.isArray(v) ? v.join(", ") : "-"),
+      },
+
+      // Browser Section
+      { id: "profilePath", path: "browser.profile_path" },
+      { id: "profileBinary", path: "browser.binary_path" },
+      { id: "headless", path: "browser.headless", format: formatTime.boolean },
+
+      // Logging Section
+      {
+        id: "logFile",
+        path: "logging.log_file_flag",
+        format: formatTime.boolean,
+      },
+      {
+        id: "logConsole",
+        path: "logging.log_console_flag",
+        format: formatTime.boolean,
+      },
+      {
+        id: "debugLogging",
+        path: "logging.debug_logging",
+        format: formatTime.boolean,
+      },
+      {
+        id: "errorLogging",
+        path: "logging.error_logging",
+        format: formatTime.boolean,
+      },
+      {
+        id: "screenshots",
+        path: "logging.ERROR_PRTSCR",
+        format: formatTime.boolean,
+      },
+      { id: "logDays", path: "logging.log_days", format: formatTime.days },
+      {
+        id: "logInterval",
+        path: "logging.log_interval_min",
+        format: formatTime.minutes,
+      },
+
+      // Special Cases
+      {
+        id: "scheduledRestart",
+        path: "general.next_restart",
+        format: (value, element) => {
+          if (!value) {
+            element.parentElement?.setAttribute("hidden", "");
+            return "-";
+          }
+
+          const next = new Date(value);
+          const now = new Date();
+          const hoursDiff = (next.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+          element.classList.remove("Yellow", "Green", "Red");
+          if (hoursDiff <= 1) element.classList.add("Yellow");
+
+          element.parentElement?.removeAttribute("hidden");
+          return formatter.format(next).replace(/, /g, " ");
+        },
+      },
+    ];
+
+    // Process all elements
+    elementConfig.forEach(({ id, path, format }) => {
+      const element = document.getElementById(id);
+      if (!element) return;
+
+      // Get value from config
+      const value = path.split(".").reduce((obj, key) => obj?.[key], config);
+
+      // Apply formatting or default display
+      if (value !== undefined && value !== null) {
+        element.textContent = format
+          ? format(value, element)
+          : value.toString();
+      } else {
+        element.textContent = "-";
+        if (id === "scheduledRestart") {
+          element.parentElement?.setAttribute("hidden", "");
+        }
+      }
+    });
+  },
+};
+
+// format seconds → "Dd Hh Mm Ss"
 function formatDuration(sec) {
-  // break total seconds into days, leftover hours, minutes, seconds
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = Math.floor(sec % 60);
 
-  // collect non-zero components
   const parts = [];
   if (d > 0) parts.push(`${d}d`);
   if (h > 0) parts.push(`${h}h`);
   if (m > 0) parts.push(`${m}m`);
   if (s > 0) parts.push(`${s}s`);
 
-  // join with spaces, or return “0s” if none
   return parts.length > 0 ? parts.join(" ") : "0s";
 }
+
 const formatter = new Intl.DateTimeFormat("en-US", {
-  month: "short", // "May"
-  day: "2-digit", // "09"
-  year: "numeric", // "2025"
-  hour: "2-digit", // "02"
-  minute: "2-digit", // "00"
+  month: "short",
+  day: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
   hour12: false,
 });
+
 function compareVersions(current, latest) {
   const currentParts = current.split(".").map(Number);
   const latestParts = latest.split(".").map(Number);
 
-  // Compare major versions
-  if (latestParts[0] > currentParts[0]) {
-    return "major";
-  }
-  // Compare minor versions if majors are equal
-  if (latestParts[1] > currentParts[1]) {
-    return "minor";
-  }
-  // Compare patch versions if majors and minors are equal
-  if (latestParts[2] > currentParts[2]) {
-    return "patch";
-  }
+  if (latestParts[0] > currentParts[0]) return "major";
+  if (latestParts[1] > currentParts[1]) return "minor";
+  if (latestParts[2] > currentParts[2]) return "patch";
   return "current";
 }
 // -----------------------------------------------------------------------------
 // Status-related updates (frequent updates)
 // -----------------------------------------------------------------------------
-export async function loadStatus() {
-  const sud = await fetchJSON("/api/script_uptime");
+export async function loadStatus(forceRefreshConfig = false) {
+  const [sud, st, sysInfo, le] = await Promise.all([
+    fetchJSON("/api/script_uptime"),
+    fetchJSON("/api/status"),
+    fetchJSON("/api/system_info"),
+    fetchJSON("/api/logs?limit=1"),
+  ]);
+
+  // Script uptime
   const el = document.getElementById("scriptUptime");
   if (sud?.data && typeof sud.data.script_uptime === "number") {
     const current = sud.data.script_uptime;
@@ -80,18 +212,13 @@ export async function loadStatus() {
     el.classList.add("Red");
     lastScriptUptime = null;
   }
-  // system uptime
-  const syu = await fetchJSON("/api/system_uptime");
-  if (syu?.data) {
-    document.getElementById("systemUptime").textContent = formatDuration(
-      syu.data.system_uptime
-    );
-  }
-  const st = await fetchJSON("/api/status");
+
+  // Status message
   if (st?.data) {
     const entry = document.getElementById("statusMsg");
     entry.textContent = st.data.status;
     entry.classList.remove("Green", "Blue", "Red");
+
     if (
       entry.textContent.includes("Healthy") ||
       entry.textContent.includes("Resumed") ||
@@ -126,14 +253,17 @@ export async function loadStatus() {
       entry.classList.add("Red");
     }
   }
-  // RAM usage (GiB)
-  const ram = await fetchJSON("/api/ram");
-  if (ram?.data) {
-    const used = (ram.data.ram_used / 1024 ** 3).toFixed(1);
-    const tot = (ram.data.ram_total / 1024 ** 3).toFixed(1);
+
+  // System info
+  if (sysInfo?.data) {
+    const syuEl = document.getElementById("systemUptime");
+    const used = (sysInfo.data.ram_used / 1024 ** 3).toFixed(1);
+    const tot = (sysInfo.data.ram_total / 1024 ** 3).toFixed(1);
     const ramElement = document.getElementById("ram");
 
-    const pctUsed = (ram.data.ram_used / ram.data.ram_total) * 100;
+    if (syuEl) syuEl.textContent = formatDuration(sysInfo.data.system_uptime);
+
+    const pctUsed = (sysInfo.data.ram_used / sysInfo.data.ram_total) * 100;
     ramElement.textContent = `${used} GiB / ${tot} GiB`;
     ramElement.classList.remove("Green", "Yellow", "Red");
 
@@ -145,6 +275,29 @@ export async function loadStatus() {
       ramElement.classList.add("Red");
     }
   }
+
+  // Log entry
+  if (le?.data?.logs && le.data.logs.length > 0) {
+    const entry = document.getElementById("logEntry");
+    const logText = le.data.logs[0].trim();
+    entry.textContent = logText;
+    entry.classList.remove("Green", "Blue", "Red");
+
+    if (logText.includes("[ERROR]")) {
+      entry.classList.add("Red");
+    } else if (logText.includes("[WARN]")) {
+      entry.classList.add("Yellow");
+    } else if (logText.includes("[DEBUG]")) {
+      entry.classList.add("Blue");
+    } else if (logText.includes("[INFO]")) {
+      entry.classList.add("Green");
+    } else {
+      entry.classList.add("Green");
+    }
+  }
+
+  // Get config with optional force refresh
+  await configCache.get(forceRefreshConfig);
 }
 // -----------------------------------------------------------------------------
 // Info-related updates (less frequent updates)
@@ -176,61 +329,49 @@ export async function loadInfoData() {
         versionElement.classList.add("Green");
     }
   } catch (e) {
-    versionElement.textContent = "Version info unavailable";
-    versionElement.classList.remove("Green", "Yellow", "Red");
     console.error("Failed to load version info:", e);
   }
 
-  // Next Restart
-  const sr = await fetchJSON("/api/next_restart");
-  const srel = document.getElementById("scheduledRestart");
+  // System Info
+  const sysInfo = await fetchJSON("/api/system_info");
+  if (sysInfo?.data) {
+    const osEl = document.getElementById("osInfo");
+    const hwEl = document.getElementById("hardwareInfo");
+    const diskEl = document.getElementById("diskInfo");
 
-  if (sr?.data?.next_restart) {
-    const next = new Date(sr.data.next_restart);
-    const now = new Date();
-    const timeDiff = next.getTime() - now.getTime(); // Difference in milliseconds
-    const hoursDiff = timeDiff / (1000 * 60 * 60); // Convert to hours
+    if (osEl) osEl.textContent = sysInfo.data.os_name;
+    if (hwEl) hwEl.textContent = sysInfo.data.hardware_model;
+    if (diskEl) {
+      diskEl.textContent = sysInfo.data.disk_available;
+      diskEl.classList.remove("Green", "Yellow", "Red");
 
-    srel.textContent = formatter.format(next).replace(/, /g, " ");
-    srel.classList.remove("Yellow", "Green", "Red");
-
-    // Add appropriate class based on time difference
-    if (hoursDiff <= 1) {
-      srel.classList.add("Yellow"); // Within 1 hour
+      if (sysInfo.data.disk_bytes < 200 * 1024 * 1024) {
+        diskEl.classList.add("Red");
+      } else if (sysInfo.data.disk_bytes < 1024 * 1024 * 1024) {
+        diskEl.classList.add("Yellow");
+      } else {
+        diskEl.classList.add("Green");
+      }
     }
-
-    srel.parentElement.removeAttribute("hidden");
-  } else {
-    srel.parentElement.setAttribute("hidden", "");
-  }
-  // intervals
-  const hi = await fetchJSON("/api/health_interval");
-  if (hi?.data) {
-    const minutes = Math.round(hi.data.health_interval_sec / 60);
-    document.getElementById("healthInterval").textContent = `${minutes} min`;
-  }
-  const li = await fetchJSON("/api/log_interval");
-  if (li?.data) {
-    document.getElementById(
-      "logInterval"
-    ).textContent = `${li.data.log_interval_min} min`;
   }
 }
-
 // -----------------------------------------------------------------------------
 // Main function - loads data based on active tab
 // -----------------------------------------------------------------------------
-export async function loadInfo() {
+export async function loadInfo(options = {}) {
+  const { forceRefreshConfig = false } = options;
   if (activeTab === "status") {
-    await loadStatus();
+    await loadStatus(forceRefreshConfig);
   } else if (activeTab === "info") {
     await loadInfoData();
+  } else if (activeTab === "config") {
+    await configCache.get(forceRefreshConfig);
   }
 }
+
 // Set the active tab (call this when tabs are switched)
 export function setActiveTab(tab) {
   activeTab = tab;
-  // Immediately load data for the new active tab
   if (activeTab === "status") {
     loadInfo();
   }
