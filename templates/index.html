@@ -44,9 +44,9 @@
       </ul>
     </div>
     <div id="controls">
-      <button onclick="control('start', this)" data-tooltip="Please wait before sending the same command again.">Start</button>
-      <button onclick="control('restart', this)" data-tooltip="Please wait before sending the same command again.">Restart</button>
-      <button onclick="control('quit', this)" data-tooltip="Please wait before sending the same command again.">Quit</button>
+      <button data-action="start" data-tooltip="Please wait before sending the same command again.">Start</button>
+      <button data-action="restart" data-tooltip="Please wait before sending the same command again.">Restart</button>
+      <button data-action="quit" data-tooltip="Please wait before sending the same command again.">Quit</button>
     </div>
     <div id="statusMessage"><span></span></div>
   </section>
@@ -59,7 +59,7 @@
             <button class="custom-spinner-btn" data-action="increment">▲</button>
             <button class="custom-spinner-btn" data-action="decrement">▼</button>
           </div>
-          <input type="number" id="logLimit" min="10" max="600" value="50" step="10">
+          <input type="number" id="logLimit" min="10" max="600" value="10" step="10">
           <button id="searchLogs">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"></circle>

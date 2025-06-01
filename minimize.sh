@@ -51,7 +51,7 @@ find . -type f \( -name "*.coveragerc" -o -name "release.sh" \) -not -path "./ve
 done
 
 # Delete static/*.scss and static/main.js
-find ./static -type f \( -name "*.scss" -o -name "main.js" \) -print0 | while IFS= read -r -d '' file; do
+find ./static -type f \( -name "*.scss" -o -name "main.js" -o -name "_*.js" \) -print0 | while IFS= read -r -d '' file; do
     rm -f "$file" && echo -ne "${GREEN}.${NC}"
 done
 
