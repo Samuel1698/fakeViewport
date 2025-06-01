@@ -160,6 +160,7 @@ section#navigation {
     }
     &.refreshing #refresh {
       animation: spin-3-times 1s ease-out;
+      fill: color("blue");
     }
     @keyframes spin-3-times {
       0% {
@@ -193,8 +194,13 @@ section#info {
       gap: 8px;
       line-height: 20px;
     }
-    li:last-of-type > span:first-child {
-      white-space: nowrap;
+    li:last-of-type {
+      span:first-child{
+        white-space: nowrap;
+      }
+      span:last-child {
+        text-align: right;
+      }
     }
   }
   #controls {
@@ -266,6 +272,66 @@ section#info {
   }
 }
 // --------------------------------------------------
+section#logs {
+  .wrapper {
+    padding: 1rem;
+    .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      h2 {
+        margin: 1rem 0;
+      }
+      .log-controls {
+        display: flex;
+        border-radius: $border-radius;
+        background-color: color("diminished");
+        color: color("search");
+      }
+      input#logLimit {
+        background-color: transparent;
+        color: color("text");
+        width: 70px;
+        padding: 8px 8px 8px 16px;
+        font-size: 24px;
+        border: none;
+        text-align: right;
+      }
+      button#searchLogs {
+        background-color: transparent;
+        color: inherit;
+        padding: 16px;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        svg {
+          width: 24px;
+          height: 24px;
+          stroke: color("search");
+        }
+        @include hover {
+          svg {
+            stroke: color("blue");
+          }
+        }
+      }
+    }
+    pre#logOutput {
+      white-space: pre-wrap;       /* Since CSS 2.1 */
+      white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+      white-space: -pre-wrap;      /* Opera 4-6 */
+      white-space: -o-pre-wrap;    /* Opera 7 */
+      word-wrap: break-word;       /* Internet Explorer 5.5+ */
+    }
+    button.expand-button {
+      display: none;
+    }
+  }
+}
+// --------------------------------------------------
 section#changelog {
   padding-bottom: 2rem;
   .wrapper {
@@ -300,7 +366,7 @@ section#changelog {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      margin-top: 1rem;
+      margin-top: 2.4rem;
       a {
         border-bottom: 0;
         margin-bottom: unset;
@@ -314,65 +380,14 @@ section#changelog {
         @include hover {
           background-color: color("blue", $lightness: -10%);
         }
-      }
-    }
-  }
-}
-// --------------------------------------------------
-section#logs {
-  .wrapper {
-    padding: 1rem;
-    .container {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-      h2 {
-        margin: 1rem 0;
-      }
-      .log-controls {
-        display: flex;
-        border-radius: $border-radius;
-        background-color: color("diminished");
-        color: color("search");
-      }
-      input#logLimit {
-        background-color: transparent;
-        color: inherit;
-        width: 70px;
-        padding: 8px 8px 8px 16px;
-        font-size: 24px;
-        border: none;
-        text-align: right;
-      }
-      button#searchLogs {
-        background-color: transparent;
-        color: inherit;
-        padding: 16px;
-        border: none;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        svg {
-          width: 24px;
-          height: 24px;
-          stroke: color("search");
-
-        }
-        @include hover {
-          svg {
-            stroke: color("blue");
-          }
+        &[disabled] {
+          background-color: color("diminished");
         }
       }
     }
-    pre#logOutput {
-      white-space: pre-wrap;       /* Since CSS 2.1 */
-      white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
-      white-space: -pre-wrap;      /* Opera 4-6 */
-      white-space: -o-pre-wrap;    /* Opera 7 */
-      word-wrap: break-word;       /* Internet Explorer 5.5+ */
+    div#updateMessage {
+      height: 30px;
+      text-align: center;
     }
   }
 }
@@ -402,7 +417,6 @@ div.log-controls{
     }
   }
 }
-
 // --------------------------------------------------
 // Responsive Adjustments
 // --------------------------------------------------
@@ -415,10 +429,52 @@ div.log-controls{
     margin-right: auto;
     margin-left: auto;
     max-width: 600px;
+    .wrapper {
+      margin-right: auto;
+      margin-left: auto;
+      border-radius: $border-radius;
+      border-top-left-radius: 0;
+    }
   }
-  .wrapper {
-    margin-right: auto;
-    margin-left: auto;
+  section#info .wrapper {
+    border-top-right-radius: 0;
+  }
+  // Allow resize
+  section#logs {
+    transition: all 0.3s ease;
+    overflow: hidden;
+    &.expanded {
+      max-width: 900px;
+      border-top-left-radius: $border-radius;
+      .wrapper button.expand-button {
+        svg {
+          transform: rotate(90deg);
+        }
+      }
+    }
+    .wrapper {
+      position: relative;
+      button.expand-button {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        display: inline-block;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 8px;
+        margin-left: auto; /* Push to right */
+        @include hover {
+          svg {
+            fill: color("blue");
+          }
+        }
+        svg {
+          transition: transform 0.6s ease;
+          fill: color("text");
+        }
+      }
+    }
   }
   h1 {
     font-size: 2rem;
@@ -432,12 +488,6 @@ div.log-controls{
   #login {
     max-width: 600px;
     margin: 0 auto;
-  }
-  section#logs {
-    max-width: 900px;
-    .wrapper {
-      border-radius: $border-radius;
-    }
   }
   h1 {
     font-size: 2.5rem;

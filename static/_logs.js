@@ -73,6 +73,31 @@ export function initLogs() {
     document.getElementById("logCount").textContent = Math.min(600, value);
   });
 
+  // Add expand button functionality
+  const expandButton = document.getElementById("expandLogs");
+  const logsSection = document.getElementById("logs");
+
+  if (expandButton && logsSection) {
+    expandButton.addEventListener("click", () => {
+      logsSection.classList.toggle("expanded");
+
+      // Update aria-expanded attribute for accessibility
+      const isExpanded = logsSection.classList.contains("expanded");
+      expandButton.setAttribute("aria-expanded", isExpanded);
+
+      // Update button label
+      expandButton.setAttribute(
+        "aria-label",
+        isExpanded ? "Collapse logs" : "Expand logs"
+      );
+      expandButton.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          expandButton.click();
+        }
+      });
+    });
+  }
   // Initial load with stored value
   fetchAndDisplayLogs(lastLogLimit);
 }
