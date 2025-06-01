@@ -1,20 +1,22 @@
 // Export these if needed elsewhere
 export const sections = {
-  status: document.getElementById("info"),
+  status: document.getElementById("status"),
+  info: document.getElementById("info"),
   logs: document.getElementById("logs"),
-  updateBanner: document.getElementById("changelog"),
+  updateBanner: document.getElementById("update"),
 };
 
 export const buttons = {
-  status: document.getElementById("status"),
+  status: document.getElementById("statusBtn"),
+  info: document.getElementById("infoBtn"),
   logs: document.getElementById("logsBtn"),
-  updateBanner: document.getElementById("update"),
+  updateBanner: document.getElementById("updateBtn"),
   refreshButton: document.getElementById("refreshButton"),
 };
 
 // Import dependencies (adjust paths as needed)
 import { fetchAndDisplayLogs } from "./_logs.js";
-import { loadInfo } from "./_info.js";
+import { loadInfo, setActiveTab } from "./_info.js"; // Add setActiveTab import
 import { showChangelog } from "./_update.js";
 
 export function toggleSection(buttonId) {
@@ -31,8 +33,10 @@ export function toggleSection(buttonId) {
     button.setAttribute("aria-selected", id === buttonId ? "true" : "false");
   });
 
-  // Hide refresh button unless "status"
-  if (buttonId !== "status") {
+  // Hide refresh button unless "status" or "info"
+  if (buttonId === "status" || buttonId === "info") {
+    buttons.refreshButton.removeAttribute("hidden");
+  } else {
     buttons.refreshButton.setAttribute("hidden", "true");
   }
 }
@@ -41,23 +45,31 @@ export function toggleSection(buttonId) {
 export function initSections() {
   // Initial state
   sections.status.removeAttribute("hidden");
+  sections.info.setAttribute("hidden", "");
   sections.logs.setAttribute("hidden", "");
   sections.updateBanner.setAttribute("hidden", "");
 
   // Set initial aria-selected
   buttons.status.setAttribute("aria-selected", "true");
+  buttons.info.removeAttribute("aria-selected");
   buttons.logs.removeAttribute("aria-selected");
   buttons.updateBanner.removeAttribute("aria-selected");
+
+  // Show refresh button initially since status is default
+  buttons.refreshButton.removeAttribute("hidden");
 
   // Add click handlers
   buttons.status.addEventListener("click", () => {
     toggleSection("status");
-    buttons.refreshButton.removeAttribute("hidden");
+    setActiveTab("status");
   });
-
+  buttons.info.addEventListener("click", () => {
+    toggleSection("info");
+    setActiveTab("info");
+  });
   buttons.logs.addEventListener("click", async () => {
     toggleSection("logs");
-    await fetchAndDisplayLogs(); // Let fetchAndDisplayLogs handle its own default
+    await fetchAndDisplayLogs();
   });
 
   buttons.updateBanner.addEventListener("click", () => {
@@ -66,7 +78,7 @@ export function initSections() {
   });
 
   buttons.refreshButton.addEventListener("click", () => {
-    loadInfo();
+    loadInfo(); // This will only refresh the current active tab
     buttons.refreshButton.classList.add("refreshing");
     setTimeout(() => {
       buttons.refreshButton.classList.remove("refreshing");

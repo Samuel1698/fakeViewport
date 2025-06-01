@@ -17,9 +17,10 @@
   <h1>Viewport Control</h1>
   <section id="navigation">
     <div class="button-group">
-      <button id="status" aria-selected="true">Status</button>
+      <button id="statusBtn" aria-selected="true">Status</button>
+      <button id="infoBtn">Info</button>
       <button id="logsBtn">Logs</button>
-      <button id="update" hidden>Update</button>
+      <button id="updateBtn" hidden>Update</button>
     </div>
     <button id="refreshButton">
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
@@ -30,25 +31,37 @@
       </svg>
     </button>
   </section>
-  <section id="info">
+  <section id="status" class="display">
     <div class="wrapper">
       <ul>
-        <li><span class="title">Script Uptime:</span><span id="scriptUptime" class="Green">-</span></li>
-        <li><span class="title">System Uptime:</span><span id="systemUptime">-</span></li>
-        <li><span class="title">RAM Used / Total:</span><span id="ram">-</span></li>
-        <li><span class="title">Health Check Interval:</span><span id="healthInterval">-</span></li>
-        <li><span class="title">Log Interval:</span><span id="logInterval">-</span></li>
-        <li hidden><span class="title">Scheduled Restart:</span><span id="scheduledRestart">-</span></li>
-        <li><span class="title">Last Status Message: </span><span id="statusMsg">-</span></li>
-        <li><span class="title">Last Log Entry:</span><span id="logEntry">-</span></li>
+        <li><span>Script Uptime:</span><span id="scriptUptime" class="Green">-</span></li>
+        <li><span>System Uptime:</span><span id="systemUptime">-</span></li>
+        <li><span>RAM Used / Total:</span><span id="ram">-</span></li>
+        <li hidden><span>Scheduled Restart:</span><span id="scheduledRestart">-</span></li>
+        <li><span>Last Status Message: </span><span id="statusMsg">-</span></li>
       </ul>
     </div>
-    <div id="controls">
+    <div class="controls">
       <button data-action="start" data-tooltip="Please wait before sending the same command again.">Start</button>
       <button data-action="restart" data-tooltip="Please wait before sending the same command again.">Restart</button>
       <button data-action="quit" data-tooltip="Please wait before sending the same command again.">Quit</button>
     </div>
-    <div id="statusMessage"><span></span></div>
+    <div class="statusMessage"><span></span></div>
+  </section>
+  <section id="info" class="display" hidden>
+    <div class="wrapper">
+      <ul>
+        <li><span>Version:</span><span id="version">-</span></li>
+        <li><span>Health Check Interval:</span><span id="healthInterval">-</span></li>
+        <li><span>Log Interval:</span><span id="logInterval">-</span></li>
+      </ul>
+    </div>
+    <div class="controls">
+      <button data-action="start" data-tooltip="Please wait before sending the same command again.">Start</button>
+      <button data-action="restart" data-tooltip="Please wait before sending the same command again.">Restart</button>
+      <button data-action="quit" data-tooltip="Please wait before sending the same command again.">Quit</button>
+    </div>
+    <div class="statusMessage"><span></span></div>
   </section>
   <section id="logs" hidden>
     <div class="wrapper">
@@ -77,7 +90,7 @@
       </button>
     </div>
   </section>
-  <section id="changelog" hidden>
+  <section id="update" hidden>
     <div class="wrapper">
       <div class="container">
         <h2>Update</h2>

@@ -20,7 +20,7 @@ function cmpVersions(a, b) {
 }
 //  Fetch both /api/update and /api/update/changelog in parallel,
 //  cache for an hour, return { current, latest, changelog, releaseUrl }
-async function loadUpdateData() {
+export async function loadUpdateData() {
   const now = Date.now();
   if (updateCache.data && now - updateCache.timestamp < CACHE_TTL) {
     return updateCache.data;
@@ -58,7 +58,7 @@ export function showChangelog() {
   }
   const { latest, changelog, releaseUrl } = info;
 
-  const title = document.querySelector("#changelog .container h2");
+  const title = document.querySelector("#update .container h2");
   if (latest.includes("failed-to-fetch")) {
     title.textContent = "Failed to Fetch Changelog";
   } else {
@@ -67,7 +67,7 @@ export function showChangelog() {
 
   document.getElementById("changelog-body").innerHTML = marked.parse(changelog);
   document.getElementById("changelog-link").href = releaseUrl;
-  document.getElementById("changelog").removeAttribute("hidden");
+  document.getElementById("update").removeAttribute("hidden");
 }
 // ----------------------------------------------------------------------------- 
 // Send command to apply update
@@ -197,9 +197,9 @@ export async function applyUpdate(btn) {
 export async function checkForUpdate() {
   try {
     const { current, latest } = await loadUpdateData();
-    const banner = document.getElementById("update");
+    const banner = document.getElementById("updateBtn");
     const updateButton = document.querySelector(
-      '#changelog button[type="submit"]'
+      '#update button[type="submit"]'
     );
 
     if (cmpVersions(latest, current) <= 0) {
@@ -224,7 +224,7 @@ export async function checkForUpdate() {
 }
 // Initialize the update button 
 export function initUpdateButton() {
-  const pushUpdate = document.querySelector('#changelog button[type="submit"]');
+  const pushUpdate = document.querySelector('#update button[type="submit"]');
   if (pushUpdate) {
     pushUpdate.addEventListener("click", () => applyUpdate(pushUpdate));
     // Set initial state

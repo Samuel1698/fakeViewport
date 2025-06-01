@@ -129,6 +129,7 @@ section#navigation {
     background: transparent;
     border: none;
     position: relative;
+    min-width: 75px;
     @include hover {
       background: color("blue", $lightness: -10%);
     }
@@ -183,7 +184,7 @@ section#navigation {
 // --------------------------------------------------
 // Sections
 // --------------------------------------------------
-section#info {
+section.display {
   ul {
     list-style: none;
     padding: 0;
@@ -203,12 +204,12 @@ section#info {
       }
     }
   }
-  #controls {
+  .controls {
     display: flex;
     flex-direction: row;
     justify-content: space-around;
     margin: 1rem 0;
-    #statusMessage {
+    .statusMessage {
       text-align: center;
       margin-top: 1rem;
     }
@@ -264,7 +265,7 @@ section#info {
       }
     }
   }
-  #statusMessage {
+  .statusMessage {
     text-align: center;
     .danger {
       color: color("red");
@@ -332,7 +333,7 @@ section#logs {
   }
 }
 // --------------------------------------------------
-section#changelog {
+section#update {
   padding-bottom: 2rem;
   .wrapper {
     code {
@@ -436,7 +437,7 @@ div.log-controls{
       border-top-left-radius: 0;
     }
   }
-  section#info .wrapper {
+  section.display .wrapper {
     border-top-right-radius: 0;
   }
   // Allow resize

@@ -8,29 +8,39 @@ export async function control(action, btn) {
     btn.removeAttribute("disabled");
   }, 5_000);
 
-  const msgEl = document.querySelector("#statusMessage span");
-  msgEl.textContent = "";
-  msgEl.classList.remove("Green", "Red");
+  const msgEls = document.querySelectorAll(".statusMessage span");
+  msgEls.forEach((el) => {
+    el.textContent = "";
+    el.classList.remove("Green", "Red");
+  });
   try {
     const res = await fetch(`/api/control/${action}`, { method: "POST" });
     const js = await res.json();
 
     if (js.status === "ok") {
-      msgEl.textContent = "✓ " + js.message;
-      msgEl.classList.add("Green");
+      msgEls.forEach((el) => {
+        el.textContent = "✓ " + js.message;
+        el.classList.add("Green");
+      });
     } else {
-      msgEl.textContent = "✗ " + js.message;
-      msgEl.classList.add("Red");
+      msgEls.forEach((el) => {
+        el.textContent = "✗ " + js.message;
+        el.classList.add("Red");
+      });
     }
     await loadInfo();
     // reset the message after 15 seconds
     setTimeout(() => {
-      msgEl.textContent = "";
-      msgEl.classList.remove("Green", "Red");
+      msgEls.forEach((el) => {
+        el.textContent = "";
+        el.classList.remove("Green", "Red");
+      });
     }, 5_000);
     setTimeout(loadInfo, 5_000);
   } catch (e) {
-    msgEl.textContent = "✗ " + e;
-    msgEl.classList.add("Red");
+    msgEls.forEach((el) => {
+      el.textContent = "✗ " + e;
+      el.classList.add("Red");
+    });
   }
 }
