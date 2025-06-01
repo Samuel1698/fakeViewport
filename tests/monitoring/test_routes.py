@@ -160,6 +160,8 @@ def test_api_index_links(client):
         'status',
         'next_restart',
         'log_entry',
+        'update',
+        'update/changelog',
     }
     assert set(data.keys()) == expected
     for key, url in data.items():

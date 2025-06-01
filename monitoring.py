@@ -154,7 +154,7 @@ def create_app():
     # ----------------------------------------------------------------------------- 
     # Update
     # ----------------------------------------------------------------------------- 
-    @app.route("/update")
+    @app.route("/api/update")
     def api_update_info():
         try:
             return jsonify(status="ok", data={
@@ -164,7 +164,7 @@ def create_app():
         except Exception as e:
             app.logger.exception("version check failed")
             return jsonify(status="error", message=str(e)), 500
-    @app.route("/update/changelog")
+    @app.route("/api/update/changelog")
     def api_update_changelog():
         # Fetch and return the latest release changelog (up to the '---' delimiter),
         # plus a link to the GitHub release page.
@@ -182,7 +182,7 @@ def create_app():
         except Exception as e:
             app.logger.exception("changelog fetch failed")
             return jsonify(status="error", message=str(e)), 500
-    @app.route("/update/apply", methods=["POST"])
+    @app.route("/api/update/apply", methods=["POST"])
     @login_required
     def api_update_apply():
         # ignore any prefer_git flag—perform_update now always
@@ -215,15 +215,17 @@ def create_app():
     @app.route("/api/")
     def api_index():
         return jsonify({
-            "script_uptime":   url_for("api_script_uptime",  _external=True),
-            "system_uptime":   url_for("api_system_uptime",  _external=True),
-            "ram":             url_for("api_ram",            _external=True),
-            "health_interval": url_for("api_health_interval",_external=True),
-            "log_interval":    url_for("api_log_interval",   _external=True),
-            "logs":            url_for("api_logs",           _external=True),
-            "status":          url_for("api_status",         _external=True),
-            "next_restart":    url_for("api_next_restart",   _external=True),
-            "log_entry":       url_for("api_log_entry",      _external=True),
+            "script_uptime":   url_for("api_script_uptime",   _external=True),
+            "system_uptime":   url_for("api_system_uptime",   _external=True),
+            "ram":             url_for("api_ram",             _external=True),
+            "health_interval": url_for("api_health_interval", _external=True),
+            "log_interval":    url_for("api_log_interval",    _external=True),
+            "logs":            url_for("api_logs",            _external=True),
+            "status":          url_for("api_status",          _external=True),
+            "next_restart":    url_for("api_next_restart",    _external=True),
+            "log_entry":       url_for("api_log_entry",       _external=True),
+            "update":          url_for("api_update_info",     _external=True),
+            "update/changelog":url_for("api_update_changelog",_external=True),
         })
 
     @app.route("/api/script_uptime")

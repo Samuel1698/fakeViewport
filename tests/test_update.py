@@ -555,7 +555,7 @@ def test__download_asset(monkeypatch, assets, keyword, expected):
 # ---------------------------------------------------------------------------
 @patch.object(monitoring.update, "latest_version", lambda: "0.2.0")
 def test_update_info_endpoint(app_client):
-    r = app_client.get("/update")
+    r = app_client.get("/api/update")
     assert r.status_code == 200
     assert r.get_json()["data"] == {"current": "0.1.0", "latest": "0.2.0"}
 
@@ -563,14 +563,14 @@ def test_update_info_endpoint_error(app_client, monkeypatch, caplog):
     def boom(): raise RuntimeError("net down")
     monkeypatch.setattr(uu, "latest_version", boom)
     caplog.set_level("ERROR")
-    resp = app_client.get("/update")
+    resp = app_client.get("/api/update")
     assert resp.status_code == 500
     assert "net down" in resp.get_json()["message"]
     assert "version check failed" in caplog.text
 
 def test_update_apply_endpoint(app_client, monkeypatch):
     monkeypatch.setattr(monitoring.update, "perform_update", lambda: "ok")
-    r = app_client.post("/update/apply")
+    r = app_client.post("/api/update/apply")
     assert r.status_code == 202
     assert r.get_json()["data"]["outcome"] == "ok"
 
@@ -578,7 +578,7 @@ def test_update_changelog_endpoint_success(app_client, monkeypatch):
     # Simulate a normal response from latest_changelog
     import monitoring
     monkeypatch.setattr(monitoring.update, "latest_changelog", lambda: "Example notes")
-    response = app_client.get("/update/changelog")
+    response = app_client.get("/api/update/changelog")
     assert response.status_code == 200
 
     data = response.get_json()
@@ -598,7 +598,7 @@ def test_update_changelog_endpoint_error(app_client, monkeypatch, caplog):
         lambda: (_ for _ in ()).throw(RuntimeError("fetch failed"))
     )
 
-    response = app_client.get("/update/changelog")
+    response = app_client.get("/api/update/changelog")
     assert response.status_code == 500
 
     data = response.get_json()

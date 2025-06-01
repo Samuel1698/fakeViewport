@@ -18,7 +18,7 @@ function cmpVersions(a, b) {
   }
   return 0;
 }
-//  Fetch both /update and /update/changelog in parallel,
+//  Fetch both /api/update and /api/update/changelog in parallel,
 //  cache for an hour, return { current, latest, changelog, releaseUrl }
 async function loadUpdateData() {
   const now = Date.now();
@@ -28,8 +28,8 @@ async function loadUpdateData() {
 
   // parallel fetch
   const [verRes, logRes] = await Promise.all([
-    fetchJSON("/update"),
-    fetch("/update/changelog").then((r) => r.json()),
+    fetchJSON("/api/update"),
+    fetch("/api/update/changelog").then((r) => r.json()),
   ]);
 
   if (!verRes?.data) {
@@ -102,7 +102,7 @@ export async function applyUpdate(btn) {
     updateMessage.classList.add("Green");
 
     // First API call - apply update
-    const updateResponse = await fetch("/update/apply", { method: "POST" });
+    const updateResponse = await fetch("/api/update/apply", { method: "POST" });
 
     if (!updateResponse.ok) {
       throw new Error(`Update failed with status ${updateResponse.status}`);
