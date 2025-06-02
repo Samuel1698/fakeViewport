@@ -65,6 +65,14 @@ section:focus-visible, li:focus-visible {
 .Yellow {
   color: color("yellow");
 }
+.up {
+  color: color("up");
+  fill: color("up");
+}
+.down {
+  color: color("down");
+  fill: color("down");
+}
 h1 {
   font-size: 1.5rem;
   color: color("text");
@@ -312,6 +320,13 @@ section#status {
       margin-left: 105px;
     }
   }
+  span.network {
+    display: flex;
+    align-items: center;
+    span.down {
+      margin-right: 0.5rem;
+    }
+  }
 }
 // --------------------------------------------------
 section#config {
@@ -370,12 +385,15 @@ section#logs {
         }
       }
     }
-    pre#logOutput {
+    div#logOutput {
       white-space: pre-wrap;       /* Since CSS 2.1 */
       white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
       white-space: -pre-wrap;      /* Opera 4-6 */
       white-space: -o-pre-wrap;    /* Opera 7 */
       word-wrap: break-word;       /* Internet Explorer 5.5+ */
+      font-family: monospace;
+      max-height: 500px;
+      overflow-y: auto;
     }
     button.expand-button {
       display: none;

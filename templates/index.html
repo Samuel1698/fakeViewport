@@ -37,7 +37,29 @@
       <ul>
         <li><span>Script Uptime:</span><span id="scriptUptime" class="Green">-</span></li>
         <li><span>System Uptime:</span><span id="systemUptime">-</span></li>
-        <li><span>RAM Used / Total:</span><span id="ram">-</span></li>
+        <li>
+          <span>Throughput:</span>
+          <span class="network">
+            <svg viewBox="0 0 20 20" class="down" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px"
+            class="css-network-m4svol Icon-module_icon__2a0I8 Icon-module_icon-light__27kpC Icon-module_icon-outline__3nv5v"
+            baseclassname="" twotonedclassname="Icon-module_hidden__cSK0B" fillclassname="Icon-module_hidden__cSK0B"
+            fillwithtwotoneclassname="Icon-module_hidden__cSK0B" stroke="currentColor" stroke-width="0">
+            <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M13.883 12.904a.5.5 0 0 1 .707.707l-4.243 4.243a.5.5 0 0 1-.707 0L5.396 13.61a.5.5 0 0 1 .707-.707l3.39 3.39V2.5a.5.5 0 0 1 1 0v13.793l3.39-3.389Z"
+            fill="currentColor" class=""></path>
+            </svg>
+            <span id="down" class="down"></span>
+            <svg viewBox="0 0 21 20" class="up" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px"
+              class="css-network-3taki8 Icon-module_icon__2a0I8 Icon-module_icon-light__27kpC Icon-module_icon-outline__3nv5v"
+              baseclassname="" twotonedclassname="Icon-module_hidden__cSK0B" fillclassname="Icon-module_hidden__cSK0B"
+              fillwithtwotoneclassname="Icon-module_hidden__cSK0B" stroke="currentColor" stroke-width="0">
+              <path fill-rule="evenodd" clip-rule="evenodd"
+                d="M13.893 7.096a.5.5 0 0 0 .707-.707l-4.243-4.243a.5.5 0 0 0-.707 0L5.406 6.39a.5.5 0 0 0 .707.707l3.39-3.39V17.5a.5.5 0 0 0 1 0V3.707l3.39 3.389Z"
+                fill="currentColor" class=""></path>
+            </svg>
+            <span id="up" class="up"></span>
+          </span>
+        </li>
         <li><span>Scheduled Restart:</span><span id="scheduledRestart">-</span></li>
         <li><span>Last Status Message: </span><span id="statusMsg">-</span></li>
         <li><span>Last Log Entry: </span><span id="logEntry">-</span></li>
@@ -56,6 +78,8 @@
         <li><span>Script Version:</span><span id="version">-</span></li>
         <li><span>Operating System:</span><span id="osInfo">-</span></li>
         <li><span>Device:</span><span id="hardwareInfo">-</span></li>
+        <li><span>CPU Usage:</span><span id="cpuInfo">-</span></li>
+        <li><span>RAM Used / Total:</span><span id="ramInfo">-</span></li>
         <li><span>Space Available:</span><span id="diskInfo">-</span></li>
       </ul>
     </div>
@@ -112,7 +136,7 @@
           </button>
         </div>
       </div>
-      <pre id="logOutput"></pre>
+      <div id="logOutput"></div>
       <button id="expandLogs" class="expand-button" aria-label="Expand logs">
         <svg width="32" height="24" viewBox="0 0 24 24">
           <path d="M8 5v14l-11-7z" />

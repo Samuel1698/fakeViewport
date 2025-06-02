@@ -171,28 +171,34 @@ def test_script_uptime_ok(client, tmp_path, monkeypatch):
 # /api/system_info
 # ----------------------------------------------------------------------------- 
 def test_api_system_info_ok(client, monkeypatch):
-    # Simulate a successful /api/system_info response by faking:
-    # - /etc/os-release (PRETTY_NAME)
-    # - /proc/device-tree/model (hardware model)
-    # - subprocess.check_output(...) (disk availability)
-    # - psutil.virtual_memory() and psutil.boot_time()
-    # - monitoring.time.time()
+    # Mock the network statistics
+    class LastNetIO:
+        bytes_sent = 500  # initial value
+        bytes_recv = 1000  # initial value
+        
+    class CurrentNetIO:
+        bytes_sent = 1000  # current value (500 more than last)
+        bytes_recv = 2000  # current value (1000 more than last)
+        
+    def mock_net_io_counters(pernic, nowrap):
+        return {'eth0': CurrentNetIO()}
     
-    # Fake builtins.open for /etc/os-release and /proc/device-tree/model
+    # Mock last_net_io and last_check_time
+    monkeypatch.setattr(monitoring, 'last_net_io', {'eth0': LastNetIO()})
+    monkeypatch.setattr(monitoring, 'last_check_time', 1009)  # 1 second before current time (1010)
+    
+    # Existing mocks
     def fake_open(path, mode='r', *args, **kwargs):
         if path == "/etc/os-release": return io.StringIO('PRETTY_NAME="TestOS"\n')
         elif path == "/proc/device-tree/model": return io.StringIO("FakeModel")
 
     monkeypatch.setattr(builtins, "open", fake_open)
-
-    # Fake subprocess.check_output to return a dummy "df -h" output
     monkeypatch.setattr(subprocess, "check_output", lambda args: b"Filesystem\n100G\n")
-
-    # Fake psutil.virtual_memory() and psutil.boot_time()
-    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=12345, total=67890))
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=12345, total=67890, percent=50))
     monkeypatch.setattr(psutil, "boot_time", lambda: 1000)
-
-    # Fake monitoring.time.time() so that uptime = 1010 - 1000 = 10
+    monkeypatch.setattr(psutil, "cpu_percent", lambda interval: 10)
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical: 4 if logical else 2)
+    monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
     monkeypatch.setattr(monitoring.time, "time", lambda: 1010)
 
     resp = client.get("/api/system_info")
@@ -202,57 +208,82 @@ def test_api_system_info_ok(client, monkeypatch):
     assert data["os_name"] == "TestOS"
     assert data["hardware_model"] == "FakeModel"
     assert data["disk_available"] == "100G"
-    assert data["ram_used"] == 12345
-    assert data["ram_total"] == 67890
+    assert data["memory"]["used"] == 12345
+    assert data["memory"]["total"] == 67890
     assert pytest.approx(data["system_uptime"], rel=1e-3) == 10
-def test_api_system_info_fallback_hardware_model(client, monkeypatch):
-    # Simulate /proc/device-tree/model returning an empty string to trigger
-    # the fallback to /sys/class/dmi/id/product_name. Verify hardware_model is read
-    # from the fallback.
     
-    # Fake open() so that:
-    #    - opening /etc/os-release returns PRETTY_NAME
-    #    - opening /proc/device-tree/model returns empty string
-    #    - opening /sys/class/dmi/id/product_name returns "XModel"
+    # Network assertions
+    assert "network" in data
+    assert "interfaces" in data["network"]
+    assert "eth0" in data["network"]["interfaces"]
+    
+    # Calculate expected rates:
+    # Time elapsed = 1010 - 1009 = 1 second
+    # Upload: (1000 - 500) / 1 = 500 bytes/sec
+    # Download: (2000 - 1000) / 1 = 1000 bytes/sec
+    assert data["network"]["interfaces"]["eth0"]["upload"] == pytest.approx(500.0)
+    assert data["network"]["interfaces"]["eth0"]["download"] == pytest.approx(1000.0)
+    assert data["network"]["interfaces"]["eth0"]["total_upload"] == 1000
+    assert data["network"]["interfaces"]["eth0"]["total_download"] == 2000
+def test_api_system_info_fallback_hardware_model(client, monkeypatch):
+    # Mock network stats
+    class DummyNetIO:
+        bytes_sent = 1000
+        bytes_recv = 2000
+        
+    def mock_net_io_counters(pernic, nowrap):
+        return {'eth0': DummyNetIO()}
+    
+    monkeypatch.setattr(monitoring, 'last_net_io', {'eth0': DummyNetIO()})
+    monkeypatch.setattr(monitoring, 'last_check_time', 149)
+    monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
+    monkeypatch.setattr(psutil, "cpu_percent", lambda interval: 10)
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical: 4 if logical else 2)
+
+    # Rest of existing mocks
     def fake_open(path, mode='r', *args, **kwargs):
         if path == "/etc/os-release": return io.StringIO('PRETTY_NAME="TestOS"\n')
-        elif path == "/proc/device-tree/model": return io.StringIO("")  # empty to force fallback
+        elif path == "/proc/device-tree/model": return io.StringIO("")
         elif path == "/sys/class/dmi/id/product_name": return io.StringIO("XModel")
 
     monkeypatch.setattr(builtins, "open", fake_open)
-    # Fake subprocess.check_output
     monkeypatch.setattr(subprocess, "check_output", lambda args: b"Filesystem\n50G\n")
-    # Fake psutil.virtual_memory() and psutil.boot_time()
-    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=1111, total=2222))
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=1111, total=2222, percent=50))
     monkeypatch.setattr(psutil, "boot_time", lambda: 100)
-    # Fake monitoring.time.time() so that uptime = 150 - 100 = 50
     monkeypatch.setattr(monitoring.time, "time", lambda: 150)
 
     resp = client.get("/api/system_info")
     assert resp.status_code == 200
     data = resp.get_json()["data"]
 
-    # os_name from PRETTY_NAME
     assert data["os_name"] == "TestOS"
-    # hardware_model from fallback path
     assert data["hardware_model"] == "XModel"
-    # disk_available from fake subprocess
     assert data["disk_available"] == "50G"
-    # RAM values
-    assert data["ram_used"] == 1111
-    assert data["ram_total"] == 2222
-    # Uptime = 150 - 100 = 50 seconds
+    assert data["memory"]["used"] == 1111
+    assert data["memory"]["total"] == 2222
     assert pytest.approx(data["system_uptime"], rel=1e-3) == 50
+    assert "network" in data  # Verify network section exists
 def test_api_system_info_both_open_fail_hardware_unknown(client, monkeypatch):
-    # Simulate both /proc/device-tree/model and /sys/class/dmi/id/product_name
-    # raising FileNotFoundError so hardware_model stays "Unknown".
+    # Mock network stats
+    class DummyNetIO:
+        bytes_sent = 1000
+        bytes_recv = 2000
+        
+    def mock_net_io_counters(pernic, nowrap):
+        return {'eth0': DummyNetIO()}
+    
+    monkeypatch.setattr(monitoring, 'last_net_io', {'eth0': DummyNetIO()})
+    monkeypatch.setattr(monitoring, 'last_check_time', 259)
+    monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
+    monkeypatch.setattr(psutil, "cpu_percent", lambda interval: 10)
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical: 4 if logical else 2)
+
     def fake_open(path, mode='r', *args, **kwargs):
-        # Fake open() to raise FileNotFoundError for both paths, but still allow /etc/os-release
         if path == "/etc/os-release": return io.StringIO('PRETTY_NAME="TestOS"\n')
 
     monkeypatch.setattr(builtins, "open", fake_open)
     monkeypatch.setattr(subprocess, "check_output", lambda args: b"Filesystem\n75G\n")
-    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=3333, total=4444))
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=3333, total=4444, percent=50))
     monkeypatch.setattr(psutil, "boot_time", lambda: 200)
     monkeypatch.setattr(monitoring.time, "time", lambda: 260)
 
@@ -260,17 +291,86 @@ def test_api_system_info_both_open_fail_hardware_unknown(client, monkeypatch):
     assert resp.status_code == 200
     data = resp.get_json()["data"]
 
-    # os_name from PRETTY_NAME
     assert data["os_name"] == "TestOS"
-    # hardware_model remains "Unknown"
     assert data["hardware_model"] == "Unknown"
-    # disk_available from fake subprocess
     assert data["disk_available"] == "75G"
-    # RAM values
-    assert data["ram_used"] == 3333
-    assert data["ram_total"] == 4444
-    # Uptime = 260 - 200 = 60 seconds
+    assert data["memory"]["used"] == 3333
+    assert data["memory"]["total"] == 4444
     assert pytest.approx(data["system_uptime"], rel=1e-3) == 60
+    assert "network" in data  # Verify network section exists
+def test_api_system_info_network_stats(client, monkeypatch):
+    # Mock initial network stats
+    class InitialNetIO:
+        bytes_sent = 1000
+        bytes_recv = 2000
+        
+    # Mock current network stats (after 1 second)
+    class CurrentNetIO:
+        bytes_sent = 2000  # 1000 bytes more
+        bytes_recv = 3000  # 1000 bytes more
+        
+    def mock_net_io_counters(pernic, nowrap):
+        return {'eth0': CurrentNetIO()}
+    
+    # Set initial state
+    monkeypatch.setattr(monitoring, 'last_net_io', {'eth0': InitialNetIO()})
+    monkeypatch.setattr(monitoring, 'last_check_time', 1009)
+    monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
+    
+    # Other required mocks
+    monkeypatch.setattr(builtins, "open", lambda path, mode: io.StringIO('PRETTY_NAME="TestOS"\n'))
+    monkeypatch.setattr(subprocess, "check_output", lambda args: b"Filesystem\n100G\n")
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=0, total=0, percent=0))
+    monkeypatch.setattr(psutil, "boot_time", lambda: 1000)
+    monkeypatch.setattr(psutil, "cpu_percent", lambda interval: 0)
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical: 0)
+    monkeypatch.setattr(monitoring.time, "time", lambda: 1010)
+
+    resp = client.get("/api/system_info")
+    assert resp.status_code == 200
+    data = resp.get_json()["data"]
+    
+    network = data["network"]
+    assert network["interfaces"]["eth0"]["upload"] == pytest.approx(1000)  # (2000-1000)/1
+    assert network["interfaces"]["eth0"]["download"] == pytest.approx(1000)  # (3000-2000)/1
+    assert network["interfaces"]["eth0"]["total_upload"] == 2000
+    assert network["interfaces"]["eth0"]["total_download"] == 3000  
+def test_api_system_info_first_call_no_last_net_io(client, monkeypatch):
+    # Mock network stats with no last_net_io (first call)
+    class CurrentNetIO:
+        bytes_sent = 1000
+        bytes_recv = 2000
+        
+    def mock_net_io_counters(pernic, nowrap):
+        return {'eth0': CurrentNetIO()}
+    
+    # Set last_net_io to None to test the else: pass branch
+    monkeypatch.setattr(monitoring, 'last_net_io', None)
+    monkeypatch.setattr(monitoring, 'last_check_time', 1009)
+    monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
+    monkeypatch.setattr(psutil, "cpu_percent", lambda interval: 10)
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical: 4 if logical else 2)
+
+    # Other required mocks
+    def fake_open(path, mode='r', *args, **kwargs):
+        if path == "/etc/os-release": return io.StringIO('PRETTY_NAME="TestOS"\n')
+        elif path == "/proc/device-tree/model": return io.StringIO("FakeModel")
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+    monkeypatch.setattr(subprocess, "check_output", lambda args: b"Filesystem\n100G\n")
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=12345, total=67890, percent=50))
+    monkeypatch.setattr(psutil, "boot_time", lambda: 1000)
+    monkeypatch.setattr(monitoring.time, "time", lambda: 1010)
+
+    resp = client.get("/api/system_info")
+    assert resp.status_code == 200
+    data = resp.get_json()["data"]
+
+    # Verify network section exists but has no interfaces (since we passed the else: pass)
+    assert "network" in data
+    assert "interfaces" in data["network"]
+    assert data["network"]["interfaces"] == {}  # No interfaces added when last_net_io is None
+    assert data["network"]["primary_interface"] is None
 def test_api_system_info_error(client, monkeypatch):
     # Force an exception during system info collection by making os-release
     # unreadable. Should return 500 with "System info error: ..."

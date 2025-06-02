@@ -26,13 +26,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (document.getElementById("status").hasAttribute("hidden") === false) {
       loadInfo(); // Will only refresh status data
     }
-  }, 15_000); // 5 seconds for status tab
+  }, 5_000); // 5 second for status tab
 
   infoRefreshInterval = setInterval(() => {
     if (document.getElementById("info").hasAttribute("hidden") === false) {
       loadInfo(); // Will only refresh info data
     }
-  }, CACHE_TTL);
+  }, 5_000);
 
   configRefreshInterval = setInterval(() => {
     if (document.getElementById("config").hasAttribute("hidden") === false) {

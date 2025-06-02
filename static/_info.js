@@ -183,6 +183,11 @@ function compareVersions(current, latest) {
   if (latestParts[2] > currentParts[2]) return "patch";
   return "current";
 }
+function formatSpeed(bytesPerSec) {
+  if (bytesPerSec < 1024) return `${bytesPerSec.toFixed(1)} B/s`;
+  if (bytesPerSec < 1024*1024) return `${(bytesPerSec/1024).toFixed(1)} KB/s`;
+  return `${(bytesPerSec/(1024*1024)).toFixed(1)} MB/s`;
+}
 // -----------------------------------------------------------------------------
 // Status-related updates (frequent updates)
 // -----------------------------------------------------------------------------
@@ -257,22 +262,17 @@ export async function loadStatus(forceRefreshConfig = false) {
   // System info
   if (sysInfo?.data) {
     const syuEl = document.getElementById("systemUptime");
-    const used = (sysInfo.data.ram_used / 1024 ** 3).toFixed(1);
-    const tot = (sysInfo.data.ram_total / 1024 ** 3).toFixed(1);
-    const ramElement = document.getElementById("ram");
-
     if (syuEl) syuEl.textContent = formatDuration(sysInfo.data.system_uptime);
 
-    const pctUsed = (sysInfo.data.ram_used / sysInfo.data.ram_total) * 100;
-    ramElement.textContent = `${used} GiB / ${tot} GiB`;
-    ramElement.classList.remove("Green", "Yellow", "Red");
-
-    if (pctUsed <= 35) {
-      ramElement.classList.add("Green");
-    } else if (pctUsed <= 60) {
-      ramElement.classList.add("Yellow");
-    } else {
-      ramElement.classList.add("Red");
+    const upEl = document.getElementById("up");
+    const dnEl = document.getElementById("down");
+    if (upEl) {
+      const network = sysInfo.data.network;
+      const primary = network.interfaces.eth0;
+      const sent = formatSpeed(primary.upload);
+      const recv = formatSpeed(primary.download);
+      upEl.textContent = sent;
+      dnEl.textContent = recv;
     }
   }
 
@@ -337,20 +337,49 @@ export async function loadInfoData() {
   if (sysInfo?.data) {
     const osEl = document.getElementById("osInfo");
     const hwEl = document.getElementById("hardwareInfo");
+    const cpuEl = document.getElementById("cpuInfo");
+    const ramEl = document.getElementById("ramInfo");
     const diskEl = document.getElementById("diskInfo");
-
     if (osEl) osEl.textContent = sysInfo.data.os_name;
     if (hwEl) hwEl.textContent = sysInfo.data.hardware_model;
+    // Disk Usage
     if (diskEl) {
       diskEl.textContent = sysInfo.data.disk_available;
       diskEl.classList.remove("Green", "Yellow", "Red");
-
       if (sysInfo.data.disk_bytes < 200 * 1024 * 1024) {
         diskEl.classList.add("Red");
       } else if (sysInfo.data.disk_bytes < 1024 * 1024 * 1024) {
         diskEl.classList.add("Yellow");
       } else {
         diskEl.classList.add("Green");
+      }
+    }
+    // CPU
+    if (cpuEl) {
+      const cpuPct = sysInfo.data.cpu.percent;
+      cpuEl.textContent = `${cpuPct}%`;
+      cpuEl.classList.remove("Green", "Yellow", "Red");
+      if (cpuPct <= 35) {
+        cpuEl.classList.add("Green");
+      } else if (cpuPct <= 60) {
+        cpuEl.classList.add("Yellow");
+      } else {
+        cpuEl.classList.add("Red");
+      }
+    }
+    // RAM
+    if (ramEl) {
+      const used = (sysInfo.data.memory.used / 1024 ** 3).toFixed(1);
+      const tot = (sysInfo.data.memory.total / 1024 ** 3).toFixed(1);
+      const pctUsed = sysInfo.data.memory.percent;
+      ramEl.textContent = `${used} GiB / ${tot} GiB`;
+      ramEl.classList.remove("Green", "Yellow", "Red");
+      if (pctUsed <= 35) {
+        ramEl.classList.add("Green");
+      } else if (pctUsed <= 60) {
+        ramEl.classList.add("Yellow");
+      } else {
+        ramEl.classList.add("Red");
       }
     }
   }

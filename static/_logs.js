@@ -24,7 +24,69 @@ export async function fetchAndDisplayLogs(limit) {
 
   const res = await fetchJSON(`/api/logs?limit=${sanitizedLimit}`);
   if (res?.data?.logs) {
-    logOutput.textContent = res.data.logs.join("");
+    // Clear the log output container
+    logOutput.innerHTML = "";
+
+    // Convert the log array to individual span elements
+    res.data.logs.forEach((logText) => {
+      const logEntry = document.createElement("div");
+      logEntry.textContent = logText;
+      logEntry.classList.add("log-entry");
+
+      // Convert log text to lowercase once for all comparisons
+      const lowerLogText = logText.toLowerCase();
+
+      if (
+        lowerLogText.includes("healthy") ||
+        lowerLogText.includes("resumed") ||
+        lowerLogText.includes("restart") ||
+        lowerLogText.includes("fullscreen") ||
+        lowerLogText.includes("saved") ||
+        lowerLogText.includes("already running") ||
+        lowerLogText.includes("started")
+      ) {
+        logEntry.classList.add("Green");
+      } if (
+        lowerLogText.includes("stopped") ||
+        lowerLogText.includes("stopping") ||
+        lowerLogText.includes("killed") ||
+        lowerLogText.includes("attempting") ||
+        lowerLogText.includes("restarting") ||
+        lowerLogText.includes("loaded") ||
+        lowerLogText.includes("crashed") ||
+        lowerLogText.includes("retrying") ||
+        lowerLogText.includes("checking") ||
+        lowerLogText.includes("starting")
+      ) {
+        logEntry.classList.remove("Green");
+        logEntry.classList.add("Blue");
+      } if (
+        lowerLogText.includes("=====") ||
+        lowerLogText.includes("driver") ||
+        lowerLogText.includes("get ")
+      ) {
+        logEntry.classList.remove("Green", "Blue");
+        logEntry.classList.add("Yellow");
+      } if (
+        lowerLogText.includes("error") ||
+        lowerLogText.includes("stuck") ||
+        lowerLogText.includes("unsupported") ||
+        lowerLogText.includes("timed") ||
+        lowerLogText.includes("issue") ||
+        lowerLogText.includes("couldn't") ||
+        lowerLogText.includes("paused") ||
+        lowerLogText.includes("offline") ||
+        lowerLogText.includes("unresponsive") ||
+        lowerLogText.includes("[error]") ||
+        lowerLogText.includes(", line") ||
+        lowerLogText.includes("traceback") ||
+        lowerLogText.includes("not found")
+      ) {
+        logEntry.classList.remove("Green", "Blue", "Yellow");
+        logEntry.classList.add("Red");
+      }
+      logOutput.appendChild(logEntry);
+    });
   }
 }
 

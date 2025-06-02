@@ -20,7 +20,8 @@ from viewport import process_handler
 _mon = sys.modules[__name__]
 dotenv_file = find_dotenv()
 load_dotenv(dotenv_file, override=True)
-
+last_net_io = None
+last_check_time = time.time()  
 script_dir = Path(__file__).resolve().parent
 _base = Path(__file__).parent
 config_file = _base / 'config.ini'
@@ -49,7 +50,7 @@ configure_logging(
 # Application for the monitoring API
 # ----------------------------------------------------------------------------- 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__) 
     # This is only needed to inject the different configs we test with
     if "pytest" in sys.modules:
         cfg = validate_config()
@@ -237,6 +238,7 @@ def create_app():
             return jsonify(status="error", message="Malformed SST timestamp"), 400
     @app.route("/api/system_info")
     def api_system_info():
+        global last_net_io, last_check_time
         try:
             # Get OS info
             with open('/etc/os-release', 'r') as f:
@@ -265,6 +267,30 @@ def create_app():
             uptime = time.time() - psutil.boot_time()
             # Get RAM
             vm = psutil.virtual_memory()
+            # CPU Usage (percentage)
+            cpu_percent = psutil.cpu_percent(interval=1)  
+            # Network Usage (bytes sent/received)
+            current_net_io = psutil.net_io_counters(pernic=True, nowrap=True)
+            current_time = time.time()
+            time_elapsed = current_time - last_check_time
+            
+            network_stats = {}
+            for interface, stats in current_net_io.items():
+                if last_net_io:
+                    # Calculate bytes/second
+                    recv_rate = (stats.bytes_recv - last_net_io[interface].bytes_recv) / time_elapsed
+                    sent_rate = (stats.bytes_sent - last_net_io[interface].bytes_sent) / time_elapsed
+                    
+                    network_stats[interface] = {
+                        'interface': interface,
+                        'upload': sent_rate,  # bytes per second
+                        'download': recv_rate,  # bytes per second
+                        'total_upload': stats.bytes_sent,
+                        'total_download': stats.bytes_recv
+                    }
+                else: pass
+            last_net_io = current_net_io
+            last_check_time = current_time
             return jsonify(
                 status="ok",
                 data={
@@ -272,8 +298,20 @@ def create_app():
                     "system_uptime": uptime,
                     "hardware_model": hardware_model,
                     "disk_available": disk_info,
-                    "ram_used": vm.used, 
-                    "ram_total": vm.total
+                    "memory": {
+                        "percent": vm.percent,
+                        "used": vm.used,
+                        "total": vm.total,
+                    },
+                    "cpu": {
+                        "percent": cpu_percent,
+                        "cores": psutil.cpu_count(logical=False),
+                        "threads": psutil.cpu_count(logical=True)
+                    },
+                    "network": {
+                        "interfaces": network_stats,
+                        "primary_interface": list(network_stats.values())[0] if network_stats else None
+                    }
                 }
             )
         except Exception as e:
