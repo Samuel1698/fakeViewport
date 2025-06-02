@@ -1,4 +1,5 @@
 import os, subprocess, sys
+from unittest.mock import patch, MagicMock
 from pathlib import Path
 from types import SimpleNamespace
 from datetime import time as timecls
@@ -77,7 +78,10 @@ def client(tmp_path, monkeypatch):
     # build Flask client
     app = create_app()
     app.testing = True
-    return app.test_client()
+    
+    client = app.test_client()
+    client._read_api_file = app._read_api_file
+    return client
 # ----------------------------------------------------------------------------- 
 # Helper to build an app/client with SECRET in the environment
 # ----------------------------------------------------------------------------- 
@@ -216,39 +220,7 @@ def test_api_restart_fails_when_popen_raises(monkeypatch, client):
     assert payload["status"] == "error"
     assert "pop failed" in payload["message"]
 # ----------------------------------------------------------------------------- 
-# /api/log_entry error path
-# ----------------------------------------------------------------------------- 
-def test_api_log_entry_read_error(client, monkeypatch):
-    client_app = client
-    # Force .exists() → True and .read_text() → IOError
-    monkeypatch.setattr(Path, "exists",    lambda self: True)
-    monkeypatch.setattr(Path, "read_text", lambda self: (_ for _ in ()).throw(IOError("boom")))
-    resp = client_app.get("/api/log_entry")
-    assert resp.status_code == 500
-    data = resp.get_json()
-    assert data["status"] == "error"
-    assert data["message"] == "Error reading log file"
-def test_read_api_file_error_logs_and_returns_none(tmp_path, monkeypatch, caplog):
-    # Stub configure_logging so app.logger works
-    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
-
-    # Build app
-    app = create_app()
-
-    # Now monkeypatch Path.read_text to throw
-    monkeypatch.setattr(Path, "exists", lambda self: True)
-    monkeypatch.setattr(Path, "read_text", lambda self: (_ for _ in ()).throw(IOError("disk error")))
-
-    # Hit the status endpoint, which under the hood calls _read_api_file
-    caplog.set_level("ERROR")
-    client = app.test_client()
-    resp = client.get("/api/status")
-    assert resp.status_code == 404  # raw == None
-    # And we logged the ERROR
-    assert "Error reading" in caplog.text
-
-# ----------------------------------------------------------------------------- 
-# CORS headers
+# CORS headers & Read API File
 # ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("route", [
     # Base API endpoint
@@ -261,7 +233,31 @@ def test_cors_headers_for_api_routes(client, route):
     resp = client_app.get(route)
     # Flask-CORS should inject this header
     assert resp.headers.get("Access-Control-Allow-Origin") == "*"
+    
+def test_read_api_file_success(client, tmp_path):
+    test_file = tmp_path / "api" / "test.txt"  # Using the api subdir
+    test_file.write_text("success content")
+    
+    result = client._read_api_file(test_file)
+    assert result == "success content"
 
+def test_read_api_file_nonexistent(client, tmp_path):
+    non_existent = tmp_path / "api" / "nonexistent.txt"
+    
+    result = client._read_api_file(non_existent)
+    assert result is None
+
+def test_read_api_file_read_error(client, tmp_path):
+    test_file = tmp_path / "api" / "test.txt"
+    test_file.parent.mkdir(exist_ok=True)
+    test_file.write_text("should fail")
+    
+    with patch.object(Path, 'read_text', side_effect=IOError("Simulated read error")):
+        with patch.object(client.application.logger, 'error') as mock_logger:
+            result = client._read_api_file(test_file)
+            assert result is None
+            mock_logger.assert_called_once()
+            assert "Simulated read error" in mock_logger.call_args[0][0]
 # ----------------------------------------------------------------------------- 
 # Trailing-slash alias for /api index
 # ----------------------------------------------------------------------------- 

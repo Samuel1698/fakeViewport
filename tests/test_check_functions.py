@@ -25,15 +25,15 @@ def mock_common(mocker):
 @pytest.mark.parametrize(
     "page_source, expected",
     [
-        # 1) Page contains the "Aw, Snap!" crash banner
+        # Page contains the "Aw, Snap!" crash banner
         ("<html>…Aw, Snap! Something broke…</html>", True),
-        # 2) Page contains "Tab Crashed" text
+        # Page contains "Tab Crashed" text
         ("<div>Error: Tab Crashed while loading</div>", True),
-        # 3) No crash indicators present
+        # No crash indicators present
         ("<html><body>All systems operational.</body></html>", False),
-        # 4) Partial match of "Aw, Snap" without the exclamation
+        # Partial match of "Aw, Snap" without the exclamation
         ("<p>Aw, Snap this is just text</p>", False),
-        # 5) Partial match of "Crashed" without full phrase
+        # Partial match of "Crashed" without full phrase
         ("<span>The process crashed unexpectedly</span>", False),
     ],
     ids=[
@@ -60,11 +60,11 @@ def test_check_crash(page_source, expected):
 @pytest.mark.parametrize(
     "title_value, side_effect, expected_exception",
     [
-        # 1) Normal title ⇒ returns True
+        # Normal title ⇒ returns True
         ("Mock Title",   None,               None),
-        # 2) Selenium failure ⇒ should propagate WebDriverException
+        # Selenium failure ⇒ should propagate WebDriverException
         (None,           WebDriverException, WebDriverException),
-        # 3) Other error ⇒ should propagate generic Exception
+        # Other error ⇒ should propagate generic Exception
         (None,           Exception,          Exception),
     ],
     ids=[

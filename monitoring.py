@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, os, time, configparser, psutil, subprocess, logging, socket  
+import sys, os, time, configparser, psutil, subprocess, logging  
 from functools import wraps
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from flask import (
     Flask, render_template, request,
     session, redirect, url_for, flash,
-    jsonify, cli
+    jsonify
 )
 from flask_cors import CORS
 from collections import deque
@@ -71,6 +71,7 @@ def create_app():
         except Exception as e:
             app.logger.error(f"Error reading {path}: {e}")
             return None
+    app._read_api_file = _read_api_file
     # ----------------------------------------------------------------------------- 
     # Protect routes if SECRET is set
     # ----------------------------------------------------------------------------- 
@@ -321,8 +322,7 @@ def create_app():
                 next_runs = []
                 for t in RESTART_TIMES:
                     run_dt = datetime.combine(now.date(), t)
-                    if run_dt <= now:
-                        run_dt += timedelta(days=1)
+                    if run_dt <= now: run_dt += timedelta(days=1)
                     next_runs.append(run_dt)
                 next_run = min(next_runs)
                 restart_times = [t.strftime('%H:%M') for t in RESTART_TIMES]

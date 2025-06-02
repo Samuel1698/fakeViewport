@@ -190,13 +190,11 @@ def args_handler(args):
     if args.api:
         if process_handler("monitoring.py", action="check"):
             logging.info("Stopping the API...")
-            output = process_handler('monitoring.py', action="kill")
-            if output:
-                logging.info(f"API shutdown output: {output}")
+            process_handler('monitoring.py', action="kill")
             api_status("API Stopped")
         elif API: 
-            if not api_handler():
-                sys.exit(1)  # Exit with error if API failed to start
+            # Exit with error if API failed to start
+            if not api_handler(): sys.exit(1)  
         else:
             logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
         sys.exit(0)
@@ -318,12 +316,11 @@ def api_status(msg):
 def api_handler():
     if process_handler('monitoring.py', action="check"):
         logging.info("API is already running")
-        api_status("API Running")
         return True
 
     logging.info("Starting API...")
+    api_status("Starting API...")
     api_script = _base / 'monitoring.py'
-    
     try:
         # Start process with output capture
         process = subprocess.Popen(
@@ -337,23 +334,21 @@ def api_handler():
             start_new_session=True
         )
 
-        # Filter and log output
         def filter_output(stream):
+            WERKZEUG_MESSAGES = {
+                "WARNING: This is a development server",
+                "Press CTRL+C to quit",
+                "Serving Flask app",
+                "Debug mode:",
+                "Running on"
+            }
             for line in stream:
                 line = line.strip()
-                if line:
-                    # Skip Werkzeug server messages
-                    if any(msg in line for msg in [
-                        "WARNING: This is a development server",
-                        "Press CTRL+C to quit",
-                        "Serving Flask app",
-                        "Debug mode:",
-                        "Running on"
-                    ]):
-                        continue
-                    logging.info(line)
+                if not line or any(msg in line for msg in WERKZEUG_MESSAGES): continue
+                else: pass
+                logging.info(line)
 
-        # Start output filtering threads
+        # Start output‐filtering threads
         threading.Thread(target=filter_output, args=(process.stdout,), daemon=True).start()
         threading.Thread(target=filter_output, args=(process.stderr,), daemon=True).start()
 
@@ -366,9 +361,8 @@ def api_handler():
         return True
     except Exception as e:
         log_error("Error starting API: ", e)
-        api_status(f"Error: {str(e)}")
+        api_status("Error Starting API")
         return False
-
 # ----------------------------------------------------------------------------- 
 # Signal Handler (Closing gracefully with CTRL+C)
 # ----------------------------------------------------------------------------- 

@@ -31,11 +31,11 @@ def test_configure_logging_file_and_console(tmp_path):
         Debug_logging=False
     )
 
-    # 1) Root logger returned, level INFO
+    # Root logger returned, level INFO
     assert logger is logging.getLogger()
     assert logger.level == logging.INFO
 
-    # 2) File handler present
+    # File handler present
     file_handlers = [
         h for h in logger.handlers
         if isinstance(h, TimedRotatingFileHandler)
@@ -43,7 +43,7 @@ def test_configure_logging_file_and_console(tmp_path):
     assert file_handlers, "Expected a TimedRotatingFileHandler"
     assert log_path.exists()
 
-    # 3) Console handler present (StreamHandler but NOT a file handler)
+    # Console handler present (StreamHandler but NOT a file handler)
     # pick out the StreamHandler we added (writing to stderr)
     console_handlers = [
         h for h in logger.handlers
