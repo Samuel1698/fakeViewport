@@ -1,14 +1,10 @@
 <!-- [START BADGES] -->
 
-[![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg?branch=snapshot)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
+[![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
+[![CodeQL](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml)
+[![codecov](https://codecov.io/github/Samuel1698/fakeViewport/graph/badge.svg?token=mPKJSAYXH5)](https://codecov.io/github/Samuel1698/fakeViewport)
 
 <!-- [END BADGES] -->
-
-# SNAPSHOT
-You are currently seeing the snapshot branch. This is where I make rapid changes and experiment with new code. If this branch is ahead of main, it is most likely broken. 
-Check the [latest release](https://github.com/Samuel1698/fakeViewport/releases) or go to [main](https://github.com/Samuel1698/fakeViewport/tree/main) for a stable version of the code.
-
----
 
 # Fake Viewport
 
@@ -218,8 +214,6 @@ Note that updating through the Dashboard will also run the `minimize.sh` script 
 Updating manually takes opening a console, or using ssh to the machine and running `git pull` inside the `fakeViewport` directory. If you downloaded a release manually, you can grab the latest version and unzip it over your current directory.
 
 Any breaking changes will be clearly marked with a 💥 in the release notes and changelog, along with instructions on how to transition from the old version.
-
----
 
 ---
 
