@@ -5,10 +5,45 @@ and "🔥" indicates a non-breaking change.
 
 ---
 
+## ✨💥🐛 v2.3.0: Dashboard Overhaul and Over The Air Updates
+
+New Dashboard means you must manually restart the API if already running to see the changes. Run `viewport -a` twice after either running `git pull` or unzipping your preferred tar.
+
+OTA updates run the `minimize.sh` script on your directory after fetching the new files from the [latest release](https://github.com/Samuel1698/fakeViewport/releases). It can take up to an hour for you to see a new release in your Dashboard.
+
+💥 **If you had integrated the API endpoints into another service, you have to change them to match the new ones. All the same information is present (and way, way more), but presented differently.**
+
+### ✨ Added
+- Fully implement #27
+- Add `Pause` banner on live-view if the mouse moves. Implements #32
+- `/api/self/restart` endpoint to force `monitoring.py` to restart itself.
+- `/update`, `/update/apply`, and `/update/changelog` endpoints.
+- `viewport --pause` argument toggles execution of the automatic health checks.
+
+### 💥Changed
+- Reworked the Dashboard to look and function better.
+    - Light and Dark theme selection.
+    - Added more information from the system, network and configuration.
+    - Update button pulls the changelog from the latest release and will attempt to `git pull` on your directory and if that fails, will fetch the `minimal` version of the release and unzip it in your directory.
+    - `Logs` tab displays a maximum of 600 lines from your log-file. Default is 10.
+    - `Config` tab fetches your `config.ini` and will display the value in red if it's invalid. For the `logging` section, it will display in orange if it's changed from the default.
+- `handleElements` function can take an array of css classes instead of a single one. If Ubiquiti changes an element's class it's easier to fix.
+- Hidden Cursor and Player Elements reappear on mouse movement.
+- 💥 The api endpoints have drastically changed. Check the <a href="https://github.com/Samuel1698/fakeViewport?tab=readme-ov-file#endpoints">Endpoints section of the READ.ME for the new ones.</a>
+
+### 🐛 Fixed
+- Issue #31: Fix login handler breaking if browser had saved password #31
+- Issue #33: Login page using `user` instead of `username` for the field name.
+
+
+**[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.2.2...v2.3.0)**
+
+---
+
 ## ✨🔥🐛 v2.2.3: Minimize and Uninstall script
 
 ### ✨ Added
-- `minimize.sh` will delete all development and test related files, as well as all files ending in `.md` to declutter install folder.
+- `minimize.sh` will delete all development and test related files, as well as all files ending in `.md` to de-clutter install folder.
 Same as downloading the `minimal` version from the [release](https://github.com/Samuel1698/fakeViewport/releases).
 - `uninstall.sh` will remove the modifications the script makes outside the install folder:
     - Removes cron job if present
