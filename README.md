@@ -48,6 +48,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 - Optional API integration for remote monitoring (e.g., with [Rainmeter](https://www.rainmeter.net/)).
 - API features a simple and lightweight `Viewport Control` webpage capable of displaying status of the script, the log file, sending commands to `Start`, `Quit`, or `Restart` the script, and update the script to the newest version. 
 
+
 ---
 
 ## Requirements
@@ -190,6 +191,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    
    `source ~/.bashrc` or `source ~/.zshrc` (The script will tell you which).
 
+
 ### Stopping the Script
 If the script is running and you cannot use `CTRL+C` to stop it, you can call the script with the `-q` argument: 
 ```bash
@@ -200,11 +202,11 @@ or manually kill the process with pgrep:
 ps aux | grep viewport.py
 kill <pid>
 ```
-
 If you wish to pause the script's health checks in order to use the computer for something else, the page will display a banner prompting you to `Pause` or `Resume` the script. You may also call the script with the `-p` or `--pause` argument:
 ```bash
 viewport -p
 ```
+
 
 ---
 
@@ -216,6 +218,8 @@ Note that updating through the Dashboard will also run the `minimize.sh` script 
 Updating manually takes opening a console, or using ssh to the machine and running `git pull` inside the `fakeViewport` directory. If you downloaded a release manually, you can grab the latest version and unzip it over your current directory.
 
 Any breaking changes will be clearly marked with a 💥 in the release notes and changelog, along with instructions on how to transition from the old version.
+
+---
 
 ---
 
@@ -334,6 +338,7 @@ Because this script simply displays the live view on a webpage, it has several a
   - **Larger Footprint** – Slightly bulkier than some devices (but easily hidden behind a TV/monitor)
   - **Requires internet access at least once** - If you want to run it locally you must have internet access once when running the script to download the drivers to control the browser.
 
+
 ---
 
 ## <a name="show"></a>Showcase
@@ -372,5 +377,6 @@ Because this script simply displays the live view on a webpage, it has several a
 - The thin clients used in this setup only have DisplayPort outputs. Ensure your monitor or TV supports DisplayPort, or use a compatible adapter.
 - The tested Thin Clients do not include built-in WiFi antennas. However, you can use a USB WiFi adapter to connect wirelessly. Some thin clients do include wifi.
 - If you use the machine for things other than just a viewport display, make sure you do your other internet browsing in a different browser than the script uses. The browser window it launches is very limited and stripped of functionality (for better resource management), and the script will kill all other instances of the same browser when resurrecting itself. 
+
 
 ---
