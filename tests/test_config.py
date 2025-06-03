@@ -1,12 +1,8 @@
-import os
 import re
-import sys
 import pytest
 import logging
 from pathlib import Path
-from dotenv import load_dotenv
 from validate_config import validate_config
-import ipaddress 
 
 # Helpers to write test files
 BASE_INI = """
@@ -77,8 +73,8 @@ def test_strict_mode_exits_on_missing(tmp_path):
 # INI value errors in loose mode
 # ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("ini_overrides, expected_msg", [
-    ({"WAIT_TIME":"notanint"},      "General.WAIT_TIME must be a valid integer"),
-    ({"HEADLESS":"notabool"},       "Browser.HEADLESS must be a valid boolean"),
+    ({"WAIT_TIME":"string"},      "General.WAIT_TIME must be a valid integer"),
+    ({"HEADLESS":"string"},       "Browser.HEADLESS must be a valid boolean"),
     ({"BROWSER_PROFILE_PATH":"/home/your-user/foo"}, "placeholder value 'your-user'"),
     ({"RESTART_TIMES":"99:99"},     "Invalid RESTART_TIME: '99:99'"),
 ])
@@ -142,9 +138,9 @@ def test_env_parsing_exception(tmp_path, caplog):
 @pytest.mark.parametrize(
     "host,port,expected_errors",
     [
-        ("not_an_ip", "8080", ["FLASK_RUN_HOST must be a valid IP address"]),
-        ("127.0.0.1", "notnum",      ["FLASK_RUN_PORT must be an integer"]),
-        ("::1",       "70000",       ["FLASK_RUN_PORT must be 1–65535"]),
+        ("not_an_ip", "8080",        ["FLASK_RUN_HOST must be a valid IP address"]),
+        ("127.0.0.1", "number",      ["FLASK_RUN_PORT must be an integer"]),
+        ("::1",       "70000",       ["FLASK_RUN_PORT must be 1-65535"]),
     ],
 )
 def test_host_port_validation_api_mode(tmp_path, caplog, monkeypatch, host, port, expected_errors):

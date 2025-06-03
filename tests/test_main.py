@@ -275,36 +275,94 @@ def test_api_status_writes(tmp_path, monkeypatch):
 # ----------------------------------------------------------------------------- 
 # Test api_handler function
 # ----------------------------------------------------------------------------- 
-@patch("viewport.process_handler", return_value=False)
-@patch("viewport.subprocess.Popen")
-@patch("viewport.api_status")
-def test_api_handler_starts_api(mock_api_status, mock_popen, mock_proc):
-    # Arrange
-    # ensure monitoring.py is not “running”
-    viewport.api_handler()
-    # Should spawn monitoring.py detached
-    assert mock_popen.called
-    mock_api_status.assert_called_with("Starting API...")
-@patch("viewport.process_handler", return_value=False)
-@patch("viewport.subprocess.Popen", side_effect=Exception("fail"))
-@patch("viewport.log_error")
-@patch("viewport.api_status")
-def test_api_handler_failure(
-    mock_api_status,
-    mock_log_error,
-    mock_popen,
-    mock_proc
-):
-    viewport.api_handler()
-    mock_log_error.assert_called_with("Error starting API: ", ANY)
-    mock_api_status.assert_called_with("Error Starting API")
-@patch("viewport.process_handler", return_value=True)
-@patch("viewport.subprocess.Popen")
-@patch("viewport.api_status")
-def test_api_handler_already_running(mock_api_status, mock_popen, mock_proc):
-    viewport.api_handler()
-    mock_popen.assert_not_called()
-    mock_api_status.assert_not_called()
+class _FakeProcess:
+    # Mimics the handful of attributes/behaviors api_handler relies on
+    def __init__(self, *, exit_code=None, stdout_lines=None, stderr_lines=None):
+        self._exit_code = exit_code                   # value returned by poll()
+        self.returncode = exit_code                   # surfaced in the error msg
+        self.stdout     = stdout_lines or []          # iterable for Thread‑target
+        self.stderr     = stderr_lines or []
+
+    def poll(self):
+        return self._exit_code
+
+
+class _DummyThread:
+    # Replaces threading.Thread – runs the target *synchronously*
+    started = 0
+
+    def __init__(self, *, target=None, args=(), daemon=None):
+        self._target = target
+        self._args   = args
+
+    def start(self):
+        _DummyThread.started += 1
+        if self._target: self._target(*self._args)
+
+def _common_patches(monkeypatch):
+    monkeypatch.setattr(viewport, "api_status", lambda *a, **k: None)
+
+    import threading as _t
+    monkeypatch.setattr(_t,             "Thread", _DummyThread)
+    monkeypatch.setattr(viewport.threading, "Thread", _DummyThread)
+
+    _DummyThread.started = 0          
+def test_api_handler_already_running(monkeypatch):
+    _common_patches(monkeypatch)
+    # process_handler reports “monitoring.py” is alive
+    monkeypatch.setattr(viewport, "process_handler", lambda *a, **k: True)
+
+    # fail fast if api_handler ever tried to spawn a process
+    monkeypatch.setattr(
+        viewport.subprocess,
+        "Popen",
+        lambda *a, **k: pytest.fail("Popen must not be invoked when API is up"),
+    )
+
+    assert viewport.api_handler() is True
+    assert _DummyThread.started == 0
+    
+def test_api_handler_starts_successfully(monkeypatch):
+    _common_patches(monkeypatch)
+    monkeypatch.setattr(viewport, "process_handler", lambda *a, **k: False)
+
+    fake_proc = _FakeProcess(
+        exit_code=None,                     # .poll() → None ⇒ still running
+        stdout_lines=[
+            "Serving Flask app\n",          # skipped by filter_output
+            "Press CTRL+C to quit\n",       # skipped
+            "Custom log line\n",            # logged
+        ],
+        stderr_lines=["Some warning\n"],
+    )
+    monkeypatch.setattr(viewport.subprocess, "Popen", lambda *a, **k: fake_proc)
+
+    assert viewport.api_handler() is True
+    # two filter threads (stdout + stderr) should have executed
+    assert _DummyThread.started == 2
+    
+def test_api_handler_process_exits_early(monkeypatch):
+    _common_patches(monkeypatch)
+    monkeypatch.setattr(viewport, "process_handler", lambda *a, **k: False)
+
+    fake_proc = _FakeProcess(exit_code=1)   # .poll() → 1 triggers RuntimeError
+    monkeypatch.setattr(viewport.subprocess, "Popen", lambda *a, **k: fake_proc)
+
+    assert viewport.api_handler() is False
+    assert _DummyThread.started == 2        # threads still started
+    
+def test_api_handler_popen_raises(monkeypatch):
+    _common_patches(monkeypatch)
+    monkeypatch.setattr(viewport, "process_handler", lambda *a, **k: False)
+
+    def _boom(*_a, **_kw):
+        raise OSError("simulated failure")
+
+    monkeypatch.setattr(viewport.subprocess, "Popen", _boom)
+
+    assert viewport.api_handler() is False
+    # Nothing spawned ⇒ no threads
+    assert _DummyThread.started == 0
 # ----------------------------------------------------------------------------- 
 # Test Script Start Time File
 # ----------------------------------------------------------------------------- 
@@ -343,6 +401,7 @@ def test_args_handler_flag_sst(mock_exit, mock_proc, flag, pre, should_clear, tm
         background = flag in ("-b", "--background") or flag.startswith("--b"),
         restart    = flag in ("-r", "--restart")    or flag.startswith("--r"),
         diagnose   = flag in ("-d", "--diagnose"),
+        pause      = flag in ("-p", "--pause"),
         quit       = flag in ("-q", "--quit"),
         api=False
     )

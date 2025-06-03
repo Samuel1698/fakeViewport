@@ -3,8 +3,11 @@ config.ini
 nohup.out
 .vscode/
 logs/
-api/
+api/sst.txt
+api/status.txt
+api/.pause
 venv/
 __pycache__/
 .coverage
 TODO.md
+*.config

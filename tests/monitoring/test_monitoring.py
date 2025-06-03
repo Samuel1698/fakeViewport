@@ -1,16 +1,9 @@
-import os
-import sys
-import subprocess
-import runpy
-import pathlib
-import types
+import os, subprocess, sys
+from unittest.mock import patch, MagicMock
 from pathlib import Path
 from types import SimpleNamespace
-from validate_config import validate_config
 from datetime import time as timecls
-from flask import url_for
 import pytest
-import psutil
 import monitoring
 from monitoring import create_app
 # ----------------------------------------------------------------------------- 
@@ -80,11 +73,15 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(
         monitoring.psutil, "virtual_memory", lambda: DummyVM
     )
-
+    # Temporarily disable login_required check
+    monkeypatch.setenv("SECRET", "")
     # build Flask client
     app = create_app()
     app.testing = True
-    return app.test_client()
+    
+    client = app.test_client()
+    client._read_api_file = app._read_api_file
+    return client
 # ----------------------------------------------------------------------------- 
 # Helper to build an app/client with SECRET in the environment
 # ----------------------------------------------------------------------------- 
@@ -171,39 +168,59 @@ def test_api_control_dispatch_failure(client, monkeypatch, exc_msg):
     assert data["status"] == "error"
     assert exc_msg not in data["message"]
 # ----------------------------------------------------------------------------- 
-# /api/log_entry error path
+# /api/self/restart
 # ----------------------------------------------------------------------------- 
-def test_api_log_entry_read_error(client, monkeypatch):
-    client_app = client
-    # Force .exists() → True and .read_text() → IOError
-    monkeypatch.setattr(Path, "exists",    lambda self: True)
-    monkeypatch.setattr(Path, "read_text", lambda self: (_ for _ in ()).throw(IOError("boom")))
-    resp = client_app.get("/api/log_entry")
+def test_api_restart_success(monkeypatch, client):
+    recorded = {}
+
+    # Patch subprocess.Popen so it does not spawn a real process
+    class DummyPopen:
+        def __init__(self, args, cwd=None, stdin=None, stdout=None, stderr=None,
+                     close_fds=None, start_new_session=None):
+            recorded["popen_args"] = args
+            recorded["popen_cwd"] = cwd
+            recorded["popen_kwargs"] = {
+                "stdin": stdin,
+                "stdout": stdout,
+                "stderr": stderr,
+                "close_fds": close_fds,
+                "start_new_session": start_new_session,
+            }
+
+    monkeypatch.setattr(subprocess, "Popen", DummyPopen)
+
+    # Perform the POST to the restart endpoint
+    resp = client.post("/api/self/restart")
+    assert resp.status_code == 202
+
+    payload = resp.get_json()
+    assert payload["status"] == "ok"
+    assert "API restart initiated" in payload["message"]
+
+    # Compute what the code uses for the script path and cwd
+    expected_script_path = str(monitoring.script_dir / "monitoring.py")
+    expected_cwd = str(monitoring.script_dir)
+
+    popen_args = recorded.get("popen_args")
+    assert popen_args is not None, "subprocess.Popen was not called"
+    assert popen_args[0] == sys.executable
+    assert popen_args[1] == expected_script_path
+    assert recorded["popen_cwd"] == expected_cwd
+
+def test_api_restart_fails_when_popen_raises(monkeypatch, client):
+    def fake_popen(*args, **kwargs):
+        raise RuntimeError("pop failed")
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+
+    resp = client.post("/api/self/restart")
     assert resp.status_code == 500
-    data = resp.get_json()
-    assert data["status"] == "error"
-    assert data["message"] == "Error reading log file"
-def test_read_api_file_error_logs_and_returns_none(tmp_path, monkeypatch, caplog):
-    # Stub configure_logging so app.logger works
-    monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
 
-    # Build app
-    app = create_app()
-
-    # Now monkeypatch Path.read_text to throw
-    monkeypatch.setattr(Path, "exists", lambda self: True)
-    monkeypatch.setattr(Path, "read_text", lambda self: (_ for _ in ()).throw(IOError("disk error")))
-
-    # Hit the status endpoint, which under the hood calls _read_api_file
-    caplog.set_level("ERROR")
-    client = app.test_client()
-    resp = client.get("/api/status")
-    assert resp.status_code == 404  # raw == None
-    # And we logged the ERROR
-    assert "Error reading" in caplog.text
-
+    payload = resp.get_json()
+    assert payload["status"] == "error"
+    assert "An internal error has occurred." in payload["message"]
 # ----------------------------------------------------------------------------- 
-# CORS headers
+# CORS headers & Read API File
 # ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("route", [
     # Base API endpoint
@@ -216,7 +233,31 @@ def test_cors_headers_for_api_routes(client, route):
     resp = client_app.get(route)
     # Flask-CORS should inject this header
     assert resp.headers.get("Access-Control-Allow-Origin") == "*"
+    
+def test_read_api_file_success(client, tmp_path):
+    test_file = tmp_path / "api" / "test.txt"  # Using the api subdir
+    test_file.write_text("success content")
+    
+    result = client._read_api_file(test_file)
+    assert result == "success content"
 
+def test_read_api_file_nonexistent(client, tmp_path):
+    non_existent = tmp_path / "api" / "nonexistent.txt"
+    
+    result = client._read_api_file(non_existent)
+    assert result is None
+
+def test_read_api_file_read_error(client, tmp_path):
+    test_file = tmp_path / "api" / "test.txt"
+    test_file.parent.mkdir(exist_ok=True)
+    test_file.write_text("should fail")
+    
+    with patch.object(Path, 'read_text', side_effect=IOError("Simulated read error")):
+        with patch.object(client.application.logger, 'error') as mock_logger:
+            result = client._read_api_file(test_file)
+            assert result is None
+            mock_logger.assert_called_once()
+            assert "Simulated read error" in mock_logger.call_args[0][0]
 # ----------------------------------------------------------------------------- 
 # Trailing-slash alias for /api index
 # ----------------------------------------------------------------------------- 
@@ -246,10 +287,10 @@ def test_unknown_api_path_returns_404(client):
 # API directory is created by the fixture
 # ----------------------------------------------------------------------------- 
 def test_api_directory_created_by_fixture(client, tmp_path, monkeypatch):
-    # 1) point monitoring.script_dir at a tmp dir
+    # point monitoring.script_dir at a tmp dir
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
 
-    # 2) compute the api_dir exactly like the app does
+    # compute the api_dir exactly like the app does
     api_dir: Path = monitoring.script_dir / 'api'
     api_dir.mkdir(parents=True, exist_ok=True)
 

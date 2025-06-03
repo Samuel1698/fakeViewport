@@ -152,5 +152,13 @@ template {
   display: none;
 }
 [hidden] {
-  display: none;
+  display: none !important;
+}
+input::-webkit-inner-spin-button,
+input::-webkit-outer-spin-button {
+  -webkit-appearance: none; /* Hide default arrows */
+  margin: 0; /* Remove default margin */
+}
+input {
+  -moz-appearance: textfield; /* Hide default arrows */
 }

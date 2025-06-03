@@ -6,14 +6,14 @@ VERSION=$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HE
 OUTDIR=dist
 mkdir -p "$OUTDIR"
 
-# 1️⃣ Full repo
+# Full repo
 git archive \
   --format=tar.gz \
   --prefix="viewport ${VERSION}/" \
   -o "${OUTDIR}/viewport-${VERSION}-full.tar.gz" \
   HEAD
 
-# 2️⃣ Minimal: only runtime files
+# Minimal: only runtime files
 git archive \
   --format=tar.gz \
   --prefix="viewport ${VERSION}/" \
@@ -21,6 +21,7 @@ git archive \
   HEAD \
     viewport.py \
     monitoring.py \
+    update.py \
     logging_config.py \
     validate_config.py \
     css_selectors.py \
@@ -28,14 +29,19 @@ git archive \
     minimize.sh \
     uninstall.sh \
     requirements.txt \
+    api/VERSION \
     templates/ \
     static/main-min.js \
-    static/main.css \
+    static/marked-min.js \
+    static/main-min.css \
     static/favicon* \
+    static/*woff2 \
+    static/*.png \
+    static/site* \
     config.ini.example \
     .env.example
 
-# 3️⃣ Barebones: viewport.py + deps
+# Bare-bones: viewport.py + deps
 git archive \
   --format=tar.gz \
   --prefix="viewport ${VERSION}/" \
@@ -49,6 +55,7 @@ git archive \
     minimize.sh \
     uninstall.sh \
     requirements.txt \
+    api/VERSION \
     config.ini.example \
     .env.example
 

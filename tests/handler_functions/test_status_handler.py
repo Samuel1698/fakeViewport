@@ -1,16 +1,8 @@
-import sys
-import logging
 import pytest
 import viewport
-import os
-from io import StringIO
 from datetime import datetime
-import time 
-from webdriver_manager.core.os_manager import ChromeType
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
-import signal
-import subprocess
 # ----------------------------------------------------------------------------- 
 # Helper function and fixture
 # ----------------------------------------------------------------------------- 
@@ -33,7 +25,7 @@ def isolate_all_files(tmp_path, monkeypatch):
 def default_status_env(monkeypatch):
     # Monkey-patch all of the module-level globals that status_handler expects
     # so tests can drop them in by just requesting this fixture.
-    monkeypatch.setattr(viewport, "viewport_version", "1.2.3",        raising=False)
+    monkeypatch.setattr(viewport, "__version__", "1.2.3",             raising=False)
     monkeypatch.setattr(viewport, "SLEEP_TIME",      10,              raising=False)
     monkeypatch.setattr(viewport, "LOG_INTERVAL",    5,               raising=False)
     monkeypatch.setattr(viewport, "RESTART_TIMES",   [],              raising=False)
@@ -44,7 +36,7 @@ def default_status_env(monkeypatch):
 @pytest.mark.parametrize(
     "sst_exists, status_exists, log_content, process_names, expected_error, expected_output_snippets",
     [
-        # 1) All present → full status block, no errors
+        # All present → full status block, no errors
         (
             True, True, "[INFO] All good", ["viewport.py"],
             None,
@@ -58,7 +50,7 @@ def default_status_env(monkeypatch):
                 "Last Log Entry:",
             ],
         ),
-        # 2) Missing sst.txt → fallback to now, still prints uptime, no error
+        # Missing sst.txt → fallback to now, still prints uptime, no error
         (
             False, True, "[INFO] OK", ["viewport.py"],
             None,
@@ -67,25 +59,25 @@ def default_status_env(monkeypatch):
                 "Monitoring API:",
             ],
         ),
-        # 3) Missing status.txt → prints “Status file not found.” + logs error
+        # Missing status.txt → prints “Status file not found.” + logs error
         (
             True, False, "[INFO] OK", ["viewport.py"],
             "Status File not found",
             ["Status file not found."],
         ),
-        # 4) Missing log file → prints “Log file not found.” + logs error
+        # Missing log file → prints “Log file not found.” + logs error
         (
             True, True, None, ["viewport.py"],
             "Log File not found",
             ["Log file not found."],
         ),
-        # 5) Empty log file → prints “No log entries yet.”, no error
+        # Empty log file → prints “No log entries yet.”, no error
         (
             True, True, "", ["viewport.py"],
             None,
             ["Last Log Entry:", "No log entries yet."],
         ),
-        # 6) Script not running → uptime shows “Not Running”
+        # Script not running → uptime shows “Not Running”
         (
             True, True, "[INFO] OK", [], 
             None,
@@ -139,7 +131,7 @@ def test_status_handler(
     else:
         fake_log.write_text(log_content)
 
-    # 4) stub process_handler: running iff name in process_names
+    # stub process_handler: running iff name in process_names
     mock_process_handler.side_effect = lambda name, action="check": name in process_names
 
     # run

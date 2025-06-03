@@ -2,9 +2,8 @@ import os
 import logging
 import pytest
 import viewport
-from datetime import datetime, time as dt_time
+from datetime import time
 import time 
-from webdriver_manager.core.os_manager import ChromeType
 from unittest.mock import MagicMock, patch, call
 
 @pytest.fixture(autouse=True)
@@ -14,7 +13,7 @@ def isolate_sst(tmp_path, monkeypatch):
     fake.write_text("2025-01-01 00:00:00.000000")  # or leave empty
     monkeypatch.setattr(viewport, "sst_file", fake)
 # ----------------------------------------------------------------------------- 
-# Test for Singal Handler
+# Test for Signal Handler
 # ----------------------------------------------------------------------------- 
 @patch("viewport.logging")
 @patch("viewport.api_status")
@@ -110,28 +109,28 @@ def test_screenshot_handler_unlink_raises(tmp_path, monkeypatch):
     "should_sleep,  should_feed_ok, should_return, "
     "should_log_err, should_raise, expected_api_calls",
     [
-        # 1) Success, handle_page=True
+        # Success, handle_page=True
         (
             None, None, True,
             True, True, True,
             False, False,
             [call(f"Restarting {viewport.BROWSER}"), call("Feed Healthy")],
         ),
-        # 2) Success, handle_page=False
+        # Success, handle_page=False
         (
             None, None, False,
             False, False, True,
             False, False,
             [call(f"Restarting {viewport.BROWSER}")],
         ),
-        # 3) browser_handler throws
+        # browser_handler throws
         (
             Exception("boom"), None, None,
             False, False, False,
             True, True,
             [call(f"Restarting {viewport.BROWSER}"), call(f"Error Killing {viewport.BROWSER}")],
         ),
-        # 4) check_for_title throws
+        # check_for_title throws
         (
             None, Exception("oops"), None,
             False, False, False,

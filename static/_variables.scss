@@ -1,22 +1,117 @@
+@use "sass:map";
+@use "sass:color";
+
+$base-palette: (
+  background: #131416,
+  text:       #dee0e3,
+  blue:       #147aff,
+  red:        #FF556D,
+  green:      #36be5f,
+  yellow:     #EFC368,
+  down:       #5baed1,
+  up:         #8e63b0,
+  search:     #737c82,
+  border:     #34383d,
+  diminished: #34383d,
+  box:        #1c1e21,
+);
+$light-palette: (
+  background: #ffffff,
+  text:       #50565e,
+  bText:      #dee0e3,
+  blue:       #006fff,
+  bBlue:      #147aff,
+  red:        #ee383b,
+  green:      #38cc65,
+  yellow:     #f3a424,
+  bYellow:    #EFC368,
+  down:       #5baed1,
+  up:         #8e63b0,
+  search:     #737c82,
+  border:     #eff1f2,
+  diminished: #f4f5f6,
+  bDiminished:#34383d,
+  box:        #ffffff,
+);
+@mixin define-color($name, $color) {
+  --#{$name}-h: #{hue($color)};
+  --#{$name}-s: #{saturation($color)};
+  --#{$name}-l: #{lightness($color)};
+  --#{$name}-a: #{alpha($color)};
+}
 :root {
-  --endeavor: #08243b;
-  --nevada: #5e6f7c;
-  --iron: #d4d4d6;
-  --ruby: #a20021;
+  // Default dark theme
+  &[data-theme="dark"],
+  &:not([data-theme]) { // Fallback to dark if no theme specified
+    @each $name, $col in $base-palette {
+      @include define-color($name, $col);
+    }
+  }
+
+  // Light theme
+  &[data-theme="light"] {
+    @each $name, $col in $light-palette {
+      @include define-color($name, $col);
+    }
+  }
+  @media (prefers-color-scheme: light) {
+    &:not([data-theme]) {
+      @each $name, $col in $light-palette {
+        @include define-color($name, $col);
+      }
+    }
+  }
+}
+@function color(
+  $name,
+  $hue:        0deg,
+  $saturation: 0%,
+  $lightness:  0%,
+  $alpha:      0
+) {
+  @return hsla(
+    calc(var(--#{$name}-h) + #{$hue}),
+    calc(var(--#{$name}-s) + #{$saturation}),
+    calc(var(--#{$name}-l) + #{$lightness}),
+    calc(var(--#{$name}-a) + #{$alpha})
+  );
 }
 
-$primary-color:     var(--endeavor);
-$secondary-color:   var(--nevada);
-$background-color:  var(--iron);
-$text-color:        var(--endeavor);
-$white-outline:     var(--ruby);
-
-$border-radius:      4px;
+$border-radius:      6px;
 $transition-speed:   0.3s;
-$border-radius:      4px;
-$transition-speed:   0.3s;
-
-
 $small: 40rem; // 640px
 $medium: 58.75rem; // 940px
 $big: 77.5rem; // 1240px
+
+@mixin hover {
+  &:not([disabled]):hover {
+    @content;
+  }
+  &:focus-visible {
+    @content;
+  }
+}
+@mixin shadow {
+  /* prettier-ignore */
+  box-shadow:
+    0 1px 1px hsl(0deg 0% 0% / 0.075),
+    0 2px 2px hsl(0deg 0% 0% / 0.075),
+    0 4px 4px hsl(0deg 0% 0% / 0.075),
+    0 8px 8px hsl(0deg 0% 0% / 0.075),
+    0 16px 16px hsl(0deg 0% 0% / 0.075)
+  ;
+}
+@mixin bigShadow{
+  /* prettier-ignore */
+  box-shadow: 
+  0 5.3px 3.3px rgb(0 0 0 / 6%), 0 6.7px 8.4px rgb(0 0 0 / 5%),
+  0 7.6px 14.7px rgb(0 0 0 / 4%), 0 8.3px 22px rgb(0 0 0 / 4%),
+  0 8.9px 30.4px rgb(0 0 0 / 4%), 0 9.6px 39.9px rgb(0 0 0 / 4%),
+  0 10.3px 50.9px rgb(0 0 0 / 3%), 0 11.4px 64.2px rgb(0 0 0 / 3%),
+  0 13px 81.6px rgb(0 0 0 / 3%), 0 19px 123px rgb(0 0 0 / 2%);
+}
+@mixin respond-above($breakpoint) {
+  @media (min-width: $breakpoint) {
+    @content;
+  }
+}

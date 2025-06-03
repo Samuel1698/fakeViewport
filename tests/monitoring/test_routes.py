@@ -1,17 +1,17 @@
 import pytest
-import configparser
 from datetime import datetime as real_datetime, time as timecls, timedelta
-import pathlib
 from pathlib import Path
+import psutil, builtins, subprocess, io
 import monitoring
-from monitoring import create_app
 from types import SimpleNamespace
 # ----------------------------------------------------------------------------- 
 # Fake out datetime.now() for determinism
 # ----------------------------------------------------------------------------- 
 class DummyDateTime:
+    _fixed_now = real_datetime(2023, 1, 1, 12, 0, 0)
+    
     @classmethod
-    def now(cls):
+    def now(cls): 
         return cls._fixed_now
 
     @staticmethod
@@ -30,20 +30,29 @@ def patch_datetime(monkeypatch):
     monkeypatch.setattr(monitoring, 'datetime', DummyDateTime)
     monkeypatch.setattr(monitoring, 'timedelta', timedelta)
     yield
-    # (no teardown needed)
 
 @pytest.fixture
 def restart_times(request):
     # Provides the raw string passed via @pytest.mark.parametrize.
     return getattr(request, 'param', '')
 
+def test_dummy_datetime_now():
+    # Set a specific test time
+    test_time = real_datetime(2023, 1, 2, 10, 30, 0)
+    DummyDateTime._fixed_now = test_time
+    
+    # Verify now() returns what we set
+    assert DummyDateTime.now() == test_time
+    
+    import monitoring
+    assert monitoring.datetime.now() == test_time
 # ----------------------------------------------------------------------------- 
 # Helper to build a client with a given RESTART_TIMES string
 # ----------------------------------------------------------------------------- 
 @pytest.fixture
 def client(tmp_path, monkeypatch, restart_times):
-    # 1) stub out the shared validate_config(...) to return exactly what we need
-    #    convert the restart_times string into a list of time objects
+    # stub out the shared validate_config(...) to return exactly what we need
+    # convert the restart_times string into a list of time objects
     times = [
         timecls(*map(int, t.split(':')))
         for t in restart_times.split(',') if t.strip()
@@ -67,16 +76,16 @@ def client(tmp_path, monkeypatch, restart_times):
     )
     monkeypatch.setattr(monitoring, 'validate_config', lambda **kw: cfg)
 
-    # 2) stub out configure_logging (so we don't reconfigure pytest's caplog)
+    # stub out configure_logging (so we don't reconfigure pytest's caplog)
     monkeypatch.setattr(monitoring, 'configure_logging', lambda *a, **k: None)
 
-    # 3) force script_dir → tmp_path, and create the subdirectories
+    # force script_dir → tmp_path, and create the subdirectories
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
     # make sure the dirs exist so endpoints that write/read them work:
     (tmp_path / 'api').mkdir(exist_ok=True)
     (tmp_path / 'logs').mkdir(exist_ok=True)
 
-    # 4) fake psutil / time
+    # fake psutil / time
     monkeypatch.setattr(monitoring.psutil, 'boot_time',    lambda: 1000)
     monkeypatch.setattr(monitoring.time,    'time',        lambda: 1010)
     class DummyVM:
@@ -84,67 +93,10 @@ def client(tmp_path, monkeypatch, restart_times):
         total = 67890
     monkeypatch.setattr(monitoring.psutil, 'virtual_memory', lambda: DummyVM)
 
-    # 5) build the Flask client
+    # build the Flask client
     app = monitoring.create_app()
     app.testing = True
     return app.test_client()
-# ----------------------------------------------------------------------------- 
-# /api/next_restart
-# ----------------------------------------------------------------------------- 
-@pytest.mark.parametrize('restart_times', [''], indirect=True)
-def test_no_restart_times(client):
-    resp = client.get('/api/next_restart')
-    assert resp.status_code == 404
-    body = resp.get_json()
-    assert body['status'] == 'error'
-    assert 'No restart times configured' in body['message']
-
-@pytest.mark.parametrize('restart_times', ['15:30'], indirect=True)
-def test_single_time_future_today(client):
-    # freeze “now” at 2025-05-08 10:00:00
-    DummyDateTime._fixed_now = real_datetime(2025, 5, 8, 10, 0, 0)
-
-    resp = client.get('/api/next_restart')
-    assert resp.status_code == 200
-    body = resp.get_json()
-    assert body['status'] == 'ok'
-
-    expected_dt = DummyDateTime.combine(
-        DummyDateTime._fixed_now.date(),
-        timecls(15, 30)
-    ).isoformat()
-    assert body['data']['next_restart'] == expected_dt
-
-@pytest.mark.parametrize('restart_times', ['15:30'], indirect=True)
-def test_single_time_already_passed_today(client):
-    # freeze “now” at 2025-05-08 18:00:00
-    DummyDateTime._fixed_now = real_datetime(2025, 5, 8, 18, 0, 0)
-
-    resp = client.get('/api/next_restart')
-    assert resp.status_code == 200
-    body = resp.get_json()
-    assert body['status'] == 'ok'
-
-    tomorrow = DummyDateTime._fixed_now.date() + timedelta(days=1)
-    expected_dt = DummyDateTime.combine(tomorrow, timecls(15, 30)).isoformat()
-    assert body['data']['next_restart'] == expected_dt
-
-@pytest.mark.parametrize('restart_times', ['18:00,01:00'], indirect=True)
-def test_multiple_times_choose_earliest(client):
-    # freeze “now” at 2025-05-08 16:45:00
-    DummyDateTime._fixed_now = real_datetime(2025, 5, 8, 16, 45, 0)
-
-    resp = client.get('/api/next_restart')
-    assert resp.status_code == 200
-    body = resp.get_json()
-    assert body['status'] == 'ok'
-
-    today_run    = DummyDateTime.combine(DummyDateTime._fixed_now.date(),   timecls(18, 0))
-    tomorrow_run = DummyDateTime.combine(DummyDateTime._fixed_now.date() + timedelta(days=1), timecls(1, 0))
-    expected_dt  = min(today_run, tomorrow_run).isoformat()
-
-    assert body['data']['next_restart'] == expected_dt
-
 # ----------------------------------------------------------------------------- 
 # /api index
 # ----------------------------------------------------------------------------- 
@@ -153,15 +105,13 @@ def test_api_index_links(client):
     assert resp.status_code == 200
     data = resp.get_json()
     expected = {
+        'update',
+        'update/changelog',
         'script_uptime',
-        'system_uptime',
-        'ram',
-        'health_interval',
-        'log_interval',
+        'system_info',
         'logs',
         'status',
-        'next_restart',
-        'log_entry',
+        'config',
     }
     assert set(data.keys()) == expected
     for key, url in data.items():
@@ -178,10 +128,10 @@ def test_script_uptime_missing(client):
     assert 'SST file not found' in obj['message']
 
 def test_script_uptime_malformed(client, tmp_path, monkeypatch):
-    # 1) point monitoring.script_dir at a tmp dir
+    # point monitoring.script_dir at a tmp dir
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
 
-    # 2) compute the api_dir exactly like the app does
+    # compute the api_dir exactly like the app does
     api_dir: Path = monitoring.script_dir / 'api'
     api_dir.mkdir(parents=True, exist_ok=True)
 
@@ -193,10 +143,10 @@ def test_script_uptime_malformed(client, tmp_path, monkeypatch):
     assert 'Malformed SST timestamp' in obj['message']
 
 def test_script_uptime_ok(client, tmp_path, monkeypatch):
-    # 1) point monitoring.script_dir at a tmp dir
+    # point monitoring.script_dir at a tmp dir
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
 
-    # 2) compute the api_dir exactly like the app does
+    # compute the api_dir exactly like the app does
     api_dir: Path = monitoring.script_dir / 'api'
     api_dir.mkdir(parents=True, exist_ok=True)
 
@@ -217,136 +167,303 @@ def test_script_uptime_ok(client, tmp_path, monkeypatch):
     obj = resp.get_json()
     assert obj['status'] == 'ok'
     assert pytest.approx(obj['data']['script_uptime'], rel=1e-3) == 10
+# ----------------------------------------------------------------------------- 
+# /api/system_info
+# ----------------------------------------------------------------------------- 
+def test_api_system_info_ok(client, monkeypatch):
+    # Mock the network statistics
+    class LastNetIO:
+        bytes_sent = 500  # initial value
+        bytes_recv = 1000  # initial value
+        
+    class CurrentNetIO:
+        bytes_sent = 1000  # current value (500 more than last)
+        bytes_recv = 2000  # current value (1000 more than last)
+        
+    def mock_net_io_counters(pernic, nowrap):
+        return {'eth0': CurrentNetIO()}
+    
+    # Mock last_net_io and last_check_time
+    monkeypatch.setattr(monitoring, 'last_net_io', {'eth0': LastNetIO()})
+    monkeypatch.setattr(monitoring, 'last_check_time', 1009)  # 1 second before current time (1010)
+    
+    # Existing mocks
+    def fake_open(path, mode='r', *args, **kwargs):
+        if path == "/etc/os-release": return io.StringIO('PRETTY_NAME="TestOS"\n')
+        elif path == "/proc/device-tree/model": return io.StringIO("FakeModel")
 
-# ----------------------------------------------------------------------------- 
-# /api/system_uptime
-# ----------------------------------------------------------------------------- 
-def test_system_uptime_ok(client):
-    resp = client.get('/api/system_uptime')
+    monkeypatch.setattr(builtins, "open", fake_open)
+    monkeypatch.setattr(subprocess, "check_output", lambda args: b"Filesystem\n100G\n")
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=12345, total=67890, percent=50))
+    monkeypatch.setattr(psutil, "boot_time", lambda: 1000)
+    monkeypatch.setattr(psutil, "cpu_percent", lambda interval: 10)
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical: 4 if logical else 2)
+    monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
+    monkeypatch.setattr(monitoring.time, "time", lambda: 1010)
+
+    resp = client.get("/api/system_info")
     assert resp.status_code == 200
-    obj = resp.get_json()
-    assert obj['status'] == 'ok'
-    assert pytest.approx(obj['data']['system_uptime'], rel=1e-3) == 10
+    data = resp.get_json()["data"]
 
-def test_system_uptime_error(monkeypatch, client):
-    monkeypatch.setattr(monitoring.psutil, 'boot_time', lambda: (_ for _ in ()).throw(Exception()))
-    resp = client.get('/api/system_uptime')
+    assert data["os_name"] == "TestOS"
+    assert data["hardware_model"] == "FakeModel"
+    assert data["disk_available"] == "100G"
+    assert data["memory"]["used"] == 12345
+    assert data["memory"]["total"] == 67890
+    assert pytest.approx(data["system_uptime"], rel=1e-3) == 10
+    
+    # Network assertions
+    assert "network" in data
+    assert "interfaces" in data["network"]
+    assert "eth0" in data["network"]["interfaces"]
+    
+    # Calculate expected rates:
+    # Time elapsed = 1010 - 1009 = 1 second
+    # Upload: (1000 - 500) / 1 = 500 bytes/sec
+    # Download: (2000 - 1000) / 1 = 1000 bytes/sec
+    assert data["network"]["interfaces"]["eth0"]["upload"] == pytest.approx(500.0)
+    assert data["network"]["interfaces"]["eth0"]["download"] == pytest.approx(1000.0)
+    assert data["network"]["interfaces"]["eth0"]["total_upload"] == 1000
+    assert data["network"]["interfaces"]["eth0"]["total_download"] == 2000
+@pytest.mark.parametrize(
+    "fake_open, mock_gethostname, last_check, now, expected_model",
+    [
+        # /etc/os-release → OK
+        # /proc/device-tree/model → FileNotFoundError
+        # /sys/.../product_name → PermissionError
+        # → fallback to hostname → "test-computer"
+        (
+            lambda path, mode='r', *args, **kwargs: (
+                io.StringIO('PRETTY_NAME="TestOS"\n')
+                if path == "/etc/os-release"
+                else (_ for _ in ()).throw(FileNotFoundError())
+                if path == "/proc/device-tree/model"
+                else (_ for _ in ()).throw(PermissionError())
+                if path == "/sys/devices/virtual/dmi/id/product_name"
+                else (_ for _ in ()).throw(FileNotFoundError())
+            ),
+            lambda: "test-computer",
+            149,
+            150,
+            "test-computer",
+        ),
+        # /etc/os-release → OK
+        # everything else → FileNotFoundError
+        # mock_gethostname raises Exception → final fallback → "Unknown (Fallback Failed)"
+        (
+            lambda path, mode='r', *args, **kwargs: (
+                io.StringIO('PRETTY_NAME="TestOS"\n')
+                if path == "/etc/os-release"
+                else (_ for _ in ()).throw(FileNotFoundError())
+            ),
+            lambda: (_ for _ in ()).throw(Exception("Hostname failed")),
+            259,
+            260,
+            "Unknown (Fallback Failed)",
+        ),
+        # /etc/os-release → OK
+        # /proc/device-tree/model → FileNotFoundError
+        # /sys/.../product_name → returns "DMI_TEST_MODEL"
+        # → hardware_model = "DMI_TEST_MODEL"
+        (
+            lambda path, mode='r', *args, **kwargs: (
+                io.StringIO('PRETTY_NAME="TestOS"\n')
+                if path == "/etc/os-release"
+                else (_ for _ in ()).throw(FileNotFoundError())
+                if path == "/proc/device-tree/model"
+                else io.StringIO("DMI_TEST_MODEL")
+                if path == "/sys/devices/virtual/dmi/id/product_name"
+                else (_ for _ in ()).throw(FileNotFoundError())
+            ),
+            lambda: "unused-hostname",
+            149,
+            150,
+            "DMI_TEST_MODEL",
+        ),
+        # /etc/os-release → OK
+        # everything else → FileNotFoundError
+        # mock_gethostname returns "fallback-host"
+        # → hardware_model = "fallback-host"
+        (
+            lambda path, mode='r', *args, **kwargs: (
+                io.StringIO('PRETTY_NAME="TestOS"\n')
+                if path == "/etc/os-release"
+                else (_ for _ in ()).throw(FileNotFoundError())
+            ),
+            lambda: "fallback-host",
+            149,
+            150,
+            "fallback-host",
+        ),
+    ],
+)
+def test_api_system_info_hardware_model_variants(
+    client, monkeypatch,
+    fake_open, mock_gethostname, last_check, now, expected_model
+):
+    # Stub out “last_net_io” and “last_check_time” so the network‐rate portion runs
+    class DummyNetIO:
+        bytes_sent = 1000
+        bytes_recv = 2000
+
+    def mock_net_io_counters(pernic, nowrap):
+        return {'eth0': DummyNetIO()}
+
+    monkeypatch.setattr(monitoring, 'last_net_io', {'eth0': DummyNetIO()})
+    monkeypatch.setattr(monitoring, 'last_check_time', last_check)
+    monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
+    monkeypatch.setattr(psutil, "cpu_percent", lambda interval: 10)
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical: 4 if logical else 2)
+
+    # Stub out socket.gethostname (either returns a name or raises)
+    monkeypatch.setattr(monitoring.socket, "gethostname", mock_gethostname)
+
+    # Stub builtins.open to our fake_open
+    monkeypatch.setattr(builtins, "open", fake_open)
+
+    # Stub subprocess.check_output, psutil.virtual_memory, psutil.boot_time, and time.time
+    monkeypatch.setattr(subprocess, "check_output", lambda args: b"Filesystem\n50G\n")
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=1111, total=2222, percent=50))
+    monkeypatch.setattr(psutil, "boot_time", lambda: 100)
+    monkeypatch.setattr(monitoring.time, "time", lambda: now)
+
+    # Fire the request
+    resp = client.get("/api/system_info")
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.data}"
+    payload = resp.get_json()
+    assert payload["status"] == "ok"
+    data = payload["data"]
+
+    # Only assert on hardware_model (we don’t need to re‐verify every field here)
+    assert data["hardware_model"] == expected_model
+def test_api_system_info_network_stats(client, monkeypatch):
+    # Mock initial network stats
+    class NetIO:
+        def __init__(self, sent, recv):
+            self.bytes_sent = sent
+            self.bytes_recv = recv
+    
+    # Create mock interfaces - both wanted and unwanted
+    initial_stats = {
+        'eth0': NetIO(1000, 2000),      # Real interface (should be kept)
+        'lo': NetIO(500, 500),          # Loopback (should be filtered)
+        'docker0': NetIO(300, 300),      # Docker (should be filtered)
+        'IO': NetIO(100, 100),          # Virtual (should be filtered)
+        'wlan0': NetIO(1500, 2500)      # Another real interface (should be kept)
+    }
+    
+    current_stats = {
+        'eth0': NetIO(2000, 3000),      # +1000 bytes
+        'lo': NetIO(600, 600),           # +100 bytes (should be filtered)
+        'docker0': NetIO(400, 400),      # +100 bytes (should be filtered)
+        'IO': NetIO(200, 200),           # +100 bytes (should be filtered)
+        'wlan0': NetIO(2500, 3500)       # +1000 bytes
+    }
+    
+    def mock_net_io_counters(pernic, nowrap):
+        return current_stats
+    
+    # Set initial state
+    monkeypatch.setattr(monitoring, 'last_net_io', initial_stats)
+    monkeypatch.setattr(monitoring, 'last_check_time', 1009)
+    monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
+    
+    # Other required mocks
+    monkeypatch.setattr(builtins, "open", lambda path, mode: io.StringIO('PRETTY_NAME="TestOS"\n'))
+    monkeypatch.setattr(subprocess, "check_output", lambda args: b"Filesystem\n100G\n")
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=0, total=0, percent=0))
+    monkeypatch.setattr(psutil, "boot_time", lambda: 1000)
+    monkeypatch.setattr(psutil, "cpu_percent", lambda interval: 0)
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical: 0)
+    monkeypatch.setattr(monitoring.time, "time", lambda: 1010)
+
+    resp = client.get("/api/system_info")
+    assert resp.status_code == 200
+    data = resp.get_json()["data"]
+    
+    network = data["network"]
+    interfaces = network["interfaces"]
+    
+    # Verify only the real interfaces are present
+    assert set(interfaces.keys()) == {'eth0', 'wlan0'}
+    
+    # Verify the stats for kept interfaces
+    assert interfaces["eth0"]["upload"] == pytest.approx(1000)  # (2000-1000)/1
+    assert interfaces["eth0"]["download"] == pytest.approx(1000)  # (3000-2000)/1
+    assert interfaces["wlan0"]["upload"] == pytest.approx(1000)  # (2500-1500)/1
+    assert interfaces["wlan0"]["download"] == pytest.approx(1000)  # (3500-2500)/1
+    
+    # Verify the unwanted interfaces are not present
+    for unwanted in ['lo', 'docker0', 'IO']:
+        assert unwanted not in interfaces
+def test_api_system_info_first_call_no_last_net_io(client, monkeypatch):
+    # Mock network stats with no last_net_io (first call)
+    class CurrentNetIO:
+        bytes_sent = 1000
+        bytes_recv = 2000
+        
+    def mock_net_io_counters(pernic, nowrap):
+        return {'eth0': CurrentNetIO()}
+    
+    # Set last_net_io to None to test the else: pass branch
+    monkeypatch.setattr(monitoring, 'last_net_io', None)
+    monkeypatch.setattr(monitoring, 'last_check_time', 1009)
+    monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
+    monkeypatch.setattr(psutil, "cpu_percent", lambda interval: 10)
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical: 4 if logical else 2)
+
+    # Other required mocks
+    def fake_open(path, mode='r', *args, **kwargs):
+        if path == "/etc/os-release": return io.StringIO('PRETTY_NAME="TestOS"\n')
+        elif path == "/proc/device-tree/model": return io.StringIO("FakeModel")
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+    monkeypatch.setattr(subprocess, "check_output", lambda args: b"Filesystem\n100G\n")
+    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=12345, total=67890, percent=50))
+    monkeypatch.setattr(psutil, "boot_time", lambda: 1000)
+    monkeypatch.setattr(monitoring.time, "time", lambda: 1010)
+
+    resp = client.get("/api/system_info")
+    assert resp.status_code == 200
+    data = resp.get_json()["data"]
+
+    # Verify network section exists but has no interfaces (since we passed the else: pass)
+    assert "network" in data
+    assert "interfaces" in data["network"]
+    assert data["network"]["interfaces"] == {}  # No interfaces added when last_net_io is None
+    assert data["network"]["primary_interface"] is None
+def test_api_system_info_error(client, monkeypatch):
+    # Force an exception during system info collection by making os-release
+    # unreadable. Should return 500
+    def mock_open(*args, **kwargs):
+        # Force open() to raise when reading /etc/os-release
+        if args[0] == '/etc/os-release': raise IOError("forced file read error")
+    
+    monkeypatch.setattr(builtins, 'open', mock_open)
+    
+    resp = client.get("/api/system_info")
     assert resp.status_code == 500
-    obj = resp.get_json()
-    assert obj['status'] == 'error'
-    assert 'Could not determine system uptime' in obj['message']
-
-# ----------------------------------------------------------------------------- 
-# /api/ram
-# ----------------------------------------------------------------------------- 
-def test_ram_endpoint(client):
-    resp = client.get('/api/ram')
-    assert resp.status_code == 200
-    obj = resp.get_json()
-    assert obj['status'] == 'ok'
-    assert obj['data']['ram_used'] == 12345
-    assert obj['data']['ram_total'] == 67890
-
-# ----------------------------------------------------------------------------- 
-# /api/health_interval
-# ----------------------------------------------------------------------------- 
-def test_health_interval(client):
-    resp = client.get('/api/health_interval')
-    assert resp.status_code == 200
-    obj = resp.get_json()
-    assert obj['status'] == 'ok'
-    assert obj['data']['health_interval_sec'] == 300
-
-# ----------------------------------------------------------------------------- 
-# /api/log_interval
-# ----------------------------------------------------------------------------- 
-def test_log_interval(client):
-    resp = client.get('/api/log_interval')
-    assert resp.status_code == 200
-    obj = resp.get_json()
-    assert obj['status'] == 'ok'
-    assert obj['data']['log_interval_min'] == 15
-
-# ----------------------------------------------------------------------------- 
-# /api/status (last status update)
-# ----------------------------------------------------------------------------- 
-def test_status_missing(client):
-    resp = client.get('/api/status')
-    assert resp.status_code == 404
-    obj = resp.get_json()
-    assert obj['status'] == 'error'
-    assert 'Status file not found' in obj['message']
-
-def test_status_ok(client, tmp_path, monkeypatch):
-    # 1) point monitoring.script_dir at a tmp dir
-    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
-
-    # 2) compute the api_dir exactly like the app does
-    api_dir: Path = monitoring.script_dir / 'api'
-    api_dir.mkdir(parents=True, exist_ok=True)
-
-    (api_dir / 'status.txt').write_text('All Good')
-    resp = client.get('/api/status')
-    assert resp.status_code == 200
-    obj = resp.get_json()
-    assert obj['status'] == 'ok'
-    assert obj['data']['status'] == 'All Good'
-
-# ----------------------------------------------------------------------------- 
-# /api/log_entry (last log line)
-# ----------------------------------------------------------------------------- 
-def test_log_entry_missing(client, monkeypatch):
-
-    # Patch Path.exists to always say the viewport.log doesn't exist
-    orig_exists = pathlib.Path.exists
-    def fake_exists(self):
-        return self.name != 'viewport.log'
-    monkeypatch.setattr(pathlib.Path, 'exists', fake_exists)
-
-    resp = client.get('/api/log_entry')
-    assert resp.status_code == 404
-    obj = resp.get_json()
-    assert obj['status'] == 'error'
-    assert 'Log file not found' in obj['message']
-
-def test_log_entry_ok(client, monkeypatch):
-
-    # Patch Path.exists to say viewport.log exists
-    orig_exists = pathlib.Path.exists
-    def fake_exists(self):
-        return self.name == 'viewport.log'
-    monkeypatch.setattr(pathlib.Path, 'exists', fake_exists)
-
-    # Patch Path.read_text to return our fake log contents
-    orig_read = pathlib.Path.read_text
-    def fake_read_text(self, *args, **kwargs):
-        return "first\nsecond\nthird"
-    monkeypatch.setattr(pathlib.Path, 'read_text', fake_read_text)
-
-    resp = client.get('/api/log_entry')
-    assert resp.status_code == 200
-    obj = resp.get_json()
-    assert obj['status'] == 'ok'
-    assert obj['data']['log_entry'] == 'third'
-
+    payload = resp.get_json()
+    assert payload["status"] == "error"
+    assert "An internal error occurred while fetching system information." in payload["message"]
 # ----------------------------------------------------------------------------- 
 # /api/logs?limit
 # ----------------------------------------------------------------------------- 
 def test_default_limit_returns_100_lines(client, tmp_path, monkeypatch):
     client_app = client
-    # 1) point script_dir at tmp
+    # point script_dir at tmp
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
 
-    # 2) create logs/viewport.log
+    # create logs/viewport.log
     logs_dir = monitoring.script_dir / 'logs'
     logs_dir.mkdir(parents=True, exist_ok=True)
     log_path = logs_dir / 'viewport.log'
 
-    # 3) write 150 entries
+    # write 150 entries
     lines = [f"entry {i}" for i in range(150)]
     log_path.write_text("\n".join(lines) + "\n")
 
-    # 4) call endpoint
+    # call endpoint
     resp = client_app.get("/api/logs")
     assert resp.status_code == 200
     body = resp.get_json()
@@ -397,7 +514,7 @@ def test_invalid_limit_falls_back_to_default(client, tmp_path, monkeypatch):
     log_path.write_text("\n".join(lines) + "\n")
 
     # non-integer limit → default 100
-    resp = client_app.get("/api/logs?limit=notanumber")
+    resp = client_app.get("/api/logs?limit=string")
     assert resp.status_code == 200
     logs = resp.get_json()["data"]["logs"]
 
@@ -420,3 +537,102 @@ def test_missing_file_returns_500(client, tmp_path, monkeypatch):
     assert body["status"] == "error"
     # should mention the missing file
     assert "An internal error occurred while reading logs" in body["message"]
+
+# ----------------------------------------------------------------------------- 
+# /api/status
+# ----------------------------------------------------------------------------- 
+def test_status_missing(client):
+    resp = client.get('/api/status')
+    assert resp.status_code == 404
+    obj = resp.get_json()
+    assert obj['status'] == 'error'
+    assert 'Status file not found' in obj['message']
+
+def test_status_ok(client, tmp_path, monkeypatch):
+    # point monitoring.script_dir at a tmp dir
+    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+
+    # compute the api_dir exactly like the app does
+    api_dir: Path = monitoring.script_dir / 'api'
+    api_dir.mkdir(parents=True, exist_ok=True)
+
+    (api_dir / 'status.txt').write_text('All Good')
+    resp = client.get('/api/status')
+    assert resp.status_code == 200
+    obj = resp.get_json()
+    assert obj['status'] == 'ok'
+    assert obj['data']['status'] == 'All Good'
+    
+# ----------------------------------------------------------------------------- 
+# /api/config
+# ----------------------------------------------------------------------------- 
+def test_api_config_no_restart(client, monkeypatch):
+    # When RESTART_TIMES is an empty list, /api/config should return
+    # restart_times = None and next_restart = None.
+    fake_cfg = SimpleNamespace(
+        SLEEP_TIME=5,
+        WAIT_TIME=10,
+        MAX_RETRIES=3,
+        RESTART_TIMES=[],
+        BROWSER_PROFILE_PATH=None,
+        BROWSER_BINARY=None,
+        HEADLESS=None,
+    )
+    monkeypatch.setattr(monitoring, "validate_config", lambda strict=False, print=False: fake_cfg)
+
+    resp = client.get("/api/config")
+    assert resp.status_code == 200
+    data = resp.get_json()["data"]["general"]
+    assert data["restart_times"] is None
+    assert data["next_restart"] is None
+
+def test_api_config_with_restart(client, monkeypatch):
+    # When RESTART_TIMES contains a single time (“09:00”), /api/config should
+    # return restart_times = ["09:00"] and compute next_restart correctly
+    # based on a fixed current time of 2025-06-01 08:00:00.
+    fake_cfg = SimpleNamespace(
+        SLEEP_TIME=5,
+        WAIT_TIME=10,
+        MAX_RETRIES=3,
+        RESTART_TIMES=[timecls(9, 0)],
+        BROWSER_PROFILE_PATH=None,
+        BROWSER_BINARY=None,
+        HEADLESS=None,
+    )
+    monkeypatch.setattr(monitoring, "validate_config", lambda strict=False, print=False: fake_cfg)
+
+    fixed_now = real_datetime(2025, 6, 1, 8, 0, 0)
+    monkeypatch.setattr(monitoring.datetime, "now", classmethod(lambda cls: fixed_now))
+
+    resp = client.get("/api/config")
+    assert resp.status_code == 200
+    general = resp.get_json()["data"]["general"]
+
+    assert general["restart_times"] == ["09:00"]
+    assert general["next_restart"] == "2025-06-01T09:00:00"
+    
+def test_api_config_compute_error(client, monkeypatch):
+    # Force an exception during the "compute restart_times / next_restart" block
+    # by having datetime.now() raise. Expect a 500 response
+    class ErrorDateTime:
+        # Setup error-raising datetime
+        @classmethod
+        def now(cls):
+            raise RuntimeError("forced failure")
+    
+    monkeypatch.setattr(monitoring, 'datetime', ErrorDateTime)
+
+    # Setup config with restart times (same as working test)
+    fake_cfg = SimpleNamespace(
+        SLEEP_TIME=5,
+        WAIT_TIME=10,
+        MAX_RETRIES=3,
+        RESTART_TIMES=[timecls(9, 0)],
+    )
+    monkeypatch.setattr(monitoring, 'validate_config', lambda strict=False, print=False: fake_cfg)
+
+    resp = client.get("/api/config")
+    assert resp.status_code == 500
+    payload = resp.get_json()
+    assert payload["status"] == "error"
+    assert "An internal error has occurred while processing the configuration." in payload["message"]

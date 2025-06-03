@@ -1,11 +1,8 @@
 import pytest
 import concurrent.futures
-from unittest.mock import MagicMock, PropertyMock, patch
-from selenium.common.exceptions import TimeoutException, WebDriverException
-from datetime import datetime, time as dt_time, timedelta
+from unittest.mock import patch
+from datetime import datetime, time as dt_time
 import viewport
-# from viewport import viewport.get_driver_path
-
 # ----------------------------------------------------------------------------- 
 # Fixtures and Helpers
 # ----------------------------------------------------------------------------- 

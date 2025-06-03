@@ -3,7 +3,7 @@ import sys
 import subprocess
 import pytest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 import viewport
 
 class DummyDriver:

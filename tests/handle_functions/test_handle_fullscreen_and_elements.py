@@ -4,24 +4,39 @@ from unittest.mock import MagicMock, patch
 # ----------------------------------------------------------------------------- 
 # Test for handle_elements function
 # ----------------------------------------------------------------------------- 
-def test_handle_elements_executes_both_scripts():
+def test_handle_elements_hides_cursor_and_player_options():
     driver = MagicMock()
-    viewport.CSS_CURSOR = "cursor-class"
-    viewport.CSS_PLAYER_OPTIONS = "player-options-class"
+
+    # handle_elements now expects lists (even if length‑1)
+    viewport.CSS_CURSOR = ["cursor-class"]
+    viewport.CSS_PLAYER_OPTIONS = ["player-options-class"]
+    viewport.hide_delay_ms = 3000       
 
     viewport.handle_elements(driver)
 
-    assert driver.execute_script.call_count == 2
+    # Exactly ONE execute_script call
+    driver.execute_script.assert_called_once()
+    script, cursors, options, delay = driver.execute_script.call_args[0]
 
-    # first call hides the cursor
-    script1, arg1 = driver.execute_script.call_args_list[0][0]
-    assert "hideCursorStyle" in script1
-    assert arg1 == "cursor-class"
+    # correct style‑tag id inside the injected JS
+    assert "hideCursorAndOptionsStyle" in script
 
-    # second call hides player options
-    script2, arg2 = driver.execute_script.call_args_list[1][0]
-    assert "hidePlayerOptionsStyle" in script2
-    assert arg2 == "player-options-class"
+    # the two selector arrays are forwarded unchanged
+    assert cursors  == ["cursor-class"]
+    assert options  == ["player-options-class"]
+
+    # delay propagated
+    assert delay == 3000
+
+@pytest.mark.parametrize("invocations", [1, 2, 3])
+def test_banner_script_always_injected(invocations):
+    driver = MagicMock()
+    for _ in range(invocations):
+        viewport.handle_pause_banner(driver)
+
+    assert driver.execute_script.call_count == invocations
+    script_source = driver.execute_script.call_args[0][0]
+    assert 'pauseBannerPaused' in script_source
 # ----------------------------------------------------------------------------- 
 # Test for handle_fullscreen_button function
 # ----------------------------------------------------------------------------- 

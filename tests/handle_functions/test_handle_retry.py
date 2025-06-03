@@ -6,9 +6,9 @@ from selenium.common.exceptions import WebDriverException
 # Tests for handle_retry function
 # ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("attempt,title,check_driver_ok,login_ok,fullscreen_ok,expected_calls", [
-    # 1) normal reload path
+    # normal reload path
     (0, "Some Other", True, None, None, ["Attempting to load page from URL.", "Page successfully reloaded."]),
-    # 2) login‐page path
+    # login-page path
     (0, "Ubiquiti Account", True, True, False, ["Log-in page found. Inputting credentials...",]),
 ])
 @patch("viewport.restart_handler")
@@ -111,17 +111,17 @@ def test_handle_retry_detects_driver_crash_and_restarts(
 
     result = viewport.handle_retry(driver, url, attempt=0, max_retries=3)
 
-    # 1) we should have warned about a crash...
+    # we should have warned about a crash...
     mock_log_warning.assert_called_once_with("WebDriver crashed.")
-    # 2) ...and then invoked browser_restart_handler(url)
+    # ...and then invoked browser_restart_handler(url)
     mock_chrome_restart.assert_called_once_with(url)
 
     new_driver = mock_chrome_restart.return_value
-    # 3) new driver should be used to reload the page
+    # new driver should be used to reload the page
     new_driver.get.assert_called_once_with(url)
-    # 4) and we should have reported “Feed Healthy”
+    # and we should have reported “Feed Healthy”
     mock_api_status.assert_called_with("Feed Healthy")
-    # 5) finally, the returned driver is the new one
+    # finally, the returned driver is the new one
     assert result is new_driver
 
 # ----------------------------------------------------------------------------- 

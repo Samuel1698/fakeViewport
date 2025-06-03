@@ -1,21 +1,12 @@
 #!/usr/bin/venv python3
-import os
-import psutil
-import sys
-import time
-import argparse
-import signal
-import subprocess
-import math
-import threading
-import logging
-import concurrent      
-from logging_config            import configure_logging
-from validate_config           import validate_config
-from pathlib                   import Path
-from datetime                  import datetime, timedelta
-from webdriver_manager.chrome  import ChromeDriverManager
-from webdriver_manager.firefox import GeckoDriverManager
+import os, psutil, sys, time, argparse, signal, subprocess
+import math, threading, logging, concurrent
+from logging_config                      import configure_logging
+from validate_config                     import validate_config
+from pathlib                             import Path
+from datetime                            import datetime, timedelta
+from webdriver_manager.chrome            import ChromeDriverManager
+from webdriver_manager.firefox           import GeckoDriverManager
 from webdriver_manager.core.os_manager   import ChromeType
 from selenium                            import webdriver
 from selenium.webdriver.chrome.service   import Service
@@ -23,6 +14,7 @@ from selenium.webdriver.chrome.options   import Options
 from selenium.webdriver.firefox.service  import Service as FirefoxService
 from selenium.webdriver.firefox.options  import Options as FirefoxOptions
 from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
+from selenium.webdriver.common.keys      import Keys
 from selenium.webdriver.common.by        import By
 from selenium.webdriver.common.action_chains    import ActionChains
 from selenium.webdriver.support.ui       import WebDriverWait
@@ -43,7 +35,6 @@ from css_selectors import (
 # -------------------------------------------------------------------
 _mod = sys.modules[__name__]
 driver = None # Declare it globally so that it can be accessed in the signal handler function
-viewport_version = "2.2.3"
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
 # Directory and file paths
 _base = Path(__file__).parent
@@ -51,6 +42,8 @@ config_file = _base / 'config.ini'
 env_file    = _base / '.env'
 logs_dir    = _base / 'logs'
 api_dir     = _base / 'api'
+ver_file    = api_dir / 'VERSION'
+__version__ = ver_file.read_text().strip()
 # Initial non strict config parsing
 cfg = validate_config(strict=False, print=False)
 for name, val in vars(cfg).items():
@@ -68,7 +61,7 @@ NC="\033[0m"
 def args_helper():
     # Parse command-line arguments for the script.
     parser = argparse.ArgumentParser(
-        description=f"{YELLOW}===== Fake Viewport {viewport_version} ====={NC}"
+        description=f"{YELLOW}===== Fake Viewport {__version__} ====={NC}"
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -94,6 +87,12 @@ def args_helper():
         action="store_true",
         dest="quit",
         help="Stops the running Viewport script."
+    )
+    group.add_argument(
+        "-p", "--pause",
+        action="store_true",
+        dest="pause",
+        help="Toggle pause / resume of scheduled health-checks."
     )
     group.add_argument(
         "-l", "--logs",
@@ -145,6 +144,22 @@ def args_handler(args):
         except Exception as e:
             log_error(f"Error reading log file: {e}")
         sys.exit(0)
+    if args.pause:
+        try:
+            if process_handler("viewport.py", action="check"):    
+                if pause_file.exists():
+                    pause_file.unlink()
+                    logging.info("Resuming health checks.")
+                    api_status("Resumed")
+                else:
+                    pause_file.touch()
+                    logging.info("Pausing health checks.")
+                    api_status("Paused")
+            else:
+                logging.info("Fake Viewport is not running.")
+        except Exception as e:
+            log_error("Error toggling pause state:", e)
+        sys.exit(0)
     if args.background:
         logging.info("Starting the script in the background...")
         child_argv = args_child_handler(
@@ -176,8 +191,12 @@ def args_handler(args):
         if process_handler("monitoring.py", action="check"):
             logging.info("Stopping the API...")
             process_handler('monitoring.py', action="kill")
-        elif API: api_handler()
-        else: logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
+            api_status("API Stopped")
+        elif API: 
+            # Exit with error if API failed to start
+            if not api_handler(): sys.exit(1)  
+        else:
+            logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
         sys.exit(0)
     if args.restart:
         # --restart from the CLI should kill the existing daemon
@@ -224,6 +243,7 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
         "background": ["--background"],
         "restart":    ["--restart"],
         "quit":       ["--quit"],
+        "pause":      ["--pause"],
         "diagnose":   ["--diagnose"],
         "api":        ["--api"],
         "logs":       (["--logs", str(args.logs)] if args.logs is not None else []),
@@ -285,6 +305,7 @@ def clear_sst():
     try:
         # Opening with 'w' and immediately closing truncates the file to zero length
         if sst_file.exists(): open(sst_file, 'w').close()
+        if pause_file.exists(): pause_file.unlink()
     except Exception as e:
         log_error("Error clearing SST file:", e)
 def api_status(msg):
@@ -293,22 +314,55 @@ def api_status(msg):
     with open(status_file, 'w') as f:
         f.write(msg)
 def api_handler():
-    if not process_handler('monitoring.py', action="check"):
-        logging.info("Starting API...")
-        api_script = _base / 'monitoring.py'
-        try:
-            subprocess.Popen(
-                [sys.executable, api_script],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-                close_fds=True,
-                start_new_session=True  # Detach from the terminal
-            )
-            api_status("Starting API...")
-        except Exception as e:
-            log_error("Error starting API: ", e)
-            api_status("Error Starting API")
+    if process_handler('monitoring.py', action="check"):
+        logging.info("API is already running")
+        return True
+
+    logging.info("Starting API...")
+    api_status("Starting API...")
+    api_script = _base / 'monitoring.py'
+    try:
+        # Start process with output capture
+        process = subprocess.Popen(
+            [sys.executable, api_script],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            close_fds=True,
+            bufsize=1,
+            universal_newlines=True,
+            start_new_session=True
+        )
+
+        def filter_output(stream):
+            WERKZEUG_MESSAGES = {
+                "WARNING: This is a development server",
+                "Press CTRL+C to quit",
+                "Serving Flask app",
+                "Debug mode:",
+                "Running on"
+            }
+            for line in stream:
+                line = line.strip()
+                if not line or any(msg in line for msg in WERKZEUG_MESSAGES): continue
+                else: pass
+                logging.info(line)
+
+        # Start output‐filtering threads
+        threading.Thread(target=filter_output, args=(process.stdout,), daemon=True).start()
+        threading.Thread(target=filter_output, args=(process.stderr,), daemon=True).start()
+
+        # Verify process started
+        time.sleep(1)
+        if process.poll() is not None:
+            raise RuntimeError(f"API failed to start (code {process.returncode})")
+
+        logging.info("API started successfully")
+        return True
+    except Exception as e:
+        log_error("Error starting API: ", e)
+        api_status("Error Starting API")
+        return False
 # ----------------------------------------------------------------------------- 
 # Signal Handler (Closing gracefully with CTRL+C)
 # ----------------------------------------------------------------------------- 
@@ -522,7 +576,7 @@ def status_handler():
             next = f"{GREEN}{sc}s{NC}"
         next_str = next if uptime else f"{RED}Not Running{NC}"
         # Printing
-        print(f"{YELLOW}======= Fake Viewport {viewport_version} ========{NC}")
+        print(f"{YELLOW}======= Fake Viewport {__version__} ========{NC}")
         print(f"{CYAN}Script Uptime:{NC}      {uptime_str}")
         print(f"{CYAN}Monitoring API:{NC}     {monitoring_str}")
         print(f"{CYAN}Next Health Check:{NC}  {next_str}")
@@ -753,7 +807,7 @@ def browser_handler(url):
             time.sleep(SLEEP_TIME/2)
         except NewConnectionError as e:
             # Connection refused
-            log_error(f"Connection refused while starting {BROWSER}; regtrying in {int(SLEEP_TIME/2)}s", e)
+            log_error(f"Connection refused while starting {BROWSER}; retrying in {int(SLEEP_TIME/2)}s", e)
             time.sleep(SLEEP_TIME/2)
         except MaxRetryError as e:
             # network issue resolving or fetching metadata
@@ -891,31 +945,198 @@ def check_unable_to_stream(driver):
 # Interactive Functions for main logic
 # These functions directly interact with the webpage
 # ----------------------------------------------------------------------------- 
-def handle_elements(driver):
-    # Removes ubiquiti's custom cursor from the page
-    driver.execute_script("""
-    var styleId = 'hideCursorStyle';
-    var cssClass = arguments[0];
-    if (!document.getElementById(styleId)) {
-        var style = document.createElement('style');
-        style.type = 'text/css';
-        style.id = styleId;
-        style.innerHTML = '.' + cssClass + ' { cursor: none !important; }';
-        document.head.appendChild(style);
-    }
-    """, CSS_CURSOR)
-    # Remove visibility of the player options elements
-    driver.execute_script("""
-    var styleId = 'hidePlayerOptionsStyle';
-    var cssClass = arguments[0];
-    if (!document.getElementById(styleId)) {
-        var style = document.createElement('style');
-        style.type = 'text/css';
-        style.id = styleId;
-        style.innerHTML = '.' + cssClass + ' { z-index: 0 !important; }';
-        document.head.appendChild(style);
-    }
-    """, CSS_PLAYER_OPTIONS)
+def handle_clear(driver, element):
+    # Wipes a text-input even when the browser/password-manager has
+    # pre-filled it.  Works around the fact that WebElement.clear()
+    # often leaves the text selected but still present.
+
+    # • element.clear() ................  normal Selenium clear  
+    # • JS “value = ''” ................. brute-force fallback  
+    # • CTRL/⌘ + A → DEL ............... belt-and-suspenders  
+    try:
+        element.clear()
+        driver.execute_script("arguments[0].value = '';", element)
+        element.send_keys(Keys.CONTROL, "a", Keys.DELETE)
+    except Exception:
+        # Best-effort – if this fails the subsequent send_keys will
+        # still overwrite the field in most cases.
+        pass
+def handle_elements(driver, hide_delay_ms: int = 3000):
+    # • Hides the custom UniFi cursor.
+    # • Automatically *un-hides* while the mouse is moving and
+    #   re-hides after `hide_delay_ms` of inactivity.
+    # • Hides Player-Options bar
+    driver.execute_script(
+        """
+        (function () {
+            if (window.__cursorHideInit__) return;
+            window.__cursorHideInit__ = true;
+
+            const CURSORS  = Array.isArray(arguments[0]) ? arguments[0] : [arguments[0]];
+            const OPTIONS  = Array.isArray(arguments[1]) ? arguments[1] : [arguments[1]];
+            const DELAY    = arguments[2];
+            const STYLE_ID = 'hideCursorAndOptionsStyle';
+
+            const cursorSel = CURSORS.map(c => '.' + c).join(',');
+            const optionSel = OPTIONS.map(c => '.' + c).join(',');
+
+            function addStyle() {
+                if (!document.getElementById(STYLE_ID)) {
+                    const s = document.createElement('style');
+                    s.id = STYLE_ID;
+                    s.textContent = `
+                        ${cursorSel} { cursor: none !important; }
+                        ${optionSel} { z-index: 0 !important; }`;
+                    document.head.appendChild(s);
+                }
+            }
+            function removeStyle() {
+                const s = document.getElementById(STYLE_ID);
+                if (s) s.remove();
+            }
+
+            addStyle();                       // hidden at first
+            let t;
+            window.addEventListener('mousemove', () => {
+                removeStyle();                // show on movement
+                clearTimeout(t);
+                t = setTimeout(addStyle, DELAY);
+            }, { passive: true });
+        })(arguments[0], arguments[1], arguments[2]);
+        """,
+        CSS_CURSOR,     
+        CSS_PLAYER_OPTIONS,
+        hide_delay_ms
+    )
+def handle_pause_banner(driver):
+    # Injects a self-healing "Pause / Resume Health Checks" banner into the page.
+    # The banner rebuilds itself on SPA URL changes but does NOT persist state between browser sessions.
+    driver.execute_script(
+        """
+        (function () {
+        // STATE MANAGEMENT
+        const PAUSE_KEY = 'pauseBannerPaused';
+        const getPaused = () => window[PAUSE_KEY] === true;
+        const setPaused = (v) => window[PAUSE_KEY] = v;
+
+        // Initialize to false if not set
+        if (window[PAUSE_KEY] === undefined) {
+            window[PAUSE_KEY] = false;
+        }
+
+        //  BANNER CREATION 
+        function buildBanner() {
+            const container = document.getElementById('full-screen-root') || document.body;
+            const existing  = document.getElementById('pause-banner');
+
+            // if banner already exists, just move it to the right container
+            if (existing) {
+            if (existing.parentElement !== container) container.appendChild(existing);
+            return;
+            }
+            // ---------- container ---------- 
+            const banner = document.createElement('div');
+            banner.id = 'pause-banner';
+            Object.assign(banner.style, {
+            position: 'fixed',
+            top: '0',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            height: '50px',
+            padding: '1.4rem',
+            background: '#131416',
+            color: '#f9fafa',
+            fontSize: '1.6rem',
+            fontWeight: 'bold',
+            display: 'none',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            borderRadius: '4px',
+            border: '1px solid rgb(52, 56, 61)',
+            zIndex: '99999'
+            });
+
+            // ---------- label ---------- 
+            const label = document.createElement('span');
+            label.style.marginRight = '1em';
+            label.textContent = 'Toggle Health Checks';
+            banner.appendChild(label);
+
+            // ---------- button ---------- 
+            const btn = document.createElement('button');
+            btn.id = 'pause-toggle';
+            Object.assign(btn.style, {
+            padding: '8px 12px',
+            fontSize: '1.6rem',
+            background: '#4797ff',
+            color: '#f9fafa',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+            });
+            banner.appendChild(btn);
+
+            // ---------- hover style ---------- 
+            if (!document.getElementById('pause-toggle-hover')) {
+            const hover = document.createElement('style');
+            hover.id = 'pause-toggle-hover';
+            hover.textContent = '#pause-toggle:hover{background:#80b7ff!important;}';
+            document.head.appendChild(hover);
+            }
+
+            // ---------- initial state ---------- 
+            const paused = getPaused();
+            banner.setAttribute('data-paused', String(paused));
+            btn.textContent = paused ? 'Resume' : 'Pause';
+
+            // ---------- attach ---------- 
+            (document.getElementById('full-screen-root') || document.body)
+            .appendChild(banner);
+
+            // ---------- hide / show ---------- 
+            let hideTimer;
+            function showBanner() {
+            banner.style.display = 'flex';
+            clearTimeout(hideTimer);
+            if (!getPaused()) {
+                hideTimer = setTimeout(() => (banner.style.display = 'none'), 3000);
+            }
+            }
+            window.addEventListener('mousemove', showBanner, { passive: true });
+
+            // ---------- click ---------- 
+            btn.addEventListener('click', () => {
+            const next = !getPaused();
+            setPaused(next);
+            banner.setAttribute('data-paused', String(next));
+            btn.textContent = next ? 'Resume' : 'Pause';
+            showBanner();
+            });
+        }
+
+        //  URL CHANGE WATCHER (SPA)
+        function watchUrlChanges() {
+            const rebuild = () => setTimeout(buildBanner, 0);
+
+            ['pushState', 'replaceState'].forEach((fn) => {
+            const original = history[fn];
+            history[fn] = function () {
+                original.apply(this, arguments);
+                rebuild();
+            };
+            });
+
+            window.addEventListener('popstate', rebuild,  { passive: true });
+            window.addEventListener('hashchange', rebuild, { passive: true });
+        }
+
+        //  INIT 
+        buildBanner();
+        watchUrlChanges();
+        })();
+        """
+    )
 def handle_loading_issue(driver):
     # Checks if the loading dots are present in the live view
     # If they are, it starts a timer to check if the loading issue persists for 15 seconds and log as an error.
@@ -991,7 +1212,7 @@ def handle_login(driver):
                 'input[name^="user"]'      # any name that begins with "user"
             ))
         )
-        username_field.clear()
+        handle_clear(driver, username_field)
         username_field.send_keys(username)
         # Add small delay between fields (sometimes needed)
         time.sleep(0.5)
@@ -999,7 +1220,7 @@ def handle_login(driver):
         password_field = WebDriverWait(driver, WAIT_TIME).until(
             EC.element_to_be_clickable((By.NAME, 'password'))
         )
-        password_field.clear()
+        handle_clear(driver, password_field)
         password_field.send_keys(password)
         # Add another small delay before submitting
         time.sleep(0.5)
@@ -1045,6 +1266,7 @@ def handle_page(driver):
         if "Dashboard" in driver.title:
             time.sleep(3)
             handle_elements(driver)
+            handle_pause_banner(driver)
             return True
         elif "Ubiquiti Account" in driver.title or "UniFi OS" in driver.title:
             logging.info("Log-in page found. Inputting credentials...")
@@ -1116,6 +1338,7 @@ def handle_view(driver, url):
     # While on the main loop, it calls the handle_retry, handle_fullscreen_button, check_unable_to_stream handle_loading_issue, and handle_elements functions.
     retry_count = 0
     max_retries = MAX_RETRIES
+    paused_logged = False
     # how many loops between regular logs
     log_interval_iterations = round(max(LOG_INTERVAL * 60, SLEEP_TIME) / SLEEP_TIME)
     # Align the first log to the next "even" boundary:
@@ -1143,6 +1366,24 @@ def handle_view(driver, url):
         restart_handler(driver)
     while True:
         try:
+            state = driver.execute_script(
+                "const e = document.getElementById('pause-banner');"
+                "return e ? e.getAttribute('data-paused') : null;"
+            )
+            paused_ui   = (state == "true")
+            paused_file = pause_file.exists()
+            if paused_ui or paused_file:
+                if not paused_logged:
+                    logging.info("Script paused; skipping health checks.")
+                    api_status("Paused")
+                    paused_logged = True
+                time.sleep(5)
+                continue
+            if paused_logged:
+                if pause_file.exists(): pause_file.unlink()
+                logging.info("Script resumed; starting health checks again.")
+                api_status("Resumed")
+                paused_logged = False
             now = datetime.now()
             if RESTART_TIMES and next_run and now >= next_run:
                 logging.info("Performing scheduled restart")
@@ -1179,6 +1420,7 @@ def handle_view(driver, url):
                 # Check for "Unable to Stream" message
                 handle_loading_issue(driver)
                 handle_elements(driver)
+                handle_pause_banner(driver)
                 api_status("Feed Healthy")
                 if check_unable_to_stream(driver):
                     logging.warning("Live view contains cameras that the browser cannot decode.")
@@ -1232,7 +1474,7 @@ def main():
     cfg = validate_config()
     for name, val in vars(cfg).items():
         setattr(_mod, name, val)
-    logging.info(f"===== Fake Viewport {viewport_version} =====")
+    logging.info(f"===== Fake Viewport {__version__} =====")
     if API: api_handler()
     api_status("Starting...")
     intentional_restart = restart_file.exists()
@@ -1250,6 +1492,7 @@ def main():
     # Write the start time to the SST file
     # Only if it's empty or if a crash likely happened
     if sst_size == 0 or crashed:
+        if pause_file.exists(): pause_file.unlink()
         with open(sst_file, 'w') as f:
             f.write(str(datetime.now()))
     driver = browser_handler(url)

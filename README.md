@@ -1,14 +1,18 @@
 <!-- [START BADGES] -->
 
-[![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
-[![CodeQL](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml)
-[![codecov](https://codecov.io/github/Samuel1698/fakeViewport/graph/badge.svg?token=mPKJSAYXH5)](https://codecov.io/github/Samuel1698/fakeViewport)
+[![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg?branch=snapshot)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
 
 <!-- [END BADGES] -->
 
+# SNAPSHOT
+You are currently seeing the snapshot branch. This is where I make rapid changes and experiment with new code. If this branch is ahead of main, it is most likely broken. 
+Check the [latest release](https://github.com/Samuel1698/fakeViewport/releases) or go to [main](https://github.com/Samuel1698/fakeViewport/tree/main) for a stable version of the code.
+
+---
+
 # Fake Viewport
 
-Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. With this setup, you can automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
+Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. The script will automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
 
 
 <!-- markdownlint-disable no-inline-html -->
@@ -34,29 +38,30 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 - Handles login expiration and reconnects automatically.
 - Detects if the console or application are offline and waits before reloading.
 - Detects if your browser is running too slow and restarts it.
-- Automatically clicks the full screen button and hides the cursor and controls from the cameras.
-- Very robust error handling and failsafes.
+- Automatically clicks the full screen button and hides the cursor and control elements from the cameras.
+- Very robust error handling and failsafe.
 - Customizable by changing the `config.ini` file.
 - Easy to set up by running the `setup.sh` bash script.
 - Most uptime I've seen is 6 months uninterrupted (v1.0.0). 
 - Compatible with Firefox, Chrome and Chromium 
 - Logs output of the terminal to logs/viewport.log for troubleshooting or checking status remotely.
 - Optional API integration for remote monitoring (e.g., with [Rainmeter](https://www.rainmeter.net/)).
-- API features a simple and lightweight `Viewport Control` webpage capable of displaying status of the script as well as sending commands to `Start`, `Quit`, or `Restart`. 
+- API features a simple and lightweight `Viewport Control` webpage capable of displaying status of the script, the log file, sending commands to `Start`, `Quit`, or `Restart` the script, and update the script to the newest version. 
+
 
 ---
 
 ## Requirements
 
 ### Hardware
-- A **Dell Wyse Thin Client** or similar device.
-- Tested on:
+- A **Dell Wyse Thin Client**, **NUC**, **Raspberry Pi** or a similar small computer capable of running Linux.
+- Personally Tested on:
   - Dell Wyse 5070 with Linux Mint. 
-  - Dell Wyse Dx0Q with antiX Linux. (CPU Might be too weak for unifi.ui.com - Remains untested in local access)
+  - Dell Wyse Dx0Q with antiX Linux.
 
 ### Software
-- A lightweight Linux distribution of your choice (Preferably Debian based).
-- Firefox, Chrome, Chromium installed.
+- A lightweight Linux distribution of your choice (Must be Debian based).
+- Firefox, Chrome, or Chromium installed.
 - Python3
 - OPTIONAL but recommended: ssh installed and configured for remote monitoring.
 
@@ -74,7 +79,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 
 
 2. **Optional: Minimize the directory**
-   If you cloned the repository or got the `full` version of the zip file, you can save space and declutter the directory by running the `minimize.sh` script. It will remove all test and development files, `.md` files, and github specific files while leaving the script fully functional.
+   If you cloned the repository or got the `full` version of the zip file, you can save space and de-clutter the directory by running the `minimize.sh` script. It will remove all test and development files, `.md` files, and github specific files while leaving the script fully functional.
    ```bash
    ./minimize.sh
    ```
@@ -85,6 +90,10 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ```bash
    ./setup.sh
    ```
+
+   After running the setup script, you will be prompted to refresh your shell. Depending on if you're using bash or zsh, run:
+
+   `source ~/.bashrc` or `source ~/.zshrc` (The script will tell you which).
 
 4. **Configure the `.env` file**  
    The `setup.sh` script will rename the `.env.example` file to `.env`. 
@@ -98,10 +107,13 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    USERNAME=YourLocalUsername
    PASSWORD=YourLocalPassword
    URL=http://192.168.100.100/protect/dashboard/multiviewurl
+   # Optional keys
    FLASK_RUN_HOST=0.0.0.0
    FLASK_RUN_PORT=5000
    SECRET=jgrkJvmTmCrF9Utt2dGAOS158Nh-sBoB_OykkAcjsh0
    ```
+
+   The `FLASK_RUN_HOST`, `FLASK_RUN_PORT` and `SECRET` are optional. Feel free to delete them if you're not using the API.
 
 5. **Configure the `config.ini` file**
 
@@ -175,14 +187,10 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    source venv/bin/activate
    python3 viewport.py
    ```
-   Most convenient way is to use the alias. Run `./setup.sh` and then reload the shell:
-   ```bash
-   source ~/.bashrc
-   ```
-   or
-   ```bash
-   source ~/.zshrc
-   ```
+   Most convenient way is to use the alias. Run `./setup.sh` and then reload the shell by running:
+   
+   `source ~/.bashrc` or `source ~/.zshrc` (The script will tell you which).
+
 
 ### Stopping the Script
 If the script is running and you cannot use `CTRL+C` to stop it, you can call the script with the `-q` argument: 
@@ -194,17 +202,24 @@ or manually kill the process with pgrep:
 ps aux | grep viewport.py
 kill <pid>
 ```
+If you wish to pause the script's health checks in order to use the computer for something else, the page will display a banner prompting you to `Pause` or `Resume` the script. You may also call the script with the `-p` or `--pause` argument:
+```bash
+viewport -p
+```
+
 
 ---
 
 ## Update
-If you're running an older version of the script, the easiest way to update is by running `git pull` inside the `fakeViewport` directory. If you downloaded a release manually, you can grab the latest version and unzip it over your current setup.
+If you're running an older version of the script, the easiest way to update is through the Dashboard. An `Update` button will appear (see <a href="#API">API</a>), read the Changelog for any possible breaking changes, and click the Update button. 
+
+Note that updating through the Dashboard will also run the `minimize.sh` script and remove all the developmental/test files. 
+
+Updating manually takes opening a console, or using ssh to the machine and running `git pull` inside the `fakeViewport` directory. If you downloaded a release manually, you can grab the latest version and unzip it over your current directory.
 
 Any breaking changes will be clearly marked with a 💥 in the release notes and changelog, along with instructions on how to transition from the old version.
 
-If Ubiquiti changes their page layout and breaks the script, I'll usually just update `css_selectors.py`. A quick `git pull` will be enough to get that fix, even if you're using the `minimal` or `no-api` version.
-
-In the future, I might add an “Update” button to the dashboard itself (see [Issue #27](https://github.com/Samuel1698/fakeViewport/issues/27) for progress)
+---
 
 ---
 
@@ -226,9 +241,11 @@ Because this script executes in a child shell, it cannot reload the parent shell
 ---
 
 ## API
-The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, run `viewport -a` to toggle the API. You can access the script's status remotely (with appropriate network permissions) by navigating to the Thin Client's IP address in your browser. For example: `http://[machine's IP]:5000`
+The script includes an optional API for remote monitoring. It is disabled by default. Enable it in the `config.ini` file by setting `USE_API=True` under the `[API]` section. Once enabled, run `viewport -a` to toggle the API. You can access the script's status remotely (with appropriate network permissions) by navigating to the machine's IP address in your browser. eg: `http://[machine's IP]:5000`
 
-In v2.1.5 I've included a simple page to control the script from your local network. The purpose is saving the machine's IP address to your phone/computer while on the same network as the machine. You can change the port and the IP address of the Flask server in the `.env` file.
+The API features a Control Dashboard. 
+
+The purpose is saving the machine's IP address to your phone/computer while on the same network. You can change the port and the IP address of the Flask server in the `.env` file.
 
 If you wish to lock it behind a secure token/password, run this:
 ```python
@@ -237,37 +254,67 @@ import secrets
 print(secrets.token_urlsafe(32))
 EOF
 ```
-and paste it in your `.env` file with the name `SECRET=`. This will serve as your password for accessing the website.
+Paste the output in your `.env` file with the name `SECRET=`. This will serve as your password for accessing the website.
 
-Here's how the control page looks like:
+Here's how the Dashboard looks like:
 
-<img width="600" alt="Viewport Control Panel" src="https://github.com/user-attachments/assets/8caa3576-d761-46d3-9bf4-3eb30618fc03" />
+![Image](https://github.com/user-attachments/assets/f09defc5-ec47-41a0-8d97-ddd8c84df68f)
 
-Api Endpoints:
+<sup>Button will flash blue and yellow when there's an update available</sup>
+
+### <a name="endpoints"></a>Endpoints:
 
 These endpoints display raw data, meant to be integrated into a third party tool like HomeAssistant or Rainmeter. 
 ```
-/api
-   - Displays a list of all the urls
-/api/health_interval
-   - Number of seconds between each 'health' check. Corresponds to SLEEP_TIME in config.ini
-/api/log_entry
-   - Displays the last line logged into the log file
-/api/log_interval
-   - Number of minutes between each 'log' entry into log file. Corresponds to LOG_INTERVAL in config.ini
-/api/logs
-/api/logs?limit=
-   - Displays the last N logs in the logfile. Default 100
-/api/ram
-   - Ram Total/Used
-/api/script_uptime
-   - Timestamp of when the script started running
-/api/status
-   - Self-Reported status of the script's health
-/api/next_restart
-   - Datetime in which the script will restart itself
-/api/system_uptime
-   - Timestamp of when the system was turned on
+/api | Displays a list of all the urls
+/api/config | Displays all the values in your config file
+   - browser
+      - binary_path
+      - profile_path
+      - headless
+   - general
+      - health_interval_sec
+      - wait_time_sec
+      - max_retries
+      - next_restart
+      - restart_times
+         - 0
+         - 1
+         ...
+   - logging
+      - log_interval_min
+      - log_file_flag
+      - log_console_flag
+      - log_days
+      - debug_logging
+      - error_logging
+      - ERROR_PRTSCR
+/api/logs 
+/api/logs?limit= | Displays the last N logs in the logfile. Default 100
+/api/status | Self-Reported status of the script's health
+/api/system_info
+   - disk space available
+   - hardware model
+   - Operating System
+   - System Uptime
+   - CPU
+      - cores
+      - percent used
+      - threads
+   - RAM
+      - used
+      - total
+      - percent used
+   - network
+      - interfaces
+         - download
+         - upload
+         - total download
+         - total upload
+/api/update | Displays version numbers
+   - current
+   - latest
+/api/update/changelog | Grabs the changelog from the latest release
 ```
 
 ---
@@ -276,20 +323,21 @@ These endpoints display raw data, meant to be integrated into a third party tool
 
 Because this script simply displays the live view on a webpage, it has several advantages to running it over a TV App or even a real Viewport. Below is a comparison of it's advantages and disadvantages:
 
-### ✔ Advantages:
+### Advantages:
   - **Vintage Point Support** - Display several consoles' cameras in a single view.
-  - **Fully Customizable** - Adjust layout, use Enhanced Encoding.
+  - **Enhanced Encoding** - Native TV Apps are slow to adapt enhanced encoding, but firefox supports it on Linux.
   - **Cost Effective** - Less than $50 **total** as opposed to $100-$200+
   - **4K Streaming** - Some native TV Apps cannot display 4K cameras.
   - **WiFi Compatible** - Viewport requires wired connection.
-  - **No Vendor Lock-in** - AppleTV requiers an AppleID to use.
+  - **No Vendor Lock-in** - AppleTV requires an AppleID to use.
   - **Local & Private** - No cloud dependency; runs entirely on your local network.
-  - **360 Camera Support** - Protect Viewport does not support dewarping 360 camera feeds into separate views.
+  - **360 Camera Support** - Protect Viewport does not support de-warping 360 camera feeds into separate views.
 
-### ⚠ Limitations:
+### Limitations:
   - **Initial Setup Required** – More configuration than plug-and-play alternatives
-  - **Limited Camera Controls** – No native PTZ/zoom controls (unless using a wireless mouse)
   - **Larger Footprint** – Slightly bulkier than some devices (but easily hidden behind a TV/monitor)
+  - **Requires internet access at least once** - If you want to run it locally you must have internet access once when running the script to download the drivers to control the browser.
+
 
 ---
 
@@ -298,7 +346,7 @@ Because this script simply displays the live view on a webpage, it has several a
 
 <sup>`viewport -s` output</sup>
 
-<img width="623" alt="thinclient" src="https://github.com/user-attachments/assets/cc81774c-303d-4501-991b-0365496e66b8" />
+<img width="623" alt="thin client" src="https://github.com/user-attachments/assets/cc81774c-303d-4501-991b-0365496e66b8" />
 
 <sup>Initial install behind TV</sup>
 
@@ -306,13 +354,21 @@ Because this script simply displays the live view on a webpage, it has several a
 
 <sup>Setup at my parent's house—blurred for privacy</sup>
 
-<img width="600" alt="Viewport Control Panel" src="https://github.com/user-attachments/assets/8caa3576-d761-46d3-9bf4-3eb30618fc03" />
+![Image](https://github.com/user-attachments/assets/9cdfe8f5-a62b-4d20-ab10-08452e6f2602)
 
-<sup>Control Panel</sup>
+<sup>Control Panel | Status Tab</sup>
 
-<img width="508" alt="Logfile" src="https://github.com/user-attachments/assets/bd82741b-f278-4219-a376-03ac1fe0dc86" />
+![Image](https://github.com/user-attachments/assets/7bdb2cd4-40a0-4da0-b86e-1c59491ea506)
 
-<sup>Logfile output from the Control Dashboard</sup>
+<sup>Control Panel | Device Tab</sup>
+
+![Image](https://github.com/user-attachments/assets/1f1167c4-5682-471e-b65b-678eaba77ad9)
+
+<sup>Control Panel | Config Tab</sup>
+
+![Image](https://github.com/user-attachments/assets/cde75dd5-0428-4e25-b907-47f28a5ad771)
+
+<sup>Control Panel | Logs Tab</sup>
 
 ---
 
@@ -320,5 +376,7 @@ Because this script simply displays the live view on a webpage, it has several a
 
 - The thin clients used in this setup only have DisplayPort outputs. Ensure your monitor or TV supports DisplayPort, or use a compatible adapter.
 - The tested Thin Clients do not include built-in WiFi antennas. However, you can use a USB WiFi adapter to connect wirelessly. Some thin clients do include wifi.
+- If you use the machine for things other than just a viewport display, make sure you do your other internet browsing in a different browser than the script uses. The browser window it launches is very limited and stripped of functionality (for better resource management), and the script will kill all other instances of the same browser when resurrecting itself. 
+
 
 ---

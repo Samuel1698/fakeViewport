@@ -45,6 +45,7 @@ class AppConfig:
     sst_file: Path
     status_file: Path
     restart_file: Path
+    pause_file: Path
 
 def check_files(config_file: Path, env_file: Path, errors: list[str]):
     if not config_file.exists():
@@ -75,10 +76,10 @@ def safe_get(config, section: str, key: str, fallback, parse_fn, type_name: str,
 def safe_getint(config, section: str, key: str, fallback: int, errors: list[str]) -> int:
     return safe_get(config, section, key, fallback, int, "integer", errors)
 
-def safe_getbool(config, section: str, key: str, fallback: bool, errors: list[str]) -> bool:
+def safe_bool(config, section: str, key: str, fallback: bool, errors: list[str]) -> bool:
     return safe_get(config, section, key, fallback, config._convert_to_boolean, "boolean (true/false)", errors)
 
-def safe_getstr(
+def safe_str(
     config, section: str, key: str, fallback: str, errors: list[str], forbidden: list[str] | None = None
 ) -> str:
     value = config.get(section, key, fallback=fallback).strip()
@@ -108,7 +109,7 @@ def validate_env(env_file: Path, api: bool, errors: list[str]) -> tuple[str, str
         allowed = {
             "USERNAME", "PASSWORD", "URL",
             "FLASK_RUN_HOST", "FLASK_RUN_PORT",
-            "SECRET",
+            "SECRET", "GITHUB_TOKEN"
         }
 
         # Unexpected keys
@@ -174,7 +175,7 @@ def validate_env(env_file: Path, api: bool, errors: list[str]) -> tuple[str, str
                         port = ival
                     else:
                         errors.append(
-                            f"FLASK_RUN_PORT must be 1–65535, got: {ival}"
+                            f"FLASK_RUN_PORT must be 1-65535, got: {ival}"
                         )
                         errors.append("Falling back to 5000")
 
@@ -184,13 +185,12 @@ def validate_env(env_file: Path, api: bool, errors: list[str]) -> tuple[str, str
             os.getenv("URL", "").strip(),
             host,
             port,
-            os.getenv("SECRET", "").strip(),
-            values,
+            os.getenv("SECRET", "").strip()
         )
     except Exception as e:
         errors.append(f"Failed to validate .env file: {e}")
         errors.append("Format should be KEY=value.")
-        return ("", "", "", "", 0, "", {})
+        return ("", "", "", "", 0, "")
     
 def validate_url(url_val: str, errors: list[str]):
     parsed = urlparse(url_val)
@@ -223,6 +223,7 @@ def validate_config(
     sst_file = api_dir / 'sst.txt'
     status_file = api_dir / 'status.txt'
     restart_file = api_dir / '.restart'
+    pause_file  = api_dir / '.pause'
     
     # Parse INI
     config = load_ini(config_file)
@@ -233,13 +234,13 @@ def validate_config(
     max_retries = safe_getint(config, 'General', 'MAX_RETRIES', 5, errors)
     raw_times = config.get('General', 'RESTART_TIMES', fallback='')
     restart_times = parse_restart_times(raw_times, errors)
-
+    hide_cursor = safe_bool(config, 'General', 'HIDE_CURSOR', True, errors)
     # Browser section
     user = getpass.getuser()
     default_profile = f"/home/{user}/.config/google-chrome/"
-    profile_path = safe_getstr(config, 'Browser', 'BROWSER_PROFILE_PATH', default_profile, errors, ['your-user'])
-    binary = safe_getstr(config, 'Browser', 'BROWSER_BINARY', '/usr/bin/google-chrome', errors)
-    headless = safe_getbool(config, 'Browser', 'HEADLESS', False, errors)
+    profile_path = safe_str(config, 'Browser', 'BROWSER_PROFILE_PATH', default_profile, errors, ['your-user'])
+    binary = safe_str(config, 'Browser', 'BROWSER_BINARY', '/usr/bin/google-chrome', errors)
+    headless = safe_bool(config, 'Browser', 'HEADLESS', False, errors)
     browser = (
         'firefox' if 'firefox' in binary.lower() else
         'chromium' if 'chromium' in binary.lower() else
@@ -249,19 +250,19 @@ def validate_config(
         errors.append(f"Browser mismatch: binary uses '{browser}', but profile path does not.")
 
     # Logging section
-    log_file_flag = safe_getbool(config, 'Logging', 'LOG_FILE_FLAG', True, errors)
-    log_console = safe_getbool(config, 'Logging', 'LOG_CONSOLE', True, errors)
-    debug_logging = safe_getbool(config, 'Logging', 'DEBUG_LOGGING', False, errors)
-    error_logging = safe_getbool(config, 'Logging', 'ERROR_LOGGING', False, errors)
-    error_prtscr = safe_getbool(config, 'Logging', 'ERROR_PRTSCR', False, errors)
+    log_file_flag = safe_bool(config, 'Logging', 'LOG_FILE_FLAG', True, errors)
+    log_console = safe_bool(config, 'Logging', 'LOG_CONSOLE', True, errors)
+    debug_logging = safe_bool(config, 'Logging', 'DEBUG_LOGGING', False, errors)
+    error_logging = safe_bool(config, 'Logging', 'ERROR_LOGGING', False, errors)
+    error_prtscr = safe_bool(config, 'Logging', 'ERROR_PRTSCR', False, errors)
     log_days = safe_getint(config, 'Logging', 'LOG_DAYS', 7, errors)
     log_interval = safe_getint(config, 'Logging', 'LOG_INTERVAL', 60, errors)
 
     # API section
-    api_flag = safe_getbool(config, 'API', 'USE_API', False, errors)
+    api_flag = safe_bool(config, 'API', 'USE_API', False, errors)
 
     # Validate .env
-    username, password, url_val, host, port, secret, env_values = validate_env(env_file, api_flag, errors)
+    username, password, url_val, host, port, secret = validate_env(env_file, api_flag, errors)
     
     control_token = secret.strip()
 
@@ -312,5 +313,6 @@ def validate_config(
         log_file=log_file,
         sst_file=sst_file,
         status_file=status_file,
-        restart_file=restart_file
+        restart_file=restart_file,
+        pause_file=pause_file
     )

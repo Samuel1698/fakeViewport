@@ -7,8 +7,13 @@ NC='\e[0m'
 
 echo -e "${YELLOW}===== FakeViewport Minimize =====${NC}"
 
-echo -ne "\n${YELLOW}This will delete all development files and tests. Continue? (y/n):${NC} "
-read -r confirm
+if [[ "$1" =~ ^(-f|--force)$ ]]; then
+    confirm="y"
+else
+    echo -ne "\n${YELLOW}This will delete all development files and tests. Continue? (y/n):${NC} "
+    read -r confirm
+fi
+
 if [[ ! "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then
     echo -e "${GREEN}Aborted.${NC}"
     exit 0
@@ -46,7 +51,7 @@ find . -type f \( -name "*.coveragerc" -o -name "release.sh" \) -not -path "./ve
 done
 
 # Delete static/*.scss and static/main.js
-find ./static -type f \( -name "*.scss" -o -name "main.js" \) -print0 | while IFS= read -r -d '' file; do
+find ./static -type f \( -name "*.scss" -o -name "main.js" -o -name "_*.js" \) -print0 | while IFS= read -r -d '' file; do
     rm -f "$file" && echo -ne "${GREEN}.${NC}"
 done
 

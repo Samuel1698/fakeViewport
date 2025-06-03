@@ -109,23 +109,23 @@ def test_handle_loading_issue_refresh_then_handle_page_fails(
 
     patcher.stop()
 
-    # 1) First log_error for 15s persistence
+    # First log_error for 15s persistence
     first = mock_log_error.call_args_list[0][0][0]
     assert first == "Video feed trouble persisting for 15 seconds, refreshing the page."
 
-    # 2) api_status for detection
+    # api_status for detection
     mock_api_status.assert_any_call("Loading Issue Detected")
 
-    # 3) driver.refresh and initial sleep(5)
+    # driver.refresh and initial sleep(5)
     driver.refresh.assert_called_once()
     mock_sleep.assert_any_call(5)
 
-    # 4) Because handle_page returned False, we hit the reload-error branch:
+    # Because handle_page returned False, we hit the reload-error branch:
     second = mock_log_error.call_args_list[1][0][0]
     assert second == "Unexpected page loaded after refresh. Waiting before retrying..."
     mock_api_status.assert_any_call("Error Reloading")
 
-    # 5) And we waited SLEEP_TIME afterward
+    # And we waited SLEEP_TIME afterward
     mock_sleep.assert_any_call(viewport.SLEEP_TIME)
 
 # Case: loading appears then clears immediately → reset timer branch
