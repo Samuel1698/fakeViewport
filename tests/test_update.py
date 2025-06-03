@@ -1,7 +1,7 @@
 import io, importlib, types, base64, subprocess, json, tarfile, warnings, logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 from urllib.error import HTTPError
 
 import pytest
@@ -137,6 +137,7 @@ def test__get_release_data_cache_expired(monkeypatch):
     assert new_data["tag_name"] == "v9.9.9"
     assert uu.cached_release_data["tag_name"] == "v9.9.9"
     assert uu.last_release_fetched is not None
+
 def test__get_release_data_rate_limit_branch(monkeypatch, caplog):
     # Ensure no fresh cache
     uu.cached_release_data = None
@@ -352,71 +353,173 @@ def test_update_via_git_no_token(monkeypatch):
 # ---------------------------------------------------------------------------
 # update_via_tar
 # ---------------------------------------------------------------------------
-class _TarDummy:
-    def __init__(self): self.extracted = False
-    def __enter__(self): return self
-    def __exit__(self, *e): pass
-    def getmembers(self):
-        m = types.SimpleNamespace(name="dir/file.txt")
-        return [m]
-    def extractall(self, root, members):
-        self.extracted = True
-        self.root = root
-
-@pytest.mark.parametrize("asset_ok,tar_ok,expected", [
-    (False, True,  False),   # no asset found
-    (True,  False, False),   # tarfile.open blows
-    (True,  True,  True),    # everything fine
+@pytest.mark.parametrize("asset_ok,tar_ok,expected,has_dirs", [
+    (False, True,  False, False),   # no asset found
+    (True,  False, False, False),   # tarfile.open blows
+    (True,  True,  True,  False),   # everything fine (no dirs)
+    (True,  True,  True,  True),    # everything fine (with dirs)
 ])
-def test_update_via_tar(monkeypatch, asset_ok, tar_ok, expected, tmp_path):
+def test_update_via_tar(monkeypatch, asset_ok, tar_ok, expected, has_dirs, tmp_path):
     monkeypatch.setattr(uu, "ROOT", tmp_path)
-
-    # _download_asset path
+    # _download_asset patch
     monkeypatch.setattr(
         uu, "_download_asset",
         lambda tag, kw="": b"blob" if asset_ok else None
     )
-
     if tar_ok:
-        monkeypatch.setattr(uu.tarfile, "open", lambda *a, **k: _TarDummy())
+        class TarInfoMock:
+            def __init__(self, name, isdir=False):
+                self.name = name
+                self._isdir = isdir
+                self.size = 0
+                self.mode = 0o755
+            
+            def isdir(self):
+                return self._isdir
+        class TarDummy:
+            def __init__(self):
+                self.members = []
+                if has_dirs:
+                    # Create mock TarInfo objects with top-level directory
+                    self.members.append(TarInfoMock("viewport-0.2.0/", isdir=True))
+                    self.members.append(TarInfoMock("viewport-0.2.0/static/", isdir=True))
+                    self.members.append(TarInfoMock("viewport-0.2.0/static/file.js"))
+                    self.members.append(TarInfoMock("viewport-0.2.0/templates/file.html"))
+                else:
+                    self.members.append(TarInfoMock("viewport-0.2.0/file.txt"))
+                
+                self.extracted_members = None
+            def getmembers(self):
+                return self.members
+            def extractall(self, path, members=None):
+                self.extracted_members = members
+                # Actually create the files in the temp directory
+                for member in members:
+                    dest = path / member.name
+                    if member.isdir():
+                        dest.mkdir(parents=True, exist_ok=True)
+                    else:
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        dest.touch()
+            # Context manager support
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                pass
+        dummy = TarDummy()
+        monkeypatch.setattr(uu.tarfile, "open", lambda *a, **k: dummy)
     else:
         monkeypatch.setattr(uu.tarfile, "open",
-                            lambda *a, **k: (_ for _ in ()).throw(RuntimeError))
+                          lambda *a, **k: (_ for _ in ()).throw(RuntimeError))
+    result = uu.update_via_tar("0.2.0")
+    assert result is expected
+    # Verify the actual file structure when successful
+    if expected and tar_ok and asset_ok:
+        if has_dirs:
+            # Verify files were extracted to correct locations
+            assert (tmp_path / "static/file.js").exists()
+            assert (tmp_path / "templates/file.html").exists()
+            # Verify top-level directory was NOT created
+            assert not (tmp_path / "viewport-0.2.0").exists()
+        else:
+            # Verify single file was extracted correctly
+            assert (tmp_path / "file.txt").exists()
+            assert not (tmp_path / "viewport-0.2.0").exists()
 
-    assert uu.update_via_tar("0.2.0") is expected
-      
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_update_via_tar_real_extraction(dummy_repo, monkeypatch):
-    import update as uu
-
-    # in-memory tar builder
+    # Test actual tar extraction with real filesystem operations
     def make_version_tar_bytes(tag: str) -> bytes:
         import io, tarfile
-        topdir = f"v{tag}"
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w:gz") as tf:
-            data = f"{tag}\n".encode()
-            info = tarfile.TarInfo(name=f"{topdir}/api/VERSION")
-            info.size = len(data)
-            tf.addfile(info, io.BytesIO(data))
+            # Add multiple files to test directory handling
+            topdir = f"viewport-{tag}"
+            # Add VERSION file
+            version_data = f"{tag}\n".encode()
+            version_info = tarfile.TarInfo(name=f"{topdir}/api/VERSION")
+            version_info.size = len(version_data)
+            tf.addfile(version_info, io.BytesIO(version_data))
+            # Add a sample file in static directory
+            static_info = tarfile.TarInfo(name=f"{topdir}/static/sample.js")
+            static_info.size = 10
+            tf.addfile(static_info, io.BytesIO(b"console.log()"))
+            # Add empty directory
+            dir_info = tarfile.TarInfo(name=f"{topdir}/empty_dir/")
+            dir_info.type = tarfile.DIRTYPE
+            tf.addfile(dir_info)
         return buf.getvalue()
-
-    # point ROOT at our dummy repo
+    # Setup
     monkeypatch.setattr(uu, "ROOT", dummy_repo)
-    # seed old version
     api_dir = dummy_repo / "api"
+    api_dir.mkdir(exist_ok=True)
     (api_dir / "VERSION").write_text("3.0.0\n")
-
-    # stub only download; let real update_via_tar run
+    # Create static dir with existing file
+    static_dir = dummy_repo / "static"
+    static_dir.mkdir(exist_ok=True)
+    (static_dir / "old.js").write_text("old")
+    # Run update
     new_tag = "3.1.0"
-    tar_bytes = make_version_tar_bytes(new_tag)
-    monkeypatch.setattr(uu, "_download_asset", lambda tag, kw="": tar_bytes)
+    monkeypatch.setattr(uu, "_download_asset", lambda tag, kw="": make_version_tar_bytes(new_tag))
+    assert uu.update_via_tar(new_tag) is True
+    # Verify results
+    assert (api_dir / "VERSION").read_text().strip() == new_tag  # Version updated
+    assert (static_dir / "sample.js").exists()  # New file added
+    assert (static_dir / "old.js").exists()  # Old file remains
+    assert not (dummy_repo / f"viewport-{new_tag}").exists()  # No top-level dir
+    assert (dummy_repo / "empty_dir").exists()  # Empty dir created
 
-    ok = uu.update_via_tar(new_tag)
-    assert ok is True
-    # now verify the on-disk VERSION file was actually overwritten
-    assert (api_dir / "VERSION").read_text().strip() == new_tag
+def test_update_via_tar_directory_filtering(monkeypatch, tmp_path):
+    monkeypatch.setattr(uu, "ROOT", tmp_path)
+    
+    # Create a tar with:
+    # 1. A top-level directory (should be skipped)
+    # 2. A nested directory (should be kept)
+    # 3. A file in root (should be kept)
+    # 4. A file in nested dir (should be kept)
+    class TarInfoMock:
+        def __init__(self, name, isdir=False):
+            self.name = name
+            self._isdir = isdir
+            self.size = 0
+            self.mode = 0o755
+    class TarDummy:
+        def __init__(self):
+            self.members = [
+                TarInfoMock("top_dir/", isdir=True),               # Should be skipped
+                TarInfoMock("top_dir/nested/", isdir=True),        # Should be kept
+                TarInfoMock("top_dir/file.txt", isdir=False),      # Should be kept
+                TarInfoMock("top_dir/nested/file.js", isdir=False) # Should be kept
+            ]
+            self.extracted_members = None
 
+        def getmembers(self):
+            return self.members
+
+        def extractall(self, path, members=None):
+            self.extracted_members = members
+            return None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    # Setup mocks
+    monkeypatch.setattr(uu, "_download_asset", lambda tag, kw="": b"blob")
+    dummy = TarDummy()
+    monkeypatch.setattr(uu.tarfile, "open", lambda *a, **k: dummy)
+
+    # Run the function
+    assert uu.update_via_tar("0.2.0") is True
+
+    # Verify filtering worked
+    extracted_names = [m.name for m in dummy.extracted_members]
+    assert "top_dir/" not in extracted_names  # Top-level dir was skipped
+    assert "nested/" in extracted_names       # Nested dir was kept
+    assert "file.txt" in extracted_names      # Root file was kept
+    assert "nested/file.js" in extracted_names  # Nested file was kept
 # ---------------------------------------------------------------------------
 # perform_update – all branches
 # ---------------------------------------------------------------------------
