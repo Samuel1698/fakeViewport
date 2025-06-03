@@ -218,7 +218,7 @@ def test_api_restart_fails_when_popen_raises(monkeypatch, client):
 
     payload = resp.get_json()
     assert payload["status"] == "error"
-    assert "pop failed" in payload["message"]
+    assert "An internal error has occurred." in payload["message"]
 # ----------------------------------------------------------------------------- 
 # CORS headers & Read API File
 # ----------------------------------------------------------------------------- 

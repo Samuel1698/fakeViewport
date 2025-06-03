@@ -434,7 +434,7 @@ def test_api_system_info_first_call_no_last_net_io(client, monkeypatch):
     assert data["network"]["primary_interface"] is None
 def test_api_system_info_error(client, monkeypatch):
     # Force an exception during system info collection by making os-release
-    # unreadable. Should return 500 with "System info error: ..."
+    # unreadable. Should return 500
     def mock_open(*args, **kwargs):
         # Force open() to raise when reading /etc/os-release
         if args[0] == '/etc/os-release': raise IOError("forced file read error")
@@ -445,7 +445,7 @@ def test_api_system_info_error(client, monkeypatch):
     assert resp.status_code == 500
     payload = resp.get_json()
     assert payload["status"] == "error"
-    assert "System info error: forced file read error" in payload["message"]
+    assert "An internal error occurred while fetching system information." in payload["message"]
 # ----------------------------------------------------------------------------- 
 # /api/logs?limit
 # ----------------------------------------------------------------------------- 
@@ -613,7 +613,7 @@ def test_api_config_with_restart(client, monkeypatch):
     
 def test_api_config_compute_error(client, monkeypatch):
     # Force an exception during the "compute restart_times / next_restart" block
-    # by having datetime.now() raise. Expect a 500 response with "Config error: ..."
+    # by having datetime.now() raise. Expect a 500 response
     class ErrorDateTime:
         # Setup error-raising datetime
         @classmethod
@@ -635,4 +635,4 @@ def test_api_config_compute_error(client, monkeypatch):
     assert resp.status_code == 500
     payload = resp.get_json()
     assert payload["status"] == "error"
-    assert "Config error: forced failure" in payload["message"]
+    assert "An internal error has occurred while processing the configuration." in payload["message"]

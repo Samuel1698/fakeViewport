@@ -166,7 +166,7 @@ def create_app():
             })
         except Exception as e:
             app.logger.exception("version check failed")
-            return jsonify(status="error", message=str(e)), 500
+            return jsonify(status="error", message="An internal error has occurred."), 500
     @app.route("/api/update/changelog")
     def api_update_changelog():
         # Fetch and return the latest release changelog (up to the '---' delimiter),
@@ -184,7 +184,7 @@ def create_app():
             )
         except Exception as e:
             app.logger.exception("changelog fetch failed")
-            return jsonify(status="error", message=str(e)), 500
+            return jsonify(status="error", message="An internal error has occurred."), 500
     @app.route("/api/update/apply", methods=["POST"])
     @login_required
     def api_update_apply():
@@ -212,7 +212,7 @@ def create_app():
                         message=f"API restart initiated"), 202
         except Exception as e:
             app.logger.exception("Failed to restart API")
-            return jsonify(status="error", message=str(e)), 500
+            return jsonify(status="error", message="An internal error has occurred."), 500
     # ----------------------------------------------------------------------------- 
     @app.route("/api")
     @app.route("/api/")
@@ -290,12 +290,10 @@ def create_app():
             for interface, stats in current_net_io.items():
                 if any(unwanted in interface for unwanted in unwanted_interfaces): 
                     continue
-
                 if last_net_io:
                     # Calculate bytes/second
                     recv_rate = (stats.bytes_recv - last_net_io[interface].bytes_recv) / time_elapsed
                     sent_rate = (stats.bytes_sent - last_net_io[interface].bytes_sent) / time_elapsed
-
                     network_stats[interface] = {
                         'interface': interface,
                         'upload': sent_rate,
@@ -330,9 +328,10 @@ def create_app():
                 }
             )
         except Exception as e:
+            app.logger.exception("An error occurred while fetching system information")
             return jsonify(
                 status="error",
-                message=f"System info error: {str(e)}"
+                message="An internal error occurred while fetching system information."
             ), 500
     @app.route("/api/log")
     @app.route("/api/logs")
@@ -407,9 +406,10 @@ def create_app():
                     },
                 })
         except Exception as e:
+            logging.error("An error occurred while processing the configuration.", exc_info=True)
             return jsonify(
                 status="error",
-                message=f"Config error: {str(e)}"
+                message="An internal error has occurred while processing the configuration."
             ), 500
             
     return app

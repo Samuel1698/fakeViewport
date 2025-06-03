@@ -565,7 +565,7 @@ def test_update_info_endpoint_error(app_client, monkeypatch, caplog):
     caplog.set_level("ERROR")
     resp = app_client.get("/api/update")
     assert resp.status_code == 500
-    assert "net down" in resp.get_json()["message"]
+    assert "An internal error has occurred." in resp.get_json()["message"]
     assert "version check failed" in caplog.text
 
 def test_update_apply_endpoint(app_client, monkeypatch):
@@ -603,7 +603,7 @@ def test_update_changelog_endpoint_error(app_client, monkeypatch, caplog):
 
     data = response.get_json()
     assert data["status"] == "error"
-    assert "fetch failed" in data["message"]
+    assert "An internal error has occurred." in data["message"]
     # The log should contain the "changelog fetch failed" message
     assert "changelog fetch failed" in caplog.text
 
