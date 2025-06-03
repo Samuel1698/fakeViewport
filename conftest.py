@@ -78,7 +78,7 @@ def provide_dummy_config(monkeypatch, tmp_path):
     )
     # Save the real config browser since it changes based on other variables
     real_browser = viewport.BROWSER
-     # stub out viewport
+    # stub out viewport
     monkeypatch.setattr(viewport, "validate_config", lambda *args, **kwargs: cfg)
     monkeypatch.setattr(viewport, "cfg", cfg)
     for k, v in vars(cfg).items():

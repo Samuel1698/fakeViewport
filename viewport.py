@@ -1406,7 +1406,7 @@ def handle_view(driver, url):
                 no_devices = driver.execute_script("""
                     return Array.from(document.querySelectorAll('span')).find(el => 
                         el.innerHTML.includes('Get started') || el.innerHTML.includes('Adopt Devices')
-                    );                                
+                    );
                 """)
                 if offline_status:
                     logging.warning("Detected offline status: Console or Protect Offline.")

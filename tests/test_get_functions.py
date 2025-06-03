@@ -37,7 +37,6 @@ def mock_common(mocker):
         "logging": mocker.patch("viewport.logging"),
     }
     return patches
-  
 # ----------------------------------------------------------------------------- 
 # Tests for get_cpu_color and get_mem_color
 # ----------------------------------------------------------------------------- 
@@ -99,7 +98,6 @@ def test_get_next_restart_tomorrow():
     now = datetime(2025, 5, 10, 16, 0)  # After all times
     expected = datetime(2025, 5, 11, 3, 0)
     assert viewport.get_next_restart(now) == expected
-   
 # ----------------------------------------------------------------------------- 
 # Test: get_next_interval
 # ----------------------------------------------------------------------------- 
