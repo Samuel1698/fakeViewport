@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, os, time, configparser, psutil, subprocess, logging  
+import sys, os, time, configparser, psutil, subprocess, logging, socket
 from functools import wraps
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -20,8 +20,9 @@ from viewport import process_handler
 _mon = sys.modules[__name__]
 dotenv_file = find_dotenv()
 load_dotenv(dotenv_file, override=True)
+unwanted = None
 last_net_io = None
-last_check_time = time.time()  
+last_check_time = time.time()
 script_dir = Path(__file__).resolve().parent
 _base = Path(__file__).parent
 config_file = _base / 'config.ini'
@@ -238,7 +239,7 @@ def create_app():
             return jsonify(status="error", message="Malformed SST timestamp"), 400
     @app.route("/api/system_info")
     def api_system_info():
-        global last_net_io, last_check_time
+        global last_net_io, last_check_time, unwanted
         try:
             # Get OS info
             with open('/etc/os-release', 'r') as f:
@@ -248,17 +249,26 @@ def create_app():
                 for line in os_release.split('\n') 
                 if line.startswith('PRETTY_NAME=')
             )
-            # Get hardware model (works for Raspberry Pi and many x86 systems)
             hardware_model = "Unknown"
+            # Try Raspberry Pi
             try:
-                # Try Raspberry Pi first
                 with open('/proc/device-tree/model', 'r') as f:
                     hardware_model = f.read().strip('\x00')
-                if not hardware_model:  # Fallback to x86 systems
-                    with open('/sys/class/dmi/id/product_name', 'r') as f:
+            except (FileNotFoundError, PermissionError):
+                pass  # Not a Pi or no permission
+            # Fallback to x86 DMI
+            if hardware_model == "Unknown":
+                try:
+                    with open('/sys/devices/virtual/dmi/id/product_name', 'r') as f:
                         hardware_model = f.read().strip()
-            except:
-                pass  # Keep "Unknown" if both methods fail
+                except (FileNotFoundError, PermissionError):
+                    pass  # Not available or no permission
+            # Final fallback to hostname
+            if hardware_model == "Unknown":
+                try:
+                    hardware_model = socket.gethostname()
+                except:
+                    hardware_model = "Unknown (Fallback Failed)"
             # Get available disk space (root partition)
             disk_info = subprocess.check_output(
                 ['df', '-h', '--output=avail', '/']
@@ -274,17 +284,22 @@ def create_app():
             current_time = time.time()
             time_elapsed = current_time - last_check_time
             
+            # Filter out virtual/unwanted interfaces
+            unwanted_interfaces = ['lo', 'docker', 'veth', 'br-', 'virbr', 'tun', 'IO']
             network_stats = {}
             for interface, stats in current_net_io.items():
+                if any(unwanted in interface for unwanted in unwanted_interfaces): 
+                    continue
+
                 if last_net_io:
                     # Calculate bytes/second
                     recv_rate = (stats.bytes_recv - last_net_io[interface].bytes_recv) / time_elapsed
                     sent_rate = (stats.bytes_sent - last_net_io[interface].bytes_sent) / time_elapsed
-                    
+
                     network_stats[interface] = {
                         'interface': interface,
-                        'upload': sent_rate,  # bytes per second
-                        'download': recv_rate,  # bytes per second
+                        'upload': sent_rate,
+                        'download': recv_rate,
                         'total_upload': stats.bytes_sent,
                         'total_download': stats.bytes_recv
                     }

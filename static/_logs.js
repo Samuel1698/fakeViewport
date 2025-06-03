@@ -56,6 +56,7 @@ export async function fetchAndDisplayLogs(limit) {
         lowerLogText.includes("crashed") ||
         lowerLogText.includes("retrying") ||
         lowerLogText.includes("checking") ||
+        lowerLogText.includes("log-in") ||
         lowerLogText.includes("starting")
       ) {
         logEntry.classList.remove("Green");
@@ -63,6 +64,7 @@ export async function fetchAndDisplayLogs(limit) {
       } if (
         lowerLogText.includes("=====") ||
         lowerLogText.includes("driver") ||
+        lowerLogText.includes("deleted") ||
         lowerLogText.includes("get ")
       ) {
         logEntry.classList.remove("Green", "Blue");

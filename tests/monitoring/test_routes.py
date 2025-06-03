@@ -225,95 +225,146 @@ def test_api_system_info_ok(client, monkeypatch):
     assert data["network"]["interfaces"]["eth0"]["download"] == pytest.approx(1000.0)
     assert data["network"]["interfaces"]["eth0"]["total_upload"] == 1000
     assert data["network"]["interfaces"]["eth0"]["total_download"] == 2000
-def test_api_system_info_fallback_hardware_model(client, monkeypatch):
-    # Mock network stats
+@pytest.mark.parametrize(
+    "fake_open, mock_gethostname, last_check, now, expected_model",
+    [
+        # /etc/os-release → OK
+        # /proc/device-tree/model → FileNotFoundError
+        # /sys/.../product_name → PermissionError
+        # → fallback to hostname → "test-computer"
+        (
+            lambda path, mode='r', *args, **kwargs: (
+                io.StringIO('PRETTY_NAME="TestOS"\n')
+                if path == "/etc/os-release"
+                else (_ for _ in ()).throw(FileNotFoundError())
+                if path == "/proc/device-tree/model"
+                else (_ for _ in ()).throw(PermissionError())
+                if path == "/sys/devices/virtual/dmi/id/product_name"
+                else (_ for _ in ()).throw(FileNotFoundError())
+            ),
+            lambda: "test-computer",
+            149,
+            150,
+            "test-computer",
+        ),
+        # /etc/os-release → OK
+        # everything else → FileNotFoundError
+        # mock_gethostname raises Exception → final fallback → "Unknown (Fallback Failed)"
+        (
+            lambda path, mode='r', *args, **kwargs: (
+                io.StringIO('PRETTY_NAME="TestOS"\n')
+                if path == "/etc/os-release"
+                else (_ for _ in ()).throw(FileNotFoundError())
+            ),
+            lambda: (_ for _ in ()).throw(Exception("Hostname failed")),
+            259,
+            260,
+            "Unknown (Fallback Failed)",
+        ),
+        # /etc/os-release → OK
+        # /proc/device-tree/model → FileNotFoundError
+        # /sys/.../product_name → returns "DMI_TEST_MODEL"
+        # → hardware_model = "DMI_TEST_MODEL"
+        (
+            lambda path, mode='r', *args, **kwargs: (
+                io.StringIO('PRETTY_NAME="TestOS"\n')
+                if path == "/etc/os-release"
+                else (_ for _ in ()).throw(FileNotFoundError())
+                if path == "/proc/device-tree/model"
+                else io.StringIO("DMI_TEST_MODEL")
+                if path == "/sys/devices/virtual/dmi/id/product_name"
+                else (_ for _ in ()).throw(FileNotFoundError())
+            ),
+            lambda: "unused-hostname",
+            149,
+            150,
+            "DMI_TEST_MODEL",
+        ),
+        # /etc/os-release → OK
+        # everything else → FileNotFoundError
+        # mock_gethostname returns "fallback-host"
+        # → hardware_model = "fallback-host"
+        (
+            lambda path, mode='r', *args, **kwargs: (
+                io.StringIO('PRETTY_NAME="TestOS"\n')
+                if path == "/etc/os-release"
+                else (_ for _ in ()).throw(FileNotFoundError())
+            ),
+            lambda: "fallback-host",
+            149,
+            150,
+            "fallback-host",
+        ),
+    ],
+)
+def test_api_system_info_hardware_model_variants(
+    client, monkeypatch,
+    fake_open, mock_gethostname, last_check, now, expected_model
+):
+    # Stub out “last_net_io” and “last_check_time” so the network‐rate portion runs
     class DummyNetIO:
         bytes_sent = 1000
         bytes_recv = 2000
-        
+
     def mock_net_io_counters(pernic, nowrap):
         return {'eth0': DummyNetIO()}
-    
+
     monkeypatch.setattr(monitoring, 'last_net_io', {'eth0': DummyNetIO()})
-    monkeypatch.setattr(monitoring, 'last_check_time', 149)
+    monkeypatch.setattr(monitoring, 'last_check_time', last_check)
     monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
     monkeypatch.setattr(psutil, "cpu_percent", lambda interval: 10)
     monkeypatch.setattr(psutil, "cpu_count", lambda logical: 4 if logical else 2)
 
-    # Rest of existing mocks
-    def fake_open(path, mode='r', *args, **kwargs):
-        if path == "/etc/os-release": return io.StringIO('PRETTY_NAME="TestOS"\n')
-        elif path == "/proc/device-tree/model": return io.StringIO("")
-        elif path == "/sys/class/dmi/id/product_name": return io.StringIO("XModel")
+    # Stub out socket.gethostname (either returns a name or raises)
+    monkeypatch.setattr(monitoring.socket, "gethostname", mock_gethostname)
 
+    # Stub builtins.open to our fake_open
     monkeypatch.setattr(builtins, "open", fake_open)
+
+    # Stub subprocess.check_output, psutil.virtual_memory, psutil.boot_time, and time.time
     monkeypatch.setattr(subprocess, "check_output", lambda args: b"Filesystem\n50G\n")
     monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=1111, total=2222, percent=50))
     monkeypatch.setattr(psutil, "boot_time", lambda: 100)
-    monkeypatch.setattr(monitoring.time, "time", lambda: 150)
+    monkeypatch.setattr(monitoring.time, "time", lambda: now)
 
+    # Fire the request
     resp = client.get("/api/system_info")
-    assert resp.status_code == 200
-    data = resp.get_json()["data"]
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.data}"
+    payload = resp.get_json()
+    assert payload["status"] == "ok"
+    data = payload["data"]
 
-    assert data["os_name"] == "TestOS"
-    assert data["hardware_model"] == "XModel"
-    assert data["disk_available"] == "50G"
-    assert data["memory"]["used"] == 1111
-    assert data["memory"]["total"] == 2222
-    assert pytest.approx(data["system_uptime"], rel=1e-3) == 50
-    assert "network" in data  # Verify network section exists
-def test_api_system_info_both_open_fail_hardware_unknown(client, monkeypatch):
-    # Mock network stats
-    class DummyNetIO:
-        bytes_sent = 1000
-        bytes_recv = 2000
-        
-    def mock_net_io_counters(pernic, nowrap):
-        return {'eth0': DummyNetIO()}
-    
-    monkeypatch.setattr(monitoring, 'last_net_io', {'eth0': DummyNetIO()})
-    monkeypatch.setattr(monitoring, 'last_check_time', 259)
-    monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
-    monkeypatch.setattr(psutil, "cpu_percent", lambda interval: 10)
-    monkeypatch.setattr(psutil, "cpu_count", lambda logical: 4 if logical else 2)
-
-    def fake_open(path, mode='r', *args, **kwargs):
-        if path == "/etc/os-release": return io.StringIO('PRETTY_NAME="TestOS"\n')
-
-    monkeypatch.setattr(builtins, "open", fake_open)
-    monkeypatch.setattr(subprocess, "check_output", lambda args: b"Filesystem\n75G\n")
-    monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(used=3333, total=4444, percent=50))
-    monkeypatch.setattr(psutil, "boot_time", lambda: 200)
-    monkeypatch.setattr(monitoring.time, "time", lambda: 260)
-
-    resp = client.get("/api/system_info")
-    assert resp.status_code == 200
-    data = resp.get_json()["data"]
-
-    assert data["os_name"] == "TestOS"
-    assert data["hardware_model"] == "Unknown"
-    assert data["disk_available"] == "75G"
-    assert data["memory"]["used"] == 3333
-    assert data["memory"]["total"] == 4444
-    assert pytest.approx(data["system_uptime"], rel=1e-3) == 60
-    assert "network" in data  # Verify network section exists
+    # Only assert on hardware_model (we don’t need to re‐verify every field here)
+    assert data["hardware_model"] == expected_model
 def test_api_system_info_network_stats(client, monkeypatch):
     # Mock initial network stats
-    class InitialNetIO:
-        bytes_sent = 1000
-        bytes_recv = 2000
-        
-    # Mock current network stats (after 1 second)
-    class CurrentNetIO:
-        bytes_sent = 2000  # 1000 bytes more
-        bytes_recv = 3000  # 1000 bytes more
-        
+    class NetIO:
+        def __init__(self, sent, recv):
+            self.bytes_sent = sent
+            self.bytes_recv = recv
+    
+    # Create mock interfaces - both wanted and unwanted
+    initial_stats = {
+        'eth0': NetIO(1000, 2000),      # Real interface (should be kept)
+        'lo': NetIO(500, 500),          # Loopback (should be filtered)
+        'docker0': NetIO(300, 300),      # Docker (should be filtered)
+        'IO': NetIO(100, 100),          # Virtual (should be filtered)
+        'wlan0': NetIO(1500, 2500)      # Another real interface (should be kept)
+    }
+    
+    current_stats = {
+        'eth0': NetIO(2000, 3000),      # +1000 bytes
+        'lo': NetIO(600, 600),           # +100 bytes (should be filtered)
+        'docker0': NetIO(400, 400),      # +100 bytes (should be filtered)
+        'IO': NetIO(200, 200),           # +100 bytes (should be filtered)
+        'wlan0': NetIO(2500, 3500)       # +1000 bytes
+    }
+    
     def mock_net_io_counters(pernic, nowrap):
-        return {'eth0': CurrentNetIO()}
+        return current_stats
     
     # Set initial state
-    monkeypatch.setattr(monitoring, 'last_net_io', {'eth0': InitialNetIO()})
+    monkeypatch.setattr(monitoring, 'last_net_io', initial_stats)
     monkeypatch.setattr(monitoring, 'last_check_time', 1009)
     monkeypatch.setattr(psutil, "net_io_counters", mock_net_io_counters)
     
@@ -331,10 +382,20 @@ def test_api_system_info_network_stats(client, monkeypatch):
     data = resp.get_json()["data"]
     
     network = data["network"]
-    assert network["interfaces"]["eth0"]["upload"] == pytest.approx(1000)  # (2000-1000)/1
-    assert network["interfaces"]["eth0"]["download"] == pytest.approx(1000)  # (3000-2000)/1
-    assert network["interfaces"]["eth0"]["total_upload"] == 2000
-    assert network["interfaces"]["eth0"]["total_download"] == 3000  
+    interfaces = network["interfaces"]
+    
+    # Verify only the real interfaces are present
+    assert set(interfaces.keys()) == {'eth0', 'wlan0'}
+    
+    # Verify the stats for kept interfaces
+    assert interfaces["eth0"]["upload"] == pytest.approx(1000)  # (2000-1000)/1
+    assert interfaces["eth0"]["download"] == pytest.approx(1000)  # (3000-2000)/1
+    assert interfaces["wlan0"]["upload"] == pytest.approx(1000)  # (2500-1500)/1
+    assert interfaces["wlan0"]["download"] == pytest.approx(1000)  # (3500-2500)/1
+    
+    # Verify the unwanted interfaces are not present
+    for unwanted in ['lo', 'docker0', 'IO']:
+        assert unwanted not in interfaces
 def test_api_system_info_first_call_no_last_net_io(client, monkeypatch):
     # Mock network stats with no last_net_io (first call)
     class CurrentNetIO:

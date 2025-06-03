@@ -369,7 +369,7 @@ export async function loadStatus(forceRefreshConfig = false) {
     const dnEl = document.getElementById("down");
     if (upEl) {
       const network = sysInfo.data.network;
-      const primary = network.interfaces.eth0;
+      const primary = network.primary_interface;
       const sent = formatSpeed(primary.upload);
       const recv = formatSpeed(primary.download);
       upEl.textContent = sent;
