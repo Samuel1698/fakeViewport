@@ -1232,7 +1232,7 @@ def handle_login(driver):
         # Verify successful login
         if check_for_title(driver, "Dashboard"):
             return True
-         # If not logged in yet, look for a "Trust This Device" prompt
+        # If not logged in yet, look for a "Trust This Device" prompt
         try:
             trust_span = WebDriverWait(driver, WAIT_TIME).until(
                 EC.element_to_be_clickable((
@@ -1390,27 +1390,41 @@ def handle_view(driver, url):
                 api_status("Performing scheduled restart")
                 restart_handler(driver)
             elif check_driver(driver):
+                # Check crash before interacting with the driver again
+                if check_crash(driver):
+                    log_error(f"Tab Crashed. Restarting {BROWSER}...", None, driver=driver)
+                    api_status("Tab Crashed")
+                    driver = browser_restart_handler(url)
+                    continue
                 # Check for "Console Offline" or "Protect Offline"
                 offline_status = driver.execute_script("""
                     return Array.from(document.querySelectorAll('span')).find(el => 
                         el.innerHTML.includes('Console Offline') || el.innerHTML.includes('Protect Offline')
                     );
                 """)
+                # Check for "Adopt Devices" - Means user is missing permission/role
+                no_devices = driver.execute_script("""
+                    return Array.from(document.querySelectorAll('span')).find(el => 
+                        el.innerHTML.includes('Get started') || el.innerHTML.includes('Adopt Devices')
+                    );                                
+                """)
                 if offline_status:
                     logging.warning("Detected offline status: Console or Protect Offline.")
                     api_status("Console or Protect Offline")
-                    time.sleep(WAIT_TIME)  # Wait before retrying
-                    retry_count += 1
-                    handle_retry(driver, url, retry_count, max_retries)
-                if check_crash(driver):
-                    log_error(f"Tab Crashed. Restarting {BROWSER}...", None, driver=driver)
-                    api_status("Tab Crashed")
-                    driver = browser_restart_handler(url)
+                    time.sleep(SLEEP_TIME / 2)
+                    continue 
+                if no_devices:
+                    logging.warning("No cameras available. Check Admin Roles")
+                    api_status("No devices to display")
+                    time.sleep(SLEEP_TIME / 2)
                     continue
+                retry_count = 0
+                # Check presence of the wrapper element for the live view page 
                 WebDriverWait(driver, WAIT_TIME).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
                 )
-                retry_count = 0
+                # Attempt to keep the window maximized every loop
+                driver.maximize_window() 
                 screen_size = driver.get_window_size()
                 if screen_size['width'] != driver.execute_script("return screen.width;") or \
                     screen_size['height'] != driver.execute_script("return screen.height;"):
@@ -1419,12 +1433,14 @@ def handle_view(driver, url):
                     or logging.warning("Failed to activate fullscreen, but continuing anyway.")
                 # Check for "Unable to Stream" message
                 handle_loading_issue(driver)
-                handle_elements(driver)
-                handle_pause_banner(driver)
+                handle_elements(driver)     # Hides cursor and camera controls until mouse moves
+                handle_pause_banner(driver) # Injects a pause banner on mouse move
                 api_status("Feed Healthy")
+                # Check decoding errors
                 if check_unable_to_stream(driver):
                     logging.warning("Live view contains cameras that the browser cannot decode.")
                     api_status("Decoding Error in some cameras")
+                # Prints healthy message logfile every LOG_INTERVAL. Prevents spamming the logfile.
                 if iteration_counter >= log_interval_iterations:
                     logging.info("Video feeds healthy.")
                     iteration_counter = 0  # Reset the counter
