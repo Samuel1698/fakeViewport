@@ -14,10 +14,10 @@ OTA updates run the `minimize.sh` script on your directory after fetching the ne
 💥 **If you had integrated the API endpoints into another service, you have to change them to match the new ones. All the same information is present (and way, way more), but presented differently.**
 
 ### ✨ Added
-- Fully implement #27
-- Add `Pause` banner on live-view if the mouse moves. Implements #32
+- Feature #27: Automatic Updates without needing to console into the machine.
+- Feature #32: Add `Pause` banner on live-view if the mouse moves.
 - `/api/self/restart` endpoint to force `monitoring.py` to restart itself.
-- `/update`, `/update/apply`, and `/update/changelog` endpoints.
+- `/api/update`, `/api/update/apply`, and `/api/update/changelog` endpoints.
 - `viewport --pause` argument toggles execution of the automatic health checks.
 
 ### 💥Changed
@@ -32,7 +32,7 @@ OTA updates run the `minimize.sh` script on your directory after fetching the ne
 - 💥 The api endpoints have drastically changed. Check the <a href="https://github.com/Samuel1698/fakeViewport?tab=readme-ov-file#endpoints">Endpoints section of the READ.ME for the new ones.</a>
 
 ### 🐛 Fixed
-- Issue #31: Fix login handler breaking if browser had saved password #31
+- Issue #31: Fix login handler breaking if browser had saved password
 - Issue #33: Login page using `user` instead of `username` for the field name.
 
 
