@@ -7,6 +7,7 @@
 // Base Styles
 // --------------------------------------------------
 html {
+  transition: background-color $transition-speed, color $transition-speed;
   max-width: 100%;
   overflow-x: hidden;
   overflow-y: auto;
@@ -14,6 +15,9 @@ html {
 body {
   min-width: 320px;
   margin-top: 5rem;
+  background-color: color("background");
+  color: color("text");
+  transition: background-color $transition-speed, color $transition-speed;
 }
 @font-face {
   font-family: "UI Sans";
@@ -25,8 +29,6 @@ html, body {
   margin: 0;
   padding: 0;
   font-family: "UI Sans", Arial, sans-serif;
-  background-color: color("background");
-  color: color("text");
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -39,7 +41,7 @@ img:focus-visible {
 }
 /* prettier-ignore */
 a:focus-visible, button:focus-visible,div:focus-visible,
-section:focus-visible, li:focus-visible {
+section:focus-visible, li:focus-visible, input:focus-visible {
   position: relative;
   &::after {
     content: "";
@@ -51,7 +53,11 @@ section:focus-visible, li:focus-visible {
     outline: 5px auto -webkit-focus-ring-color;
     outline: 5px auto Highlight;
     outline: 5px auto color("red");
+    z-index: 9999;
   }
+}
+button {
+  border: none;
 }
 .Green {
   color: color("green");
@@ -77,7 +83,110 @@ h1 {
   font-size: 1.5rem;
   color: color("text");
   margin-bottom: 1rem;
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+// --------------------------------------------------
+// Theme Swapping
+// --------------------------------------------------
+#themeToggle {
+  background: color("background");
+  border: none;
+  border-radius: $border-radius;
+  padding: 8px;
+  cursor: pointer;
+  transition: background $transition-speed;
+  svg {
+    width: 24px;
+    height: 24px;
+    fill: color("text");
+    transition: fill $transition-speed;
+  }
+  .light-icon {
+    display: none;
+  }
+  .dark-icon {
+    display: block;
+  }
+  color: color("diminished");
+  @include hover {
+    color: color("diminished", $lightness: 25%);
+  }
+  [data-theme="light"] & {
+    .light-icon {
+      display: block;
+    }
+    .dark-icon {
+      display: none;
+    }
+    color: color("text");
+    @include hover {
+      color: color("text", $lightness: -25%);
+    }
+  }
+}
+// Light theme overrides
+html[data-theme="light"]{
+  button {
+    border: 2px solid color("border");
+    margin-bottom: -2px;
+  }
+  .wrapper {
+    border: 2px solid color("border");
+  }
+  section#navigation {
+    .log-controls {
+      border: 2px solid color("border");
+      border-bottom: 2px solid color("background");
+      margin-bottom: -2px;
+    }
+    .button-group, .refresh {
+      border: 2px solid color("border");
+      border-bottom: 2px solid color("background");
+      margin-bottom: -2px;
+      button {
+        border: 0;
+        margin-bottom: unset;
+        @include hover {
+          color: color("text", $lightness: 10%);
+        }
+      }
+      button[aria-selected="true"] {
+        @include hover {
+          color: color("blue");
+        }
+      }
+    }
+  }
+  section.display .controls button{
+    background-color: color("diminished");
+    @include hover {
+      &:not([disabled]) {
+        color: color("text", $lightness: 10%);
+        background-color: color("background");
+      }
+    }
+  }
+  @media (min-width: 40rem) {
+    section#logs .container button.expand-button {
+      border: none;
+      margin-bottom: 0;
+    }
+  }
+  .tooltip .tooltip-text {
+    .Blue {
+      color: color("bBlue");
+    }
+    .Yellow {
+      color: color("bYellow");
+    }
+    background-color: color("bDiminished", $lightness: -5%);
+    color: color("bText");
+    &::after {
+      border-color: color("bDiminished", $lightness: -5%) transparent transparent transparent;
+    }
+  }
 }
 // --------------------------------------------------
 // Login Page Styles
@@ -106,8 +215,7 @@ h1 {
     width: 100%;
     padding: 0.75rem;
     background-color: color("blue");
-    color: #fff;
-    border: none;
+    color: color("text");
     border-radius: $border-radius;
     cursor: pointer;
     transition: background $transition-speed;
@@ -128,29 +236,59 @@ section#navigation {
     background-color: color("diminished");
     border-top-left-radius: $border-radius;
     border-top-right-radius: $border-radius;
-    overflow: hidden; // This contains the hover effects
+    // Prevents background from buttons from overriding
+    // the border radius of this element
+    overflow: hidden; 
   }
   button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    padding: 1rem;
-    color: color("text");
+    padding: 0.75rem;
+    // Grayer than text
+    color: color("text", $lightness: -10%);
     background: transparent;
-    border: none;
     position: relative;
-    min-width: 75px;
     @include hover {
-      background: color("blue", $lightness: -10%);
+      background: color("box");
+    }
+    svg {
+      width: 24px;
+      height: 24px;
+      .background {
+        fill: color("diminished")
+      }
+    }
+    span {
+      display: none;
+    }
+  }
+  button.updateBtn {
+    animation: pulseUpdate 1.5s infinite ease-in-out;
+    color: color("blue");
+  }
+  @keyframes pulseUpdate {
+    0% {
+      color: color("blue");
+    }
+    50% {
+      color: color("yellow");
+    }
+    100% {
+      color: color("blue");
     }
   }
   button[aria-selected="true"] {
     background-color: color("box");
     color: color("blue");
     cursor: unset;
+    animation: none;
     @include hover {
       background: color("box");
     }
   }
-  #refreshButton {
+  button.refresh {
     background: color("box");
     padding: 0 16px;
     margin-left: auto;
@@ -180,6 +318,77 @@ section#navigation {
       }
     }
   }
+  .log-controls {
+    display: flex;
+    flex-direction: row;
+    margin-left: auto;
+    background-color: color("box");
+    border-top-left-radius: $border-radius;
+    border-top-right-radius: $border-radius;
+    gap: 2px;
+    .custom-spinners {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      border-top-left-radius: $border-radius;
+      .custom-spinner-btn {
+        background: color("box");
+        color: color("search");
+        border: none;
+        width: 32px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        margin-left: 4px;
+        cursor: pointer;
+        min-width: unset;
+        border-top-left-radius: $border-radius;
+        svg {
+          width: 22px;
+          height: 22px;
+          stroke: currentColor;
+          stroke-width: 2;
+        }
+        @include hover {
+          color: color("blue");
+        }
+        &[data-action="increment"] svg {
+          margin-bottom: -10px;
+        }
+        &[data-action="decrement"] svg {
+          margin-top: -10px;
+          transform: rotate(180deg); // Flips the arrow to point down
+        }
+      }
+    }
+    input.logLimit {
+      background: color("box");
+      color: color("text");
+      border: none;
+      text-align: center;
+      font-size: 1.2rem;
+      width: 40px;
+    }
+    button.searchLogs {
+      background: color("box");
+      color: color("text");
+      height: 100%;
+      min-width: unset;
+      border-top-right-radius: $border-radius;
+      border: none;
+      cursor: pointer;
+      svg {
+        width: 20px;
+        height: 20px;
+        stroke: currentColor;
+      }
+      @include hover {
+        color: color("blue");
+      }
+    }
+  }
 }
 .wrapper {
   background-color: color("box");
@@ -187,7 +396,6 @@ section#navigation {
   border-radius: $border-radius;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 .tooltip {
   position: relative;
@@ -195,31 +403,35 @@ section#navigation {
   cursor: help;
   .tooltip-text {
     visibility: hidden;
-    width: 200px;
-    background-color: #333;
-    color: #fff;
+    width: max-content; // Adjusts to content width
+    max-width: min(400px, calc(100vw - 20px)); // Responsive max width
+    background-color: color("diminished", $lightness: -5%);
+    color: color("text");
     text-align: center;
-    border-radius: 4px;
+    border-radius: $border-radius;
     padding: 8px;
     position: absolute;
     z-index: 1000;
     bottom: 125%;
-    left: 50%;
-    transform: translateX(-50%);
+    left: auto;
+    right: 0;
+    transform: none;
     opacity: 0;
     transition: opacity 0.3s;
     font-size: 14px;
     font-weight: normal;
     pointer-events: none;
+    word-wrap: break-word; // Handle long words
     &::after {
       content: "";
       position: absolute;
       top: 100%;
-      left: 50%;
-      margin-left: -5px;
-      border-width: 5px;
+      right: 12px;
+       // Makes sure it's centered in relation to border width
+      margin-right: -8px;
+      border-width: 8px;
       border-style: solid;
-      border-color: #333 transparent transparent transparent;
+      border-color: color("diminished", $lightness: -5%) transparent transparent transparent;
     }
   }
   @include hover {
@@ -228,10 +440,20 @@ section#navigation {
       opacity: 1;
     }
   }
+  .active {
+    & + .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+  }
 }
 section#status, section#info {
   // Reset tooltip for Control buttons
   .tooltip {
+    left: 50%;
+    right: unset;
+    transform: translateX(-50%);
+    border-bottom-right-radius: 6px;
     display: block;
     cursor: unset;
     @include hover {
@@ -286,8 +508,7 @@ section.display {
       max-width: 150px;
       padding: 0.75rem;
       background-color: color("box");
-      color: color("white");
-      border: none;
+      color: color("text");
       border-radius: $border-radius;
       cursor: pointer;
       transition: background $transition-speed;
@@ -295,12 +516,15 @@ section.display {
       @include hover {
         background-color: color("blue");
       }
+      &[disabled] {
+        cursor: not-allowed;
+      }
     }
   }
   .controls.disabled {
     button {
       background-color: color("diminished");
-      cursor: unset;
+      cursor: not-allowed;
     }
   }
   .statusMessage {
@@ -341,49 +565,8 @@ section#config {
 section#logs {
   .wrapper {
     padding: 1rem;
-    .container {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-      h2 {
-        margin: 1rem 0;
-      }
-      .log-controls {
-        display: flex;
-        border-radius: $border-radius;
-        background-color: color("diminished");
-        color: color("search");
-      }
-      input#logLimit {
-        background-color: transparent;
-        color: color("text");
-        width: 70px;
-        padding: 8px 8px 8px 16px;
-        font-size: 24px;
-        border: none;
-        text-align: right;
-      }
-      button#searchLogs {
-        background-color: transparent;
-        color: inherit;
-        padding: 16px;
-        border: none;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        svg {
-          width: 24px;
-          height: 24px;
-          stroke: color("search");
-        }
-        @include hover {
-          svg {
-            stroke: color("blue");
-          }
-        }
-      }
+    h2 {
+      margin: 1rem 0;
     }
     div#logOutput {
       white-space: pre-wrap;       /* Since CSS 2.1 */
@@ -404,6 +587,14 @@ section#logs {
 section#update {
   padding-bottom: 2rem;
   .wrapper {
+    h3, h4 {
+      border-top: 1px solid color("diminished");
+      margin: 0;
+      padding: 1rem 0;
+    }
+    .changelog>ul {
+      margin-bottom: 1rem;
+    }
     code {
       font-style: italic;
       background: rgba(255, 255, 255, 0.2);
@@ -436,10 +627,6 @@ section#update {
       justify-content: space-between;
       align-items: baseline;
       margin-top: 2.4rem;
-      a {
-        border-bottom: 0;
-        margin-bottom: unset;
-      }
       button[type="submit"]{
         padding: 0.5rem 1.4rem;
         background-color: color("blue");
@@ -461,32 +648,6 @@ section#update {
   }
 }
 // --------------------------------------------------
-// Input field
-// --------------------------------------------------
-div.log-controls{
-  position: relative;
-  div.custom-spinners {
-    position: absolute;
-    left: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
-    flex-direction: column;
-  }
-  button.custom-spinner-btn {
-    background: transparent;
-    color: color("search");
-    border: none;
-    padding: 2px 8px;
-    font-size: 24px;
-    line-height: 1;
-    cursor: pointer;
-    @include hover {
-      color: color("blue");
-    }
-  }
-}
-// --------------------------------------------------
 // Responsive Adjustments
 // --------------------------------------------------
 @include respond-above($small) {
@@ -503,6 +664,16 @@ div.log-controls{
       margin-left: auto;
       border-radius: $border-radius;
       border-top-left-radius: 0;
+      border-top-right-radius: 0;
+    }
+  }
+  section#navigation {
+    button {
+      min-width: 75px;
+      span {
+        margin-left: 4px;
+        display: inline-block;
+      }
     }
   }
   section.display .wrapper {
@@ -515,32 +686,32 @@ div.log-controls{
     &.expanded {
       max-width: 900px;
       border-top-left-radius: $border-radius;
+      border-top-right-radius: $border-radius;
       .wrapper button.expand-button {
         svg {
           transform: rotate(90deg);
         }
       }
     }
-    .wrapper {
-      position: relative;
+    // Contains title and button
+    .container {
+      display: flex;
+      align-items: center;
       button.expand-button {
-        position: absolute;
-        right: 0;
-        bottom: 0;
         display: inline-block;
         background: none;
-        border: none;
+        color: color("text");
         cursor: pointer;
         padding: 8px;
-        margin-left: auto; /* Push to right */
+        line-height: 0; // Forces svg to be centered on button
+        margin-left: auto; // Push to right 
         @include hover {
-          svg {
-            fill: color("blue");
-          }
+          color: color("blue");
         }
         svg {
+          width: 32px;
+          height: 32px;
           transition: transform 0.6s ease;
-          fill: color("text");
         }
       }
     }
@@ -560,5 +731,14 @@ div.log-controls{
   }
   h1 {
     font-size: 2.5rem;
+  }
+  .tooltip .tooltip-text {
+    left: 50%;
+    right: unset;
+    transform: translateX(-50%);
+    border-bottom-right-radius: $border-radius;
+    &::after{
+      right: 50%;
+    }
   }
 }

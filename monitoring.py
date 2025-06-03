@@ -32,7 +32,7 @@ api_dir     = _base / 'api'
 # ----------------------------------------------------------------------------- 
 # Load and validate everything via our shared validator
 # ----------------------------------------------------------------------------- 
-cfg = validate_config()
+cfg = validate_config(strict=False, print=False)
 # pull everything out into locals/globals
 for name, val in vars(cfg).items():
     setattr(_mon, name, val)
@@ -346,7 +346,7 @@ def create_app():
     def api_config():
         try:
             # Re-parse config on each call
-            cfg = validate_config(strict=False)
+            cfg = validate_config(strict=False, print=False)
             # pull everything out into locals/globals
             for name, val in vars(cfg).items():
                 setattr(_mon, name, val)

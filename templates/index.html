@@ -14,16 +14,93 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='main-min.css') }}">
 </head>
 <body>
-  <h1>Viewport Control</h1>
+  <h1>
+    <span>Viewport Control</span>
+    <button id="themeToggle" aria-label="Toggle theme">
+      <svg class="dark-icon" width="24" height="24" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1-8.313-12.454z" />
+      </svg>
+      <svg class="light-icon" width="24" height="24" viewBox="0 0 24 24">
+        <path fill="currentColor"
+          d="M12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.515 4.929l1.414-1.414L7.05 5.636 5.636 7.05 3.515 4.93zM16.95 18.364l1.414-1.414 2.121 2.121-1.414 1.414-2.121-2.121zm2.121-14.85l1.414 1.415-2.121 2.121-1.414-1.414 2.121-2.121zM5.636 16.95l1.414 1.414-2.121 2.121-1.414-1.414 2.121-2.121z" />
+      </svg>
+    </button>
+  </h1>
   <section id="navigation">
     <div class="button-group">
-      <button id="statusBtn" aria-selected="true">Status</button>
-      <button id="infoBtn">Info</button>
-      <button id="configBtn">Config</button>
-      <button id="logsBtn">Logs</button>
-      <button id="updateBtn" hidden>Update</button>
+      <button id="statusBtn" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" stroke="currentColor" stroke-width="0">
+          <circle cx="12" cy="12" r="10" class="background"></circle>
+          <path
+            d="M17.66 10.5c-.21 0-.4-.13-.47-.33A5.51 5.51 0 0 0 12 6.5a5.51 5.51 0 0 0-5.19 3.67c-.09.26-.38.4-.64.3a.493.493 0 0 1-.3-.64A6.515 6.515 0 0 1 12 5.5c2.75 0 5.21 1.74 6.13 4.33a.501.501 0 0 1-.47.67Z"
+            fill="currentColor"></path>
+          <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M10.62 12.34c.41-.22.89-.34 1.38-.34 1.65 0 3 1.35 3 3s-1.35 3-3 3-3-1.35-3-3c0-.79.32-1.53.82-2.06l-1.69-2.17a.497.497 0 0 1 .09-.7c.21-.17.53-.13.7.09l1.7 2.18ZM10 15c0 1.1.9 2 2 2s2-.9 2-2-.9-2-2-2c-.44 0-.86.14-1.19.39-.49.37-.81.95-.81 1.61Z"
+            fill="currentColor"></path>
+          <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10 10-4.49 10-10S17.51 2 12 2Zm0 19c-4.96 0-9-4.04-9-9s4.04-9 9-9 9 4.04 9 9-4.04 9-9 9Z"
+            fill="currentColor"></path>
+        </svg>
+        <span>Status</span>
+      </button>
+      <button id="infoBtn">
+        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" stroke="currentColor" stroke-width="0">
+          <path d="M21 11v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-8a9 9 0 0 1 9-9 9 9 0 0 1 9 9Z" fill="currentColor" class="background"></path>
+          <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M12 9a2 2 0 1 0-.001 3.999A2 2 0 0 0 12 9Zm0 1c.551 0 1 .449 1 1 0 .551-.449 1-1 1-.551 0-1-.449-1-1 0-.551.449-1 1-1Z"
+            fill="currentColor" class=""></path>
+          <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M12 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12Zm0 1c2.757 0 5 2.243 5 5s-2.243 5-5 5-5-2.243-5-5 2.243-5 5-5Z"
+            fill="currentColor" class=""></path>
+          <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M3 11a9 9 0 0 1 9-9 9 9 0 0 1 9 9v8.5a.5.5 0 0 1-1 0v-2.591a11.842 11.842 0 0 1-7.627 3.083 8.993 8.993 0 0 1-.606.005c-.047-.001-.094-.002-.14-.005A11.842 11.842 0 0 1 4 16.909V19.5a.5.5 0 0 1-1 0V11Zm16.707 4.807c.1-.1.199-.202.293-.306V11c0-4.411-3.589-8-8-8s-8 3.589-8 8v4.501a10.526 10.526 0 0 0 .557.561A10.817 10.817 0 0 0 12 19a10.817 10.817 0 0 0 7.707-3.193Z"
+            fill="currentColor" class=""></path>
+        </svg>
+        <span>Device</span>
+      </button>
+      <button id="configBtn">
+        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" class="config" stroke="currentColor" stroke-width="0">
+          <path
+            d="M22 10.85v2.3a1 1 0 0 1-.84.99l-1.52.25c-.15.46-.33.9-.55 1.31l.9 1.27c.29.39.24.94-.1 1.29l-1.63 1.63c-.35.34-.89.39-1.29.1l-1.26-.9c-.42.22-.86.4-1.32.55l-.25 1.52a1 1 0 0 1-.99.84h-2.3a1 1 0 0 1-.99-.84l-.25-1.52c-.46-.15-.9-.33-1.32-.55l-1.26.9c-.4.29-.94.24-1.29-.1l-1.63-1.63c-.34-.35-.39-.9-.1-1.29l.9-1.27c-.22-.41-.4-.85-.55-1.31l-1.52-.25a1 1 0 0 1-.84-.99v-2.3a1 1 0 0 1 .84-.99l1.52-.25c.15-.46.33-.9.55-1.32l-.9-1.26c-.29-.4-.24-.94.1-1.29l1.63-1.63c.35-.34.89-.39 1.29-.1l1.27.9c.41-.22.85-.4 1.31-.55l.25-1.52a1 1 0 0 1 .99-.84h2.3a1 1 0 0 1 .99.84l.25 1.52c.46.15.9.33 1.31.55l1.27-.9c.4-.29.94-.24 1.29.1l1.63 1.63c.34.35.39.89.1 1.29l-.9 1.26c.22.42.4.86.55 1.32l1.52.25a1 1 0 0 1 .84.99Z"
+            fill="currentColor" class="background"></path>
+          <path
+            d="M8.5 12a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0Zm6 0c0-1.378-1.121-2.5-2.5-2.5A2.503 2.503 0 0 0 9.5 12c0 1.378 1.121 2.5 2.5 2.5s2.5-1.122 2.5-2.5Z"
+            fill="currentColor" class=""></path>
+          <path
+            d="M22 13.153a1 1 0 0 1-.836.986l-1.529.255a7.819 7.819 0 0 1-.544 1.311l.901 1.262a1 1 0 0 1-.106 1.288l-1.63 1.63a1 1 0 0 1-1.288.107l-1.262-.901a7.914 7.914 0 0 1-1.312.544l-.255 1.53a1 1 0 0 1-.986.835h-2.306a1 1 0 0 1-.986-.836l-.255-1.529a7.914 7.914 0 0 1-1.312-.544l-1.262.901a1 1 0 0 1-1.288-.106l-1.63-1.63a1 1 0 0 1-.107-1.29l.902-1.261a7.819 7.819 0 0 1-.544-1.311l-1.53-.255A1 1 0 0 1 2 13.153v-2.306a1 1 0 0 1 .836-.986l1.529-.255c.142-.456.325-.895.544-1.312l-.902-1.262a1 1 0 0 1 .107-1.288l1.63-1.63a1 1 0 0 1 1.288-.108l1.263.902a7.9 7.9 0 0 1 1.311-.543l.255-1.53A1 1 0 0 1 10.847 2h2.306a1 1 0 0 1 .986.836l.255 1.529a7.9 7.9 0 0 1 1.311.543l1.263-.902a1 1 0 0 1 1.288.107l1.63 1.63a1 1 0 0 1 .107 1.29l-.902 1.261c.219.417.402.856.544 1.312l1.53.255a1 1 0 0 1 .835.986v2.306Zm-2.821 4.395-1.277-1.788a6.832 6.832 0 0 0 .604-1.178c.138-.344.248-.701.329-1.069L21 13.152v-2.305l-2.165-.361a6.85 6.85 0 0 0-.409-1.261 6.986 6.986 0 0 0-.524-.986l1.277-1.788-1.63-1.631-1.789 1.278a6.884 6.884 0 0 0-1.178-.604 6.85 6.85 0 0 0-1.068-.329L13.153 3h-2.306l-.361 2.165a6.85 6.85 0 0 0-1.26.409 6.884 6.884 0 0 0-.986.524L6.451 4.82l-1.63 1.631 1.277 1.788a6.986 6.986 0 0 0-.933 2.247L3 10.847v2.305l2.165.361a6.788 6.788 0 0 0 .409 1.261c.148.344.324.674.524.986l-1.277 1.788 1.63 1.631 1.788-1.277a7.09 7.09 0 0 0 1.179.604c.343.137.7.248 1.068.329L10.847 21h2.306l.361-2.165a6.85 6.85 0 0 0 1.261-.409 7.09 7.09 0 0 0 .986-.524l1.788 1.277 1.63-1.631Z"
+            fill="currentColor" class=""></path>
+        </svg>
+        <span>Config</span>
+      </button>
+      <button id="logsBtn">
+        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" stroke="currentColor" stroke-width="0">
+          <path d="M7.5 2a1 1 0 0 0-1 1h-2a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h15a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-2a1 1 0 0 0-1-1h-9Z"
+            fill="currentColor" class="background"></path>
+          <path
+            d="M6.5 8H8v1H6.5V8Zm0 3H8v1H6.5v-1Zm0 3H8v1H6.5v-1Zm0 3H8v1H6.5v-1Zm3-9h8v1h-8V8Zm0 3h8v1h-8v-1Zm0 3h8v1h-8v-1Zm0 3h8v1h-8v-1Z"
+            fill="currentColor" class=""></path>
+          <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M7.5 2a1 1 0 0 0-1 1h-2a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h15a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-2a1 1 0 0 0-1-1h-9Zm9 1h-9v2h9V3Zm-12 1h2v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V4h2v16h-15V4Z"
+            fill="currentColor" class=""></path>
+        </svg>
+        <span>Logs</span>
+      </button>
+      <button id="updateBtn" class="updateBtn" hidden>
+        <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" stroke="currentColor" stroke-width="0">
+          <path d="M5.8 13a6.2 6.2 0 1 1 12.4 0v4a1 1 0 0 1-1 1H6.8a1 1 0 0 1-1-1v-4Z" fill="currentColor"
+            class="background"></path>
+          <path d="M12 3a.5.5 0 0 0-.5.5v1.8a.5.5 0 0 0 1 0V3.5A.5.5 0 0 0 12 3Z" fill="currentColor" class=""></path>
+          <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M12 6.8A6.2 6.2 0 0 0 5.8 13v4a1 1 0 0 0 1 1h10.4a1 1 0 0 0 1-1v-4A6.2 6.2 0 0 0 12 6.8ZM17.2 17v-4a5.2 5.2 0 1 0-10.4 0v4h10.4Z"
+            fill="currentColor" class=""></path>
+          <path
+            d="M4 20.5a.5.5 0 0 1 .5-.5h15a.5.5 0 0 1 0 1h-15a.5.5 0 0 1-.5-.5ZM18.364 5.93a.5.5 0 1 1 .707.707L17.798 7.91a.5.5 0 1 1-.707-.707l1.273-1.273Zm-13.435 0a.5.5 0 0 0 0 .707L6.202 7.91a.5.5 0 0 0 .707-.708L5.636 5.93a.5.5 0 0 0-.707 0ZM19.7 13.5a.5.5 0 0 1 0-1h1.8a.5.5 0 0 1 0 1h-1.8ZM2 13a.5.5 0 0 0 .5.5h1.8a.5.5 0 0 0 0-1H2.5a.5.5 0 0 0-.5.5Z"
+            fill="currentColor" class=""></path>
+        </svg>
+        <span>Update</span>
+      </button>
     </div>
-    <button id="refreshButton">
+    <button id="refreshButton" class="refresh">
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
         <g id="refresh">
           <path
@@ -31,6 +108,28 @@
         </g>
       </svg>
     </button>
+    <div class="log-controls" hidden>
+      <div class="custom-spinners">
+        <button class="custom-spinner-btn" data-action="increment">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 15L12 8L19 15" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        <button class="custom-spinner-btn" data-action="decrement">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 15L12 8L19 15" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+      </div>
+      <input type="number" id="logLimit" class="logLimit" min="10" max="600" value="10" step="10">
+      <button id="searchLogs" class="searchLogs">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+      </button>
+      </div>
   </section>
   <section id="status" class="display">
     <div class="wrapper">
@@ -40,19 +139,13 @@
         <li>
           <span>Throughput:</span>
           <span class="network">
-            <svg viewBox="0 0 20 20" class="down" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px"
-            class="css-network-m4svol Icon-module_icon__2a0I8 Icon-module_icon-light__27kpC Icon-module_icon-outline__3nv5v"
-            baseclassname="" twotonedclassname="Icon-module_hidden__cSK0B" fillclassname="Icon-module_hidden__cSK0B"
-            fillwithtwotoneclassname="Icon-module_hidden__cSK0B" stroke="currentColor" stroke-width="0">
+            <svg viewBox="0 0 20 20" class="down" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" stroke="currentColor" stroke-width="0">
             <path fill-rule="evenodd" clip-rule="evenodd"
             d="M13.883 12.904a.5.5 0 0 1 .707.707l-4.243 4.243a.5.5 0 0 1-.707 0L5.396 13.61a.5.5 0 0 1 .707-.707l3.39 3.39V2.5a.5.5 0 0 1 1 0v13.793l3.39-3.389Z"
             fill="currentColor" class=""></path>
             </svg>
             <span id="down" class="down"></span>
-            <svg viewBox="0 0 21 20" class="up" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px"
-              class="css-network-3taki8 Icon-module_icon__2a0I8 Icon-module_icon-light__27kpC Icon-module_icon-outline__3nv5v"
-              baseclassname="" twotonedclassname="Icon-module_hidden__cSK0B" fillclassname="Icon-module_hidden__cSK0B"
-              fillwithtwotoneclassname="Icon-module_hidden__cSK0B" stroke="currentColor" stroke-width="0">
+            <svg viewBox="0 0 21 20" class="up" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" stroke="currentColor" stroke-width="0">
               <path fill-rule="evenodd" clip-rule="evenodd"
                 d="M13.893 7.096a.5.5 0 0 0 .707-.707l-4.243-4.243a.5.5 0 0 0-.707 0L5.406 6.39a.5.5 0 0 0 .707.707l3.39-3.39V17.5a.5.5 0 0 0 1 0V3.707l3.39 3.389Z"
                 fill="currentColor" class=""></path>
@@ -65,7 +158,7 @@
         <li><span>Last Log Entry: </span><span id="logEntry">-</span></li>
       </ul>
     </div>
-    <div class="controls" data-tooltip="Please wait before sending the same command again.">
+    <div class="controls" data-tooltip="Please wait before sending another command">
       <button data-action="start">Start</button>
       <button data-action="restart">Restart</button>
       <button data-action="quit">Quit</button>
@@ -83,7 +176,7 @@
         <li><span>Space Available:</span><span id="diskInfo">-</span></li>
       </ul>
     </div>
-    <div class="controls" data-tooltip="Please wait before sending the same command again.">
+    <div class="controls" data-tooltip="Please wait before sending another command">
       <button data-action="start">Start</button>
       <button data-action="restart">Restart</button>
       <button data-action="quit">Quit</button>
@@ -93,17 +186,17 @@
   <section id="config" class="display" hidden>
     <div class="wrapper">
       <ul>
-        <li><span>Health Check Interval:</span><span id="healthInterval" data-tooltip="SLEEP_TIME | Time in between health checks" data-api-key="general.health_interval_sec">-</span></li>
-        <li><span>Log Healthy Every:</span><span id="logInterval" data-tooltip="LOG_INTERVAL | Minutes between status log entries" data-api-key="logging.log_interval_min">-</span></li>
-        <li><span>Seconds to Wait Before Error:</span><span id="waitTime" data-tooltip="WAIT_TIME | Max seconds to wait for page elements (loads, camera feeds, buttons) before error" data-api-key="general.wait_time_sec">-</span></li>
-        <li><span>Retry Attempts Before Restarting:</span><span data-tooltip="MAX_RETRIES | Number of retry attempts on failures (page reloads → browser restart → script restart). Minimum 3" id="maxRetries"  data-api-key="general.max_retries">-</span></li>
+        <li><span>Health Check Interval:</span><span id="healthInterval" data-tooltip="SLEEP_TIME | Time in between health checks | Minimum 1 minute" data-api-key="general.health_interval_sec">-</span></li>
+        <li><span>Log Healthy Every:</span><span id="logInterval" data-tooltip="LOG_INTERVAL | Minutes between status log entries | Must be greater than Health Checks" data-api-key="logging.log_interval_min">-</span></li>
+        <li><span>Seconds to Wait Before Error:</span><span id="waitTime" data-tooltip="WAIT_TIME | Max seconds to wait for page elements (loads, camera feeds, buttons) before error | Minimum 5 seconds" data-api-key="general.wait_time_sec">-</span></li>
+        <li><span>Retries Before Restarting:</span><span data-tooltip="MAX_RETRIES | Number of retry attempts on failures | page reloads → browser restart → script restart | Minimum 3" id="maxRetries"  data-api-key="general.max_retries">-</span></li>
         <li><span>Restart Times:</span><span id="restartTimes" data-tooltip="RESTART_TIMES | Comma-separated 24h times (HH:MM) for automatic script restart" data-api-key="general.restart_times">-</span></li>
       </ul>
     </div>
     <div class="wrapper">
       <ul>
-        <li><span>Binary:</span><span id="profileBinary" data-tooltip="BROWSER_BINARY | Executable Path/Application Binary without the --flags" data-api-key="browser.binary_path">-</span></li>
-        <li><span>Profile Path:</span><span id="profilePath" data-tooltip="BROWSER_PROFILE_PATH | Custom profile directory without the trailing 'Default'" data-api-key="browser.profile_path">-</span></li>
+        <li><span>Binary:</span><span id="profileBinary" data-tooltip="BROWSER_BINARY | Executable Path/Application Binary without the --flags | Only Chrome, Chromium and Firefox supported" data-api-key="browser.binary_path">-</span></li>
+        <li><span>Profile Path:</span><span id="profilePath" data-tooltip="BROWSER_PROFILE_PATH | Profile Directory without the trailing 'Default' | Only Chrome, Chromium and Firefox supported" data-api-key="browser.profile_path">-</span></li>
         <li><span>Headless:</span><span id="headless" data-tooltip="HEADLESS | Useful only for testing" data-api-key="browser.headless">-</span></li>
       </ul>
     </div>
@@ -113,7 +206,7 @@
         <li><span>Write to Log File:</span><span id="logFile" data-tooltip="LOG_FILE_FLAG | Write to the logfile" data-api-key="logging.log_file_flag">-</span></li>
         <li><span>Write to Console:</span><span id="logConsole" data-tooltip="LOG_CONSOLE | Write to the console" data-api-key="logging.log_console_flag">-</span></li>
         <li><span>Error Logging:</span><span id="errorLogging" data-tooltip="ERROR_LOGGING | On errors, raise exception (more verbose)" data-api-key="logging.error_logging">-</span></li>
-        <li><span>Debug Logging:</span><span id="debugLogging" data-tooltip="DEBUG_LOGGING | Use DEBUG logging level instead of INFO" data-api-key="logging.debug_logging">-</span></li>
+        <li><span>Debug Logging:</span><span id="debugLogging" data-tooltip="DEBUG_LOGGING | Use DEBUG logging level instead of INFO | Incredibly verbose" data-api-key="logging.debug_logging">-</span></li>
         <li><span>Take Screenshots on Errors:</span><span id="screenshots" data-tooltip="ERROR_PRTSCR | On errors, capture screenshot" data-api-key="logging.ERROR_PRTSCR">-</span></li>
       </ul>
     </div>
@@ -122,27 +215,15 @@
     <div class="wrapper">
       <div class="container">
         <h2>Last <span id="logCount">50</span> Log Entries</h2>
-        <div class="log-controls">
-          <div class="custom-spinners">
-            <button class="custom-spinner-btn" data-action="increment">▲</button>
-            <button class="custom-spinner-btn" data-action="decrement">▼</button>
-          </div>
-          <input type="number" id="logLimit" min="10" max="600" value="10" step="10">
-          <button id="searchLogs">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-          </button>
-        </div>
+        <button id="expandLogs" class="expand-button" aria-label="Expand logs">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12H19"/>
+            <path d="M8 15L5 12L8 9"/>
+            <path d="M16 15L19 12L16 9"/>
+          </svg>
+        </button>
       </div>
       <div id="logOutput"></div>
-      <button id="expandLogs" class="expand-button" aria-label="Expand logs">
-        <svg width="32" height="24" viewBox="0 0 24 24">
-          <path d="M8 5v14l-11-7z" />
-          <path d="M12 5v14l11-7z" />
-        </svg>
-      </button>
     </div>
   </section>
   <section id="update" hidden>
@@ -150,7 +231,7 @@
       <div class="container">
         <h2>Update</h2>
       </div>
-      <div id="changelog-body"></div>
+      <div id="changelog-body" class="changelog"></div>
       <div class="flex">
         <a id="changelog-link" href="#" target="_blank">View on GitHub</a>
         <button type="submit"><span>Update</span></button>

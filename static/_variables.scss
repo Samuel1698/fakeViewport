@@ -4,7 +4,6 @@
 $base-palette: (
   background: #131416,
   text:       #dee0e3,
-  white:      #f6fafa,
   blue:       #147aff,
   red:        #FF556D,
   green:      #36be5f,
@@ -12,8 +11,27 @@ $base-palette: (
   down:       #5baed1,
   up:         #8e63b0,
   search:     #737c82,
+  border:     #34383d,
   diminished: #34383d,
   box:        #1c1e21,
+);
+$light-palette: (
+  background: #ffffff,
+  text:       #50565e,
+  bText:      #dee0e3,
+  blue:       #006fff,
+  bBlue:      #147aff,
+  red:        #ee383b,
+  green:      #38cc65,
+  yellow:     #f3a424,
+  bYellow:    #EFC368,
+  down:       #5baed1,
+  up:         #8e63b0,
+  search:     #737c82,
+  border:     #eff1f2,
+  diminished: #f4f5f6,
+  bDiminished:#34383d,
+  box:        #ffffff,
 );
 @mixin define-color($name, $color) {
   --#{$name}-h: #{hue($color)};
@@ -22,11 +40,28 @@ $base-palette: (
   --#{$name}-a: #{alpha($color)};
 }
 :root {
-  @each $name, $col in $base-palette {
-    @include define-color($name, $col);
+  // Default dark theme
+  &[data-theme="dark"],
+  &:not([data-theme]) { // Fallback to dark if no theme specified
+    @each $name, $col in $base-palette {
+      @include define-color($name, $col);
+    }
+  }
+
+  // Light theme
+  &[data-theme="light"] {
+    @each $name, $col in $light-palette {
+      @include define-color($name, $col);
+    }
+  }
+  @media (prefers-color-scheme: light) {
+    &:not([data-theme]) {
+      @each $name, $col in $light-palette {
+        @include define-color($name, $col);
+      }
+    }
   }
 }
-
 @function color(
   $name,
   $hue:        0deg,

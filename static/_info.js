@@ -36,74 +36,98 @@ let configCache = {
 
     const config = this.data.data;
 
-    // Formatting functions
-    const formatTime = {
-      seconds: (value) => `${value} Second${value !== 1 ? "s" : ""}`,
-      minutes: (value) => `${value} Minute${value !== 1 ? "s" : ""}`,
-      days: (value) => `${value} Day${value !== 1 ? "s" : ""}`,
-      hours: (value) => `${value} Hour${value !== 1 ? "s" : ""}`,
-      boolean: (value) => (value ? "Yes" : "No"),
-    };
+    // Get sleep time in minutes for comparison
+    const sleepTimeMinutes = config?.general?.health_interval_sec
+      ? Math.round(config.general.health_interval_sec / 60)
+      : null;
 
+    // Formatting functions with color classes
+    const formatTime = {
+      seconds: (value, element) => {
+        const formatted = `${value} Second${value !== 1 ? "s" : ""}`;
+        if (element.id === "waitTime" && value <= 5) {
+          element.classList.add("Red");
+        } else {
+          element.classList.add("Blue");
+        }
+        return formatted;
+      },
+      minutes: (value, element) => {
+        const formatted = `${value} Minute${value !== 1 ? "s" : ""}`;
+        if (element.id === "healthInterval" && value <= 1) {
+          element.classList.add("Red");
+        } else if (
+          element.id === "logInterval" &&
+          sleepTimeMinutes &&
+          value < sleepTimeMinutes
+        ) {
+          element.classList.add("Yellow");
+        } else {
+          element.classList.add("Blue");
+        }
+        return formatted;
+      },
+      days: (value, element) => {
+        const formatted = `${value} Day${value !== 1 ? "s" : ""}`;
+        if (value > 7) {
+          element.classList.add("Yellow");
+        } else {
+          element.classList.add("Blue");
+        }
+        return formatted;
+      },
+      hours: (value, element) => {
+        const formatted = `${value} Hour${value !== 1 ? "s" : ""}`;
+        element.classList.add("Blue");
+        return formatted;
+      },
+      boolean: (value, element) => {
+        const formatted = value ? "Yes" : "No";
+        if (element.id === "headless" && value) {
+          element.classList.add("Red");
+        } else if (
+          (element.id === "logFile" && !value) ||
+          (element.id === "logConsole" && !value) ||
+          (element.id === "errorLogging" && value) ||
+          (element.id === "debugLogging" && value) ||
+          (element.id === "screenshots" && value)
+        ) {
+          element.classList.add("Yellow");
+        } else {
+          element.classList.add("Blue");
+        }
+        return formatted;
+      },
+    };
     // Element configuration with formatting rules
     const elementConfig = [
       // General Section
       {
         id: "healthInterval",
         path: "general.health_interval_sec",
-        format: (v) => formatTime.minutes(Math.round(v / 60)),
+        format: (v, el) => formatTime.minutes(Math.round(v / 60), el),
       },
       {
         id: "waitTime",
         path: "general.wait_time_sec",
-        format: formatTime.seconds,
+        format: (v, el) => formatTime.seconds(v, el),
       },
-      { id: "maxRetries", path: "general.max_retries" },
+      {
+        id: "maxRetries",
+        path: "general.max_retries",
+        format: (v, el) => {
+          el.classList.add(v < 3 ? "Red" : "Blue");
+          return `${v} Attempts`;
+        },
+      },
       {
         id: "restartTimes",
         path: "general.restart_times",
-        format: (v) => (Array.isArray(v) ? v.join(", ") : "-"),
+        format: (v, el) => {
+          el.classList.add("Yellow");
+          return Array.isArray(v) ? v.join(", ") : "-";
+        },
       },
-
-      // Browser Section
-      { id: "profilePath", path: "browser.profile_path" },
-      { id: "profileBinary", path: "browser.binary_path" },
-      { id: "headless", path: "browser.headless", format: formatTime.boolean },
-
-      // Logging Section
-      {
-        id: "logFile",
-        path: "logging.log_file_flag",
-        format: formatTime.boolean,
-      },
-      {
-        id: "logConsole",
-        path: "logging.log_console_flag",
-        format: formatTime.boolean,
-      },
-      {
-        id: "debugLogging",
-        path: "logging.debug_logging",
-        format: formatTime.boolean,
-      },
-      {
-        id: "errorLogging",
-        path: "logging.error_logging",
-        format: formatTime.boolean,
-      },
-      {
-        id: "screenshots",
-        path: "logging.ERROR_PRTSCR",
-        format: formatTime.boolean,
-      },
-      { id: "logDays", path: "logging.log_days", format: formatTime.days },
-      {
-        id: "logInterval",
-        path: "logging.log_interval_min",
-        format: formatTime.minutes,
-      },
-
-      // Special Cases
       {
         id: "scheduledRestart",
         path: "general.next_restart",
@@ -124,12 +148,91 @@ let configCache = {
           return formatter.format(next).replace(/, /g, " ");
         },
       },
-    ];
+      // Browser Section
+      {
+        id: "profilePath",
+        path: "browser.profile_path",
+        format: (v, el) => {
+          if (!v) {
+            el.classList.remove("Green", "Red");
+            return "-";
+          }
+          const lowerPath = v.toLowerCase();
+          const isValid =
+            lowerPath.includes("chrome") ||
+            lowerPath.includes("chromium") ||
+            lowerPath.includes("firefox");
+          el.classList.add(isValid ? "Green" : "Red");
+          return v;
+        },
+      },
+      {
+        id: "profileBinary",
+        path: "browser.binary_path",
+        format: (v, el) => {
+          if (!v) {
+            el.classList.remove("Green", "Red");
+            return "-";
+          }
+          const lowerBinary = v.toLowerCase();
+          const isValid =
+            lowerBinary.includes("chrome") ||
+            lowerBinary.includes("chromium") ||
+            lowerBinary.includes("firefox");
+          el.classList.add(isValid ? "Green" : "Red");
+          return v;
+        },
+      },
+      {
+        id: "headless",
+        path: "browser.headless",
+        format: (v, el) => formatTime.boolean(v, el),
+      },
 
+      // Logging Section
+      {
+        id: "logFile",
+        path: "logging.log_file_flag",
+        format: (v, el) => formatTime.boolean(v, el),
+      },
+      {
+        id: "logConsole",
+        path: "logging.log_console_flag",
+        format: (v, el) => formatTime.boolean(v, el),
+      },
+      {
+        id: "debugLogging",
+        path: "logging.debug_logging",
+        format: (v, el) => formatTime.boolean(v, el),
+      },
+      {
+        id: "errorLogging",
+        path: "logging.error_logging",
+        format: (v, el) => formatTime.boolean(v, el),
+      },
+      {
+        id: "screenshots",
+        path: "logging.ERROR_PRTSCR",
+        format: (v, el) => formatTime.boolean(v, el),
+      },
+      {
+        id: "logDays",
+        path: "logging.log_days",
+        format: (v, el) => formatTime.days(v, el),
+      },
+      {
+        id: "logInterval",
+        path: "logging.log_interval_min",
+        format: (v, el) => formatTime.minutes(v, el),
+      },
+    ];
     // Process all elements
     elementConfig.forEach(({ id, path, format }) => {
       const element = document.getElementById(id);
       if (!element) return;
+
+      // Reset classes first
+      element.classList.remove("Blue", "Yellow", "Red");
 
       // Get value from config
       const value = path.split(".").reduce((obj, key) => obj?.[key], config);
@@ -141,9 +244,7 @@ let configCache = {
           : value.toString();
       } else {
         element.textContent = "-";
-        if (id === "scheduledRestart") {
-          element.parentElement?.setAttribute("hidden", "");
-        }
+        element.classList.add("Blue");
       }
     });
   },
@@ -218,9 +319,9 @@ export async function loadStatus(forceRefreshConfig = false) {
     lastScriptUptime = null;
   }
 
+  const entry = document.getElementById("statusMsg");
   // Status message
-  if (st?.data) {
-    const entry = document.getElementById("statusMsg");
+  if (st?.data && entry) {
     entry.textContent = st.data.status;
     entry.classList.remove("Green", "Blue", "Red");
 

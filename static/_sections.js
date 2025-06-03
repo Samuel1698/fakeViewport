@@ -14,6 +14,7 @@ export const buttons = {
   logs: document.getElementById("logsBtn"),
   updateBanner: document.getElementById("updateBtn"),
   refreshButton: document.getElementById("refreshButton"),
+  logInput: document.querySelector("#navigation .log-controls"),
 };
 
 // Import dependencies (adjust paths as needed)
@@ -40,6 +41,12 @@ export function toggleSection(buttonId) {
     buttons.refreshButton.removeAttribute("hidden");
   } else {
     buttons.refreshButton.setAttribute("hidden", "true");
+  }
+  // Hide the log input button
+  if (buttonId === "logs") {
+    buttons.logInput.removeAttribute("hidden");
+  } else {
+    buttons.logInput.setAttribute("hidden", "true");
   }
 }
 

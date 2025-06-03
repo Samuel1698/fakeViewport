@@ -517,7 +517,7 @@ def test_api_config_no_restart(client, monkeypatch):
         BROWSER_BINARY=None,
         HEADLESS=None,
     )
-    monkeypatch.setattr(monitoring, "validate_config", lambda strict=False: fake_cfg)
+    monkeypatch.setattr(monitoring, "validate_config", lambda strict=False, print=False: fake_cfg)
 
     resp = client.get("/api/config")
     assert resp.status_code == 200
@@ -538,7 +538,7 @@ def test_api_config_with_restart(client, monkeypatch):
         BROWSER_BINARY=None,
         HEADLESS=None,
     )
-    monkeypatch.setattr(monitoring, "validate_config", lambda strict=False: fake_cfg)
+    monkeypatch.setattr(monitoring, "validate_config", lambda strict=False, print=False: fake_cfg)
 
     fixed_now = real_datetime(2025, 6, 1, 8, 0, 0)
     monkeypatch.setattr(monitoring.datetime, "now", classmethod(lambda cls: fixed_now))
@@ -568,7 +568,7 @@ def test_api_config_compute_error(client, monkeypatch):
         MAX_RETRIES=3,
         RESTART_TIMES=[timecls(9, 0)],
     )
-    monkeypatch.setattr(monitoring, 'validate_config', lambda strict=False: fake_cfg)
+    monkeypatch.setattr(monitoring, 'validate_config', lambda strict=False, print=False: fake_cfg)
 
     resp = client.get("/api/config")
     assert resp.status_code == 500

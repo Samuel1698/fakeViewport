@@ -10,17 +10,35 @@ let infoRefreshInterval;
 let configRefreshInterval;
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Light Theme toggle
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    const html = document.documentElement;
+    const currentTheme = html.getAttribute("data-theme");
+    const newTheme = currentTheme === "light" ? "dark" : "light";
+
+    html.setAttribute("data-theme", newTheme);
+    localStorage.setItem("theme", newTheme);
+  });
+
+  // Check for saved theme preference
+  if (typeof window !== "undefined") {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) {
+      document.documentElement.setAttribute("data-theme", savedTheme);
+    }
+  }
   // Initialize all components
   setActiveTab("status"); // Set initial tab to status
+  initSections();
+
   // Load data for both tabs on initial load
   await Promise.all([loadStatus(), loadInfoData()]);
+  initLogs();
+  initTooltips();
 
+  // Check for update last
   checkForUpdate();
   initUpdateButton();
-  initLogs();
-  initSections();
-  initTooltips();
-  
   // Set up intervals with different refresh rates
   statusRefreshInterval = setInterval(() => {
     if (document.getElementById("status").hasAttribute("hidden") === false) {
@@ -39,13 +57,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       loadInfo(); // Will only refresh config data
     }
   }, CACHE_TTL);
-  
+
   setInterval(checkForUpdate, CACHE_TTL);
 
   const controls = document.querySelector(".controls");
   const parentTooltip = controls.parentElement;
   const buttons = controls.querySelectorAll("button");
-  const COOLDOWN_TIME = 15_000; 
+  const COOLDOWN_TIME = 15_000;
 
   // Store the original tooltip for restoration
   const originalTooltip = controls.getAttribute("data-tooltip");
@@ -85,42 +103,78 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   function initTooltips() {
-    // Find all elements with data-tooltip attribute
     const tooltipElements = document.querySelectorAll("[data-tooltip]");
 
     tooltipElements.forEach((element) => {
-      // Create tooltip element
-      const tooltip = document.createElement("span");
-      tooltip.className = "tooltip-text";
-      tooltip.textContent = element.getAttribute("data-tooltip");
+      const tooltipText = element.getAttribute("data-tooltip");
 
-      // Wrap the original content in a tooltip container
+      // Split and handle multiple | characters
+      const parts = tooltipText
+        .split("|")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      // Create tooltip container
+      const tooltipDiv = document.createElement("div");
+      tooltipDiv.className = "tooltip-text";
+      tooltipDiv.setAttribute("role", "tooltip"); // Accessibility
+
+      // Process first part (always shown in Blue)
+      if (parts.length > 0) {
+        const line1 = document.createElement("span");
+        line1.className = "Blue";
+        line1.textContent = parts[0];
+        tooltipDiv.appendChild(line1);
+      }
+
+      // Process remaining parts
+      for (let i = 1; i < parts.length; i++) {
+        // Add line break before each additional part
+        tooltipDiv.appendChild(document.createElement("br"));
+        const line = document.createElement("span");
+        line.textContent = parts[i];
+        if (i == parts.length - 1 && parts.length > 2) {
+          line.className = "Yellow";
+        }
+        tooltipDiv.appendChild(line);
+      }
+
+      // Handle case where there was no | character
+      if (parts.length === 1) {
+        tooltipDiv.querySelector(".Blue").style.display = "block";
+      }
+
+      // Create wrapper and insert into DOM
       const wrapper = document.createElement("span");
       wrapper.className = "tooltip";
-
-      // Replace original element with wrapper
       element.parentNode.insertBefore(wrapper, element);
+
+      // Prepare the trigger element
+      element.classList.add("tooltip-trigger");
+      element.setAttribute("tabindex", "-1"); // Prevent focus outline
+      element.setAttribute("aria-describedby", `tooltip-${Date.now()}`);
+      tooltipDiv.id = element.getAttribute("aria-describedby");
+
       wrapper.appendChild(element);
-      wrapper.appendChild(tooltip);
+      wrapper.appendChild(tooltipDiv);
 
-      // Position adjustment for edge cases
-      const updatePosition = () => {
-        const rect = wrapper.getBoundingClientRect();
-        if (rect.left < 100) {
-          tooltip.style.left = "0";
-          tooltip.style.transform = "none";
-          tooltip.style.marginLeft = "10px";
-        } else if (rect.right > window.innerWidth - 100) {
-          tooltip.style.left = "auto";
-          tooltip.style.right = "0";
-          tooltip.style.transform = "none";
-          tooltip.style.marginRight = "10px";
-        }
-      };
+      // Mobile touch handling
+      element.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        document.querySelectorAll(".tooltip-trigger").forEach((t) => {
+          if (t !== element) t.classList.remove("active");
+        });
+        element.classList.toggle("active");
+      });
+    });
 
-      // Set up event listeners
-      wrapper.addEventListener("mouseenter", updatePosition);
-      window.addEventListener("resize", updatePosition);
+    // Close tooltips when tapping elsewhere
+    document.addEventListener("touchstart", (e) => {
+      if (!e.target.closest(".tooltip-trigger")) {
+        document.querySelectorAll(".tooltip-trigger").forEach((el) => {
+          el.classList.remove("active");
+        });
+      }
     });
   }
 });
