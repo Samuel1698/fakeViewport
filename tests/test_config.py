@@ -82,10 +82,10 @@ def test_invalid_ini_loose(tmp_path, caplog, ini_overrides, expected_msg):
     write_base(tmp_path, ini_overrides=ini_overrides)
     caplog.set_level("ERROR")
     ok = validate_config(strict=False,
-                         config_file=tmp_path / "config.ini",
-                         env_file=tmp_path / ".env",
-                         logs_dir=tmp_path / "logs",
-                         api_dir=tmp_path / "api")
+                        config_file=tmp_path / "config.ini",
+                        env_file=tmp_path / ".env",
+                        logs_dir=tmp_path / "logs",
+                        api_dir=tmp_path / "api")
     assert ok is False
     assert any(expected_msg in rec.message for rec in caplog.records)
 # ----------------------------------------------------------------------------- 
@@ -105,10 +105,10 @@ def test_invalid_env_loose(tmp_path, caplog, monkeypatch, env_overrides, expecte
     write_base(tmp_path, env_overrides=env_overrides)
     caplog.set_level("ERROR")
     ok = validate_config(strict=False,
-                         config_file=tmp_path / "config.ini",
-                         env_file=tmp_path / ".env",
-                         logs_dir=tmp_path / "logs",
-                         api_dir=tmp_path / "api")
+                        config_file=tmp_path / "config.ini",
+                        env_file=tmp_path / ".env",
+                        logs_dir=tmp_path / "logs",
+                        api_dir=tmp_path / "api")
     assert ok is False
     assert any(expected_msg in rec.message for rec in caplog.records)
 # ----------------------------------------------------------------------------- 
@@ -130,8 +130,7 @@ def test_env_parsing_exception(tmp_path, caplog):
 
     assert ok is False
     assert any("Failed to validate .env file:" in rec.message for rec in caplog.records)
-    assert any("Format should be KEY=value." in rec.message
-               for rec in caplog.records)
+    assert any("Format should be KEY=value." in rec.message for rec in caplog.records)
 # ----------------------------------------------------------------------------- 
 # Host/Port parsing in loose mode (no validation errors)
 # ----------------------------------------------------------------------------- 
@@ -175,10 +174,10 @@ def test_missing_host_port_no_errors(tmp_path, caplog, monkeypatch):
     monkeypatch.delenv("FLASK_RUN_PORT", raising=False)
     caplog.set_level("ERROR")
     ok = validate_config(strict=False,
-                         config_file=tmp_path / "config.ini",
-                         env_file=tmp_path / ".env",
-                         logs_dir=tmp_path / "logs",
-                         api_dir=tmp_path / "api")
+                        config_file=tmp_path / "config.ini",
+                        env_file=tmp_path / ".env",
+                        logs_dir=tmp_path / "logs",
+                        api_dir=tmp_path / "api")
     # should succeed and no FLASK_RUN errors
     assert ok
     assert not isinstance(ok, bool)  # returns AppConfig object
@@ -206,7 +205,6 @@ def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, fi
     )
     assert ok1
     assert not any(field in rec.message for rec in caplog.records)
-
     # present but empty → should fail with "<FIELD> is specified but empty."
     caplog.clear()
     write_base(tmp_path, env_overrides={field: ""})
@@ -230,10 +228,10 @@ def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, fi
     (None, {"USERNAME": "YourLocalUsername"}, "USERNAME is still set to the example value. Please update it."),
     (None, {"PASSWORD": "YourLocalPassword"}, "PASSWORD is still set to the example value. Please update it."),
     (None, {"URL": "http://192.168.100.100/protect/dashboard/multiviewurl"},
-     "URL is still set to the example value. Please update it."),
+    "URL is still set to the example value. Please update it."),
     # browser/profile mismatch
     ({"BROWSER_BINARY": "/usr/bin/firefox"}, {}, 
-     "Browser mismatch: binary uses 'firefox', but profile path does not."),
+    "Browser mismatch: binary uses 'firefox', but profile path does not."),
     # numeric constraints
     ({"SLEEP_TIME": "30"}, {},       "SLEEP_TIME must be ≥ 60."),
     ({"WAIT_TIME": "5"}, {},         "WAIT_TIME must be > 5."),
@@ -242,11 +240,9 @@ def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, fi
     ({"LOG_INTERVAL": "0"}, {},      "LOG_INTERVAL must be ≥ 1."),
 ])
 def test_additional_validate_config_errors(tmp_path, caplog, monkeypatch,
-                                           ini_overrides, env_overrides, expected_msg):
+                                        ini_overrides, env_overrides, expected_msg):
     # write base files with overrides
-    write_base(tmp_path,
-               ini_overrides=ini_overrides,
-               env_overrides=env_overrides)
+    write_base(tmp_path, ini_overrides=ini_overrides, env_overrides=env_overrides)
     caplog.set_level("ERROR")
     ok = validate_config(
         strict=False,
@@ -259,12 +255,11 @@ def test_additional_validate_config_errors(tmp_path, caplog, monkeypatch,
     assert ok is False
     assert any(expected_msg in rec.message for rec in caplog.records), \
         f"Expected to see {expected_msg!r} in:\n" + "\n".join(r.message for r in caplog.records)
-        
+
 def test_validate_config_logs_errors_and_returns_false(tmp_path, caplog):
     # Arrange: produce at least one error (SECRET empty)
     write_base(tmp_path, env_overrides={"SECRET": ""})
     caplog.set_level(logging.ERROR)
-
     # Act
     ok = validate_config(
         strict=False,
@@ -273,7 +268,6 @@ def test_validate_config_logs_errors_and_returns_false(tmp_path, caplog):
         logs_dir=tmp_path / "logs",
         api_dir=tmp_path / "api",
     )
-
     # Assert
     assert ok is False
     # Should have logged one error per entry in errors[]
@@ -334,10 +328,8 @@ def test_print_only_logs_errors(tmp_path, caplog):
         logs_dir=tmp_path / "logs",
         api_dir=tmp_path / "api",
     )
-
     assert ok is False
     assert any("SECRET is specified but empty." in r.message for r in caplog.records)
-
 
 def test_strict_only_exits_on_error(tmp_path, caplog):
     write_base(tmp_path, env_overrides={"SECRET": ""})

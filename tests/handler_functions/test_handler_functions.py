@@ -202,7 +202,7 @@ def test_browser_restart_handler(
         mock_log_info.assert_any_call("Page successfully reloaded.")
     else:
         assert not any("Page successfully reloaded." in args[0][0]
-                       for args in mock_log_info.call_args_list)
+            for args in mock_log_info.call_args_list)
 
     # Return driver only on full success
     if not should_raise and should_return:

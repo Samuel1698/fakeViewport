@@ -48,7 +48,7 @@ def test_configure_logging_file_and_console(tmp_path):
     console_handlers = [
         h for h in logger.handlers
         if isinstance(h, logging.StreamHandler)
-           and getattr(h, "stream", None) is sys.stderr
+        and getattr(h, "stream", None) is sys.stderr
     ]
     assert len(console_handlers) == 1
     assert isinstance(console_handlers[0].formatter, ColoredFormatter)
@@ -86,13 +86,13 @@ def test_configure_logging_only_console(tmp_path):
 
     # no file handlers at all
     assert not any(isinstance(h, TimedRotatingFileHandler)
-                   for h in logger.handlers)
+        for h in logger.handlers)
 
     # exactly one StreamHandler writing to stderr
     console_handlers = [
         h for h in logger.handlers
         if isinstance(h, logging.StreamHandler)
-           and getattr(h, "stream", None) is sys.stderr
+        and getattr(h, "stream", None) is sys.stderr
     ]
     assert len(console_handlers) == 1
 

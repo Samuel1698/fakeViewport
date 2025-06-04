@@ -176,7 +176,7 @@ def test_api_restart_success(monkeypatch, client):
     # Patch subprocess.Popen so it does not spawn a real process
     class DummyPopen:
         def __init__(self, args, cwd=None, stdin=None, stdout=None, stderr=None,
-                     close_fds=None, start_new_session=None):
+                    close_fds=None, start_new_session=None):
             recorded["popen_args"] = args
             recorded["popen_cwd"] = cwd
             recorded["popen_kwargs"] = {

@@ -138,8 +138,8 @@ def test_restart_handler_exception(
     mock_popen.assert_not_called()
 
 def test_restart_handler_exec_replace_failure(monkeypatch,
-                                              patch_time_and_paths,
-                                              patch_args_and_api):
+                                            patch_time_and_paths,
+                                            patch_args_and_api):
     # Simulate interactive terminal
     monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
 

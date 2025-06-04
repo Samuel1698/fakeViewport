@@ -148,7 +148,7 @@ def test_args_handler_api_disabled_logs_message(mock_exit, monkeypatch, caplog):
         "API is not enabled in config.ini" in rec.message
         for rec in caplog.records
     )
-     
+
 def test_restart_flag_when_running(monkeypatch, caplog):
     monkeypatch.setattr(viewport.os.path, "realpath", lambda p: "script.py")
     monkeypatch.setattr(sys, "executable", "/usr/bin/py")
@@ -319,7 +319,7 @@ def test_logs_file_not_found(mock_exit):
         "quit": False, "diagnose": False, "api": False, "restart": False
     })()
     with patch("viewport.open", side_effect=FileNotFoundError), \
-         patch("viewport.print") as mock_print:
+        patch("viewport.print") as mock_print:
         viewport.args_handler(mock_args)
     mock_print.assert_called_once_with(
         f"{viewport.RED}Log file not found: {viewport.log_file}{viewport.NC}"

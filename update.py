@@ -22,6 +22,21 @@ cached_release_data: dict | None = None
 # Helper functions
 # ----------------------------------------------------------------------------- 
 def _github(url: str, *, accept="application/vnd.github+json"):
+    """
+    Open a GitHub API endpoint with automatic token and rate-limit handling.
+
+    Args:
+        url: Full HTTPS URL of the GitHub REST endpoint.
+        accept: Value for the ``Accept`` request header.
+
+    Returns:
+        http.client.HTTPResponse: An open response object ready for
+        ``.read()`` / JSON decoding.
+
+    Raises:
+        urllib.error.HTTPError: Propagates 4xx/5xx errors after logging.
+        Exception: Any other network-related exception.
+    """
     hdr = {"Accept": accept}
     # Always use token if available
     if (tok := os.getenv("GITHUB_TOKEN")):
@@ -38,10 +53,22 @@ def _github(url: str, *, accept="application/vnd.github+json"):
         raise
     
 def _clean_worktree() -> bool:
+    """
+    Check whether the local Git work-tree is clean.
+
+    Returns:
+        bool: ``True`` if ``git status --porcelain`` is empty, else
+        ``False``.
+    """
     return subprocess.check_output(GIT + ["status", "--porcelain"], text=True).strip() == ""
 
 def _current_branch() -> str | None:
-    # Return the active branch name or None if HEAD is detached.
+    """
+    Get the name of the currently checked-out branch.
+
+    Returns:
+        string | None: Branch name, or ``None`` if HEAD is detached.
+    """
     try:
         return subprocess.check_output(
             GIT + ["symbolic-ref", "--quiet", "--short", "HEAD"],
@@ -51,7 +78,15 @@ def _current_branch() -> str | None:
         return None
 
 def _default_branch() -> str:
-    # Ask Git for the remote-default branch, fallback to GitHub API, then main.
+    """
+    Resolve the repository's default branch.
+
+    Attempts ``git symbolic-ref`` first, then falls back to the GitHub
+    API, and finally ``"main"`` if all else fails.
+
+    Returns:
+        string: The default branch name.
+    """
     try:
         ref = subprocess.check_output(
             GIT + ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
@@ -68,8 +103,17 @@ def _default_branch() -> str:
 # Strategies
 # ----------------------------------------------------------------------------- 
 def update_via_git(tag: str) -> bool:
-    # Fast-forwards the current branch (or the repo’s default branch if detached)
-    # to the commit that has the desired tag, then runs minimize.sh.
+    """
+    Fast-forward the local repo to *tag* and run ``minimize.sh``.
+
+    The strategy is skipped if uncommitted changes exist.
+
+    Args:
+        tag: Release tag without the leading ``"v"`` (e.g., ``"2.3.6"``).
+
+    Returns:
+        bool: ``True`` on success, ``False`` if any Git step fails.
+    """
     if not _clean_worktree():
         logging.warning("Local changes detected - skipping git strategy")
         return False
@@ -102,6 +146,16 @@ def update_via_git(tag: str) -> bool:
     return True
 
 def _download_asset(tag: str, keyword: str) -> bytes | None:
+    """
+    Download a release asset whose name contains *keyword*.
+
+    Args:
+        tag: Release tag without the leading ``"v"``.
+        keyword: Case-insensitive substring to match the asset name.
+
+    Returns:
+        bytes | None: Asset content, or ``None`` if not found.
+    """
     with _github(f"https://api.github.com/repos/{REPO}/releases/tags/v{tag}") as r:
         data = json.load(r)
     for asset in data.get("assets", []):
@@ -111,6 +165,15 @@ def _download_asset(tag: str, keyword: str) -> bytes | None:
     return None
 
 def update_via_tar(tag: str) -> bool:
+    """
+    Update files by extracting the “minimal” tarball for *tag*.
+
+    Args:
+        tag: Release tag without the leading ``"v"``.
+
+    Returns:
+        bool: ``True`` if extraction succeeds, ``False`` otherwise.
+    """
     try:
         blob = _download_asset(tag, "minimal")
         if blob is None:
@@ -131,13 +194,26 @@ def update_via_tar(tag: str) -> bool:
 # API
 # ----------------------------------------------------------------------------- 
 def current_version() -> str:
+    """
+    Read the locally installed version string.
+
+    Returns:
+        string: Contents of ``api/VERSION`` with surrounding whitespace
+        stripped.
+    """
     return VERS.read_text().strip()
 
 def _get_release_data() -> dict:
-    # Fetches the GitHub “latest release” JSON once per CACHE_DURATION.
-    # Caches the raw JSON dict (including 'tag_name', 'body', etc.)
-    # so that subsequent calls within CACHE_DURATION reuse it.
-    # Raises HTTPError for GitHub 4xx/5xx. Any other exception bubbles up.
+    """
+    Retrieve (and cache) the GitHub JSON for the latest release.
+
+    Returns:
+        dict: Raw JSON representing the latest release.
+
+    Raises:
+        urllib.error.HTTPError: Propagates 4xx/5xx errors.
+        Exception: Any other network or parsing exception.
+    """
     global last_release_fetched, cached_release_data
 
     now = datetime.now()
@@ -169,8 +245,13 @@ def _get_release_data() -> dict:
         raise
 
 def latest_version() -> str:
-    # Returns the latest release tag (without the leading 'v').
-    # If anything fails (HTTPError or other), returns "failed-to-fetch".
+    """
+    Return the tag of the latest GitHub release.
+
+    Returns:
+        string: Tag without the leading ``"v"``, or ``"failed-to-fetch"``
+        if the lookup fails.
+    """
     global cached_release_data, last_release_fetched
     now = datetime.now()
     try:
@@ -189,8 +270,12 @@ def latest_version() -> str:
         return "failed-to-fetch"
 
 def latest_changelog() -> str:
-    # Returns the latest release body, truncated at the first '---' line.
-    # If any HTTPError occurs, returns an empty string. Any other exception → empty string.
+    """
+    Return the latest release notes, truncated at the first ``---`` line.
+
+    Returns:
+        string: Release body or an empty string if it cannot be fetched.
+    """
     global cached_release_data, last_release_fetched
     now = datetime.now()
     try:
@@ -212,8 +297,16 @@ def latest_changelog() -> str:
         return ""
     
 def perform_update() -> str:
-    # Try git first (if the work-tree is clean) then fall back to the tarball.
-    # Whatever happens, write the outcome to the log and return it.
+    """
+    Update the installation to the newest release using Git or tarball.
+
+    The function tries Git first (when possible) and falls back to the
+    tarball strategy, logging the outcome.
+
+    Returns:
+        string: Outcome label, e.g. ``"already-current"``,
+        ``"updated-to-2.3.6-via-git"``, or ``"update-failed"``.
+    """
     cur, new = current_version(), latest_version()
 
     # already current
