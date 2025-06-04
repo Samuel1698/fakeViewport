@@ -126,13 +126,13 @@ def test_browser_handler(
 
 @pytest.mark.parametrize("exc, expected_msg", [
     (NewConnectionError("conn refused", None),
-     "Connection refused while starting chrome; retrying in 2s"),
+    "Connection refused while starting chrome; retrying in 2s"),
     (MaxRetryError("network down", None),
-     "Network issue while starting chrome; retrying in 2s"),
+    "Network issue while starting chrome; retrying in 2s"),
     (NameResolutionError("dns fail", None, None),
-     "DNS resolution failed while starting chrome; retrying in 2s"),
+    "DNS resolution failed while starting chrome; retrying in 2s"),
     (Exception("oops"),
-     "Error starting chrome: "),
+    "Error starting chrome: "),
 ])
 def test_browser_handler_logs_expected_error(monkeypatch, exc, expected_msg):
     # Arrange: minimal environment
@@ -156,10 +156,13 @@ def test_browser_handler_logs_expected_error(monkeypatch, exc, expected_msg):
     # Prevent real sleeping and long loops
     monkeypatch.setattr(viewport.time, "sleep", lambda s: None)
     # Stop after error handling by intercepting restart_handler
+    def raise_stop_iteration(driver):
+        raise StopIteration
+
     monkeypatch.setattr(
         viewport,
         "restart_handler",
-        lambda driver: (_ for _ in ()).throw(StopIteration)
+        raise_stop_iteration
     )
 
     # Act & Assert: StopIteration from our fake restart_handler

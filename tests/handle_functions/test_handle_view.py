@@ -444,7 +444,8 @@ def test_handle_view_fullscreen_mismatch(monkeypatch):
         window_size={"width": 800, "height": 600},
         screen_size={"width": 1024, "height": 768}
     )
-
+    def raise_stop_iteration(driver):
+        raise StopIteration
     # crash branch off
     monkeypatch.setattr(viewport, "check_crash", lambda d: False)
     # fullscreen button fails
@@ -456,8 +457,8 @@ def test_handle_view_fullscreen_mismatch(monkeypatch):
     monkeypatch.setattr(viewport.logging, "warning", lambda msg: warns.append(msg))
 
     # break out of the infinite loop after first iteration
-    monkeypatch.setattr(viewport.time, "sleep", lambda s: (_ for _ in ()).throw(StopIteration))
-
+    monkeypatch.setattr(viewport.time, "sleep", raise_stop_iteration)
+    
     with pytest.raises(StopIteration):
         viewport.handle_view(driver, "http://example.com")
 
@@ -472,6 +473,8 @@ def test_handle_view_check_crash(monkeypatch):
         window_size={"width": 1024, "height": 768},
         screen_size={"width": 1024, "height": 768},
     )
+    def raise_stop_iteration(driver):
+        raise StopIteration
     # check_crash: True on first call, False afterwards 
     crash_iter = iter([True, False])          # any further next() keeps raising False
     monkeypatch.setattr(viewport, "check_crash", lambda d: next(crash_iter))
@@ -485,9 +488,8 @@ def test_handle_view_check_crash(monkeypatch):
     monkeypatch.setattr(viewport, "api_status",
                         lambda msg: apis.append(msg))
     # break the loop when we hit the regular sleep
-    monkeypatch.setattr(
-        viewport.time, "sleep", lambda s: (_ for _ in ()).throw(StopIteration)
-    )
+    monkeypatch.setattr(viewport.time, "sleep", raise_stop_iteration)
+
     with pytest.raises(StopIteration):
         viewport.handle_view(driver, "http://example.com")
         
