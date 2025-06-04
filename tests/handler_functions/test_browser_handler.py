@@ -1,7 +1,7 @@
 import pytest
 from urllib3.exceptions import MaxRetryError, NameResolutionError, NewConnectionError
 from unittest.mock import MagicMock, patch, call
-import viewport
+import viewport, logging
 
 @pytest.fixture(autouse=True)
 def stub_get_driver_path(monkeypatch):
@@ -17,19 +17,19 @@ def stub_get_driver_path(monkeypatch):
         ("chrome",   [MagicMock()],                                                    1, 1, False),
         ("chrome",   [Exception("boom"), MagicMock()],                                 1, 1, False),
         # Chrome permanent-failure → 2 kills, restart
-        ("chrome",   [Exception("fail")] * 3,                                          0, 2, True),
+        ("chrome",   [Exception("fail")] * 4,                                          0, 2, True),
         
         # Chromium success & retry-then-success
         ("chromium",[MagicMock()],                                                     1, 1, False),
         ("chromium",[Exception("boom"), MagicMock()],                                  1, 1, False),
         # Chromium permanent-failure → 2 kills, restart
-        ("chromium",[Exception("fail")] * 3,                                           0, 2, True),
+        ("chromium",[Exception("fail")] * 4,                                           0, 2, True),
         
         # Firefox success & retry-then-success
         ("firefox", [MagicMock()],                                                     1, 1, False),
         ("firefox", [Exception("boom"), MagicMock()],                                  1, 1, False),
         # Firefox permanent-failure → 2 kills, restart
-        ("firefox", [Exception("fail")] * 3,                                           0, 2, True),
+        ("firefox", [Exception("fail")] * 4,                                           0, 2, True),
     ]
 )
 @patch("viewport.restart_handler")
@@ -196,6 +196,55 @@ def test_browser_handler_unsupported(monkeypatch):
     fake_log.assert_called_once_with("Unsupported browser: safari")
     fake_api.assert_called_once_with("Unsupported browser: safari")
     
+def test_browser_handler_logging_sequence_on_failures(monkeypatch, caplog):
+    """
+    Verify that browser_handler logs the correct retry sequence,
+    kills existing processes before the final attempt, and gives up
+    after MAX_RETRIES
+    """
+    monkeypatch.setattr(viewport, "BROWSER", "chromium")
+    monkeypatch.setattr(viewport, "MAX_RETRIES", 3)     # 3 + final attempt
+    monkeypatch.setattr(viewport, "SLEEP_TIME", 60)     # drives the last log line
+    process_mock = MagicMock()
+    monkeypatch.setattr(viewport, "process_handler", process_mock)
+    monkeypatch.setattr(viewport, "restart_handler", MagicMock())
+    monkeypatch.setattr(viewport.time, "sleep", lambda s: None)
+    monkeypatch.setattr(
+        viewport.webdriver,
+        "Chrome",
+        lambda *a, **k: (_ for _ in ()).throw(Exception("Failed to start browser"))
+    )
+    url = "http://example.com"
+    with caplog.at_level(logging.INFO):
+        viewport.browser_handler(url)
+    log_messages = [rec.message for rec in caplog.records]
+    expected_sequence = [
+        "Error starting chromium: ",
+        "Retrying... (Attempt 1 of 3)",
+        "Error starting chromium: ",
+        "Retrying... (Attempt 2 of 3)",
+        "Error starting chromium: ",
+        "Retrying... (Attempt 3 of 3)",
+        "Killing existing chromium processes before final attempt...",
+        "Error starting chromium: ",
+        "Failed to start chromium after maximum retries.",
+        "Starting Script again in 30 seconds.",
+    ]
+    # Ensure every expected fragment appears in the same order
+    for expected, actual in zip(expected_sequence, log_messages):
+        assert expected in actual, f"Expected '{expected}' in '{actual}'"
+    # Quick sanity counts
+    assert log_messages.count("Retrying... (Attempt 1 of 3)") == 1
+    assert log_messages.count("Retrying... (Attempt 2 of 3)") == 1
+    assert log_messages.count("Retrying... (Attempt 3 of 3)") == 1
+    assert "Killing existing chromium processes before final attempt..." in log_messages
+    assert "Failed to start chromium after maximum retries." in log_messages
+    # process_handler: once at the very start (check) + once to kill
+    assert process_mock.call_count == 2
+    last_call = process_mock.call_args  # (args, kwargs)
+    assert last_call[0][0] == "chromium"
+    assert last_call.kwargs["action"] == "kill"
+
 # ----------------------------------------------------------------------------- 
 # Tests for driver-stuck behavior in browser_handler
 # ----------------------------------------------------------------------------- 
@@ -237,9 +286,9 @@ def test_driver_download_stuck_logs_and_kills(monkeypatch, browser):
     with pytest.raises(Breakout):
         viewport.browser_handler("http://example.com")
 
-    # Assert: expecting 3 kills with the same signature
-    assert spy_kill.call_count == 3
-    spy_kill.assert_has_calls([call(browser, action="kill")] * 3)
+    # Assert: expecting 4 kills with the same signature
+    assert spy_kill.call_count == 4
+    spy_kill.assert_has_calls([call(browser, action="kill")] * 4)
     # Assert log has the appropriate line
     spy_log.assert_any_call(
         f"Error downloading {browser}WebDrivers; Restart machine if it persists."

@@ -713,14 +713,15 @@ def browser_handler(url):
     # Starts a browser 'driver' and handles error reattempts
     # If the driver fails to start, it will retry a few times before killing all existing browser processes and restarting the script
     process_handler(BROWSER, action="kill")
-    retry_count = 0
-    max_retries = MAX_RETRIES
-    while retry_count < max_retries:
+    max_attempts = MAX_RETRIES + 1  # Initial attempt + retries
+    for attempt in range(1, max_attempts + 1):  # 1-indexed counting
+        # Log retry messages only for attempts after the first one
+        if attempt > 1:
+            logging.info(f"Retrying... (Attempt {attempt - 1} of {MAX_RETRIES})")
         # Kill before the last retry to give it a clean slate
-        if retry_count == max_retries - 1:
+        if attempt == max_attempts:
             logging.info(f"Killing existing {BROWSER} processes before final attempt...")
             process_handler(BROWSER, action="kill")
-        
         try:
             driver_path = get_driver_path(BROWSER, timeout=WAIT_TIME)
             if BROWSER in ("chrome", "chromium"):
@@ -798,9 +799,6 @@ def browser_handler(url):
         except Exception as e:
             log_error(f"Error starting {BROWSER}: ", e)
             api_status(f"Error Starting {BROWSER}")
-        retry_count += 1
-        if retry_count < max_retries:
-            logging.info(f"Retrying... (Attempt {retry_count} of {max_retries})")
     log_error(f"Failed to start {BROWSER} after maximum retries.")
     logging.info(f"Starting Script again in {int(SLEEP_TIME/2)} seconds.")
     api_status(f"Restarting Script in {int(SLEEP_TIME/2)} seconds.")
