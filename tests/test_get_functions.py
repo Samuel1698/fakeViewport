@@ -1,4 +1,5 @@
 import concurrent.futures
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 from datetime import datetime, time as dt_time
@@ -8,10 +9,19 @@ import viewport
 # Fixtures and Helpers
 # ----------------------------------------------------------------------------- 
 class DummyMgr:
-    def __init__(self, *_, **__):
-        pass
+    """
+    Test double that mimics selenium-manager objects created by
+    ChromeDriverManager / GeckoDriverManager.
+    Accepts arbitrary *args/**kwargs so tests don't break when those
+    libraries change their API.
+    """
+    def __init__(self, driver_path="/tmp/dummy/chromedriver/linux64/chromedriver",
+                 *args, **kwargs):
+        self.driver_path = str(driver_path)
+
+    # viewport.get_driver_path() only calls install(), nothing else.
     def install(self):
-        # Return a path that does not exist for unit-test purposes
+        # Value used in “happy-path” tests
         return "/fake/driver/path"
 
 class DummyFuture:
@@ -98,7 +108,7 @@ def test_get_next_restart_tomorrow():
     expected = datetime(2025, 5, 11, 3, 0)
     assert viewport.get_next_restart(now) == expected
 # ----------------------------------------------------------------------------- 
-# Test: get_next_interval
+# Test: get_next_interval and get_local_driver
 # ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize(
     "interval_seconds, now, expected",
@@ -114,12 +124,35 @@ def test_get_next_interval(interval_seconds, now, expected):
     result = viewport.get_next_interval(interval_seconds, now=now)
     assert datetime.fromtimestamp(result) == expected
 
+def test_get_local_driver_no_versions(monkeypatch, tmp_path):
+    """
+    When the platform root exists but contains **no version
+    sub-directories**, get_local_driver() must return None.
+    """
+    # Platform root (chromedriver/) exists, but no sub-folders inside it
+    platform_root = tmp_path / "chromedriver"
+    platform_root.mkdir(parents=True)
+
+    # Fake manager whose driver_path is two levels *below* that root.
+    # linux64/ does NOT exist – perfectly fine for this test.
+    mgr = SimpleNamespace(
+        driver_path=str(platform_root / "linux64" / "chromedriver")
+    )
+
+    assert viewport.get_local_driver(mgr) is None
 # --------------------------------------------------------------------------- #
 # get_driver_path  – happy-path tests
 # --------------------------------------------------------------------------- #
 def _patch_cleaner(monkeypatch):
     """Disable `stale_drivers_handler()` for tests that only need happy path."""
     monkeypatch.setattr(viewport, "stale_drivers_handler", lambda *_: None)
+def _patch_timeout(monkeypatch):
+    """Force every Future.result() call to raise TimeoutError immediately."""
+    monkeypatch.setattr(
+        viewport.concurrent.futures.Future,
+        "result",
+        lambda self, timeout=None: (_ for _ in ()).throw(concurrent.futures.TimeoutError())
+    )
 
 def test_get_driver_path_chrome_success(monkeypatch):
     _patch_cleaner(monkeypatch)
@@ -138,7 +171,6 @@ def test_get_driver_path_firefox_success(monkeypatch):
     monkeypatch.setattr(viewport, "GeckoDriverManager", lambda *_, **__: DummyMgr())
     path = viewport.get_driver_path("firefox", timeout=1)
     assert path == "/fake/driver/path"
-
 # --------------------------------------------------------------------------- #
 # get_driver_path  – timeout branch
 # --------------------------------------------------------------------------- #
@@ -152,7 +184,7 @@ def test_get_driver_path_timeout_calls(monkeypatch):
 
     assert "Chrome driver download stuck" in str(exc.value)
     viewport.log_error.assert_called_once_with(
-        "Chrome driver download stuck (> 0.01s)"
+        "Chrome driver download stuck (> 0.01s) and no local driver found"
     )
     viewport.api_status.assert_called_once_with(
         "Driver download stuck; restart computer if it persists"
@@ -162,10 +194,58 @@ def test_get_driver_path_unsupported_browser():
     with pytest.raises(ValueError):
         viewport.get_driver_path("safari")
 
+def test_get_driver_path_timeout_fallback_firefox(monkeypatch, tmp_path):
+    newest_bin = stale_drivers_tree(tmp_path, ["v.91.0", "v.92.0"])
+    _patch_cleaner(monkeypatch)
+    _patch_timeout(monkeypatch)
+    monkeypatch.setattr(viewport, "GeckoDriverManager",
+                        lambda *a, **kw: DummyMgr(newest_bin))
+    path = viewport.get_driver_path("firefox", timeout=0.01)
+    assert path == str(newest_bin)
+
+def test_get_driver_path_timeout_fallback(monkeypatch, tmp_path):
+    newest_bin = stale_drivers_tree(tmp_path, ["114.150.20.56", "137.140.20.50"])
+    _patch_cleaner(monkeypatch)                 # skip delete logic
+
+    monkeypatch.setattr(viewport, "ChromeDriverManager",
+                        lambda *a, **kw: DummyMgr(newest_bin))
+    monkeypatch.setattr(viewport.concurrent.futures,    # executor always “hangs”
+                        "ThreadPoolExecutor", DummyExecutor)
+
+    path = viewport.get_driver_path("chrome", timeout=0.01)
+    assert path == str(newest_bin)
+    viewport.log_error.assert_called_once()
+    viewport.api_status.assert_called_once()
+
+def test_get_driver_path_timeout_empty_fallback(monkeypatch, tmp_path):
+    empty_dir = (tmp_path / "chromedriver" / "linux64" / "123.0"); empty_dir.mkdir(parents=True)
+    _patch_cleaner(monkeypatch)
+    _patch_timeout(monkeypatch)
+    monkeypatch.setattr(viewport, "ChromeDriverManager",
+                        lambda *a, **kw: DummyMgr(empty_dir / "chromedriver"))
+    with pytest.raises(viewport.DriverDownloadStuckError):
+        viewport.get_driver_path("chrome", timeout=0.01)
+
+def test_get_driver_path_timeout_fallback_numeric_sort(monkeypatch, tmp_path):
+    # 9.9.10 is lexicographically > 10.0 but should *not* win
+    newest_bin = stale_drivers_tree(tmp_path, ["9.9.10", "10.0"])
+    _patch_cleaner(monkeypatch)
+    _patch_timeout(monkeypatch)
+    monkeypatch.setattr(viewport, "ChromeDriverManager",
+                        lambda *a, **kw: DummyMgr(newest_bin))
+    assert viewport.get_driver_path("chrome", timeout=0.01).endswith("10.0/chromedriver")
+    
+def test_get_driver_path_success_invokes_cleanup(monkeypatch):
+    called = {"clean": 0}
+    monkeypatch.setattr(viewport, "stale_drivers_handler",
+                        lambda path: called.update(clean=called["clean"]+1))
+    monkeypatch.setattr(viewport, "ChromeDriverManager", lambda *_, **__: DummyMgr())
+    assert viewport.get_driver_path("chrome", timeout=1) == "/fake/driver/path"
+    assert called["clean"] == 1
 # --------------------------------------------------------------------------- #
 # stale_drivers_handler
 # --------------------------------------------------------------------------- #
-def stale_drivers_handler(base: Path, versions):
+def stale_drivers_tree(base: Path, versions):
     """
     Create …/linux64/<version>/chromedriver (or geckodriver) files under *base*.
     Returns Path to the newest driver binary (last item in *versions*).
@@ -187,7 +267,7 @@ def stale_drivers_handler(base: Path, versions):
 def test_stale_drivers_handler_keeps_latest(tmp_path):
     # last element becomes the freshly-downloaded build
     versions = ["114.0.7150.60", "137.0.7151.65", "137.0.7151.68", "138.0.7152.10"]
-    newest_bin = stale_drivers_handler(tmp_path, versions)
+    newest_bin = stale_drivers_tree(tmp_path, versions)
 
     viewport.stale_drivers_handler(newest_bin)        # keep_latest = 1
 
@@ -200,7 +280,7 @@ def test_stale_drivers_handler_keeps_latest(tmp_path):
 def test_stale_drivers_handler_keep_two(tmp_path):
     # put the highest version last so it’s the “fresh install”
     versions = ["v.101.0", "v.102.0", "v.103.0", "v.100.0"]
-    newest_bin = stale_drivers_handler(tmp_path, versions)
+    newest_bin = stale_drivers_tree(tmp_path, versions)
 
     viewport.stale_drivers_handler(newest_bin, keep_latest=2)
 
@@ -212,7 +292,7 @@ def test_stale_drivers_handler_keep_two(tmp_path):
 
 def test_stale_drivers_handler_no_siblings(tmp_path):
     # Single version → nothing to delete
-    newest_bin = stale_drivers_handler(tmp_path, ["123.0"])
+    newest_bin = stale_drivers_tree(tmp_path, ["123.0"])
     viewport.stale_drivers_handler(newest_bin)
     platform_dir = newest_bin.parent.parent
     assert any(platform_dir.iterdir()), "Directory should still exist"
@@ -220,7 +300,7 @@ def test_stale_drivers_handler_no_siblings(tmp_path):
 def test_stale_drivers_handler_rmtree_error(tmp_path, monkeypatch):
     """stale_drivers_handler should log a warning if rmtree raises."""
     versions   = ["v.100.0", "v.101.0", "v.102.0"]
-    newest_bin = stale_drivers_handler(tmp_path, versions)
+    newest_bin = stale_drivers_tree(tmp_path, versions)
 
     # force shutil.rmtree to fail
     def boom(path, ignore_errors=False):

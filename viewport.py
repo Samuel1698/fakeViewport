@@ -4,7 +4,7 @@ import math, threading, logging, concurrent, shutil, re
 from logging_config                      import configure_logging
 from validate_config                     import validate_config
 from pathlib                             import Path
-from typing                              import Tuple
+from typing                              import Tuple, Optional
 from datetime                            import datetime, timedelta
 from webdriver_manager.chrome            import ChromeDriverManager
 from webdriver_manager.firefox           import GeckoDriverManager
@@ -557,14 +557,46 @@ def get_next_interval(interval_seconds, now=None):
     next_interval = now + timedelta(seconds=seconds_until_next_interval)
     return next_interval.timestamp()
 def get_tuple(name: str) -> Tuple[int, ...]:
-    """Turn '137.0.7151.68' → (137, 0, 7151, 68) for proper numeric sorting."""
+    """
+    Convert a dotted version string into a sortable integer tuple.
+
+    Args:
+        name: Version string, e.g. ``"137.0.7151.68"``.
+
+    Returns:
+        tuple[int, ...]: ``(137, 0, 7151, 68)`` - suitable for numeric
+        comparisons or sorting.
+    """
     return tuple(int(x) for x in _version_re.findall(name))
+def get_local_driver(mgr) -> Optional[Path]:
+    """
+    Locate the newest already-downloaded driver managed by *mgr*.
+
+    Args:
+        mgr: An instance of ``ChromeDriverManager`` or
+            ``GeckoDriverManager`` whose ``driver_path`` points inside
+            the local cache.
+
+    Returns:
+        pathlib.Path | None: Path to the most recent driver binary, or
+        ``None`` if no cached versions are found.
+    """
+    platform_dir = Path(mgr.driver_path).parent.parent
+    if not platform_dir.exists():
+        return None
+    versions = [d for d in platform_dir.iterdir() if d.is_dir()]
+    if not versions:
+        return None
+    newest = max(versions, key=lambda d: get_tuple(d.name))
+    bin_name = "chromedriver" if "chrome" in mgr.driver_path else "geckodriver"
+    return newest / bin_name
 def get_driver_path(browser: str, timeout: int = 60) -> str:
     """
-    Download (if needed) and return the path to a WebDriver binary.
+    Download (or reuse) a WebDriver binary and return its filesystem path.
 
-    Supports Chrome/Chromium and Firefox.  The download is executed in a
-    background thread so that it can be timed-out cleanly.
+    The download is attempted in a background thread so it can time-out
+    cleanly. On timeout, the function falls back to the newest cached
+    driver if one exists.
 
     Args:
         browser: Target browser - ``chrome``, ``chromium``, or
@@ -572,20 +604,22 @@ def get_driver_path(browser: str, timeout: int = 60) -> str:
         timeout: Maximum seconds to wait for the download to finish.
 
     Returns:
-        string: Filesystem path to the downloaded driver executable.
+        string: Absolute path to the driver executable.
 
     Raises:
         ValueError: If *browser* is not one of the supported values.
-        DriverDownloadStuckError: If the driver download takes longer than *timeout* seconds.
+        DriverDownloadStuckError: If the download exceeds *timeout* and
+            no suitable cached driver is available.
     """
     if browser in ("chrome", "chromium"):
         is_chromium = "chromium" in BROWSER_BINARY.lower()
-        mgr = ChromeDriverManager(chrome_type=ChromeType.CHROMIUM if is_chromium else ChromeType.GOOGLE)
+        mgr = ChromeDriverManager(
+            chrome_type=ChromeType.CHROMIUM if is_chromium else ChromeType.GOOGLE
+        )
     elif browser == "firefox":
         mgr = GeckoDriverManager()
     else:
         raise ValueError(f"Unsupported browser for driver install: {browser!r}")
-    # spin up a single-worker executor
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     future = executor.submit(mgr.install)
     try:
@@ -593,7 +627,19 @@ def get_driver_path(browser: str, timeout: int = 60) -> str:
         stale_drivers_handler(driver_path)
         return str(driver_path)
     except concurrent.futures.TimeoutError:
-        msg = f"{browser.title()} driver download stuck (> {timeout}s)"
+        fallback = get_local_driver(mgr)
+        if fallback and fallback.exists():
+            msg = (
+                f"{browser.title()} driver download stuck (> {timeout}s); "
+                "using existing driver "
+                f"{fallback.parent.name}"
+            )
+            log_error(msg)
+            api_status("Driver download slow; fell back to older driver")
+            executor.shutdown(wait=False)
+            return str(fallback)
+        # No local fallback → still raise
+        msg = f"{browser.title()} driver download stuck (> {timeout}s) and no local driver found"
         log_error(msg)
         api_status("Driver download stuck; restart computer if it persists")
         executor.shutdown(wait=False)
