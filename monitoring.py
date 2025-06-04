@@ -132,10 +132,20 @@ def create_app():
                 # Successful login: set auth flag and go to dashboard (or next)
                 session["authenticated"] = CONTROL_TOKEN
                 next_url = request.args.get("next", "").replace("\\", "")
-                if not urlparse(next_url).netloc and not urlparse(next_url).scheme:
-                    # Safe relative path, redirect to it
+
+                # If next is provided and safe, use it
+                if next_url and not urlparse(next_url).netloc and not urlparse(next_url).scheme:
                     return redirect(next_url)
-                # Unsafe or invalid path, redirect to dashboard
+
+                # If no next, check referrer (if safe)
+                referrer = request.referrer
+                if referrer:
+                    parsed_referrer = urlparse(referrer)
+                    # Only allow redirecting to same domain
+                    if parsed_referrer.netloc == request.host and not parsed_referrer.scheme:
+                        return redirect(referrer)
+
+                # Default to dashboard if no safe next/referrer
                 return redirect(url_for("dashboard"))
 
             # Failed login: flash error, but session stays cleared

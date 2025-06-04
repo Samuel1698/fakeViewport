@@ -347,6 +347,38 @@ def test_logout_clears_session_and_redirects(tmp_path, monkeypatch):
     resp = client_app.get("/logout", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["Location"].endswith("/login")
+
+def test_login_redirects_to_safe_referrer(tmp_path, monkeypatch):
+    client_app = _make_auth_client(tmp_path, monkeypatch)
+
+    # Scheme-less absolute referrer (//host/path).  Safe → should be used.
+    referrer = "//localhost/dashboard"
+
+    resp = client_app.post(
+        "/login",
+        data={"key": "shh"},          # matches CONTROL_TOKEN
+        headers={"Referer": referrer},
+        follow_redirects=False
+    )
+
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == referrer
+
+def test_login_ignores_unsafe_referrer(tmp_path, monkeypatch):
+    client_app = _make_auth_client(tmp_path, monkeypatch)
+    
+    # Simulate a user coming from an external domain (unsafe)
+    headers = {"Referer": "http://evil.com/steal"}
+    
+    resp = client_app.post(
+        "/login",
+        data={"key": "shh"},
+        headers=headers,
+        follow_redirects=False
+    )
+    
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/"  # Falls back to dashboard
 # ----------------------------------------------------------------------------- 
 # LOGIN SKIP WHEN NO SECRET
 # ----------------------------------------------------------------------------- 
