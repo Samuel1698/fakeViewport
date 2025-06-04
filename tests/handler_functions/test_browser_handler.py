@@ -159,11 +159,7 @@ def test_browser_handler_logs_expected_error(monkeypatch, exc, expected_msg):
     def raise_stop_iteration(driver):
         raise StopIteration
 
-    monkeypatch.setattr(
-        viewport,
-        "restart_handler",
-        raise_stop_iteration
-    )
+    monkeypatch.setattr(viewport, "restart_handler", raise_stop_iteration)
 
     # Act & Assert: StopIteration from our fake restart_handler
     with pytest.raises(StopIteration):

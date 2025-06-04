@@ -135,7 +135,7 @@ def create_app():
     def api_control(action):
         if action not in ("start", "restart", "quit"):
             return jsonify(status="error",
-                           message=f'Unknown action "{action}"'), 400
+                            message=f'Unknown action "{action}"'), 400
 
         flag = {"start":"--background", "restart":"--restart", "quit":"--quit"}[action]
         try:
@@ -150,7 +150,7 @@ def create_app():
                 start_new_session=True,
             )
             return jsonify(status="ok",
-                           message=f"{action.title()} command issued"), 202
+                            message=f"{action.title()} command issued"), 202
         except Exception as e:
             app.logger.exception("Failed to dispatch control command")
             return jsonify(status="error", message="Failed to dispatch control command"), 500

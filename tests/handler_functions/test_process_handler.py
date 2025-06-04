@@ -93,13 +93,26 @@ def _make_proc(pid, cmdline, uids=None, name=None, cpu: float = 0.0, mem: int = 
             200, "viewport.py", "kill", False, 
             [], [], []
         ),
-
+        # Monitoring process runnning under filename that includes viewport = Do not Kill
+        # 'viewport', 'kill', Should be False
+        (
+            [_make_proc(200, ["home/viewport/monitoring.py"])], 
+            200, "viewport.py", "kill", False, 
+            [], [], []
+        ),
+        # Chrome proccess checks to kill firefox = Do not Kill
+        # 'chrome', 'kill', Should be False
+        (
+            [_make_proc(200, ["firefox"])], 
+            100, "chrome", "kill", False, 
+            [], [], []
+        ),
         # Chrome Processes (2, 3) running in backgrond
         # 'chrome', 'kill', If killed should return False
         # Process 2 and 3 gets SIGTERM, API Call should be:
         (
             [_make_proc(2, ["chrome"]),
-             _make_proc(3, ["chrome"])], 
+            _make_proc(3, ["chrome"])], 
             999, "chrome", "kill", False,
             [(2, signal.SIGKILL), (3, signal.SIGKILL)], ["Killed process 'chrome'"], ["Killed process 'chrome' with PIDs: 2, 3"]
         ),
@@ -108,8 +121,8 @@ def _make_proc(pid, cmdline, uids=None, name=None, cpu: float = 0.0, mem: int = 
         # 'chromium', 'kill', If killed should return False
         # Process 2 and 3 get SIGKILL, API Call should be:
         (
-            [_make_proc(2, ["chromium"]),
-             _make_proc(3, ["chromium"])], 
+            [_make_proc(2, ["/usr/lib/chromium/chromium"]),
+            _make_proc(3, ["chromium"])], 
             999, "chromium", "kill", False,
             [(2, signal.SIGKILL), (3, signal.SIGKILL)], ["Killed process 'chromium'"], ["Killed process 'chromium' with PIDs: 2, 3"]
         ),
@@ -118,9 +131,9 @@ def _make_proc(pid, cmdline, uids=None, name=None, cpu: float = 0.0, mem: int = 
         # 'viewport', 'kill', If killed should return False
         # Process 2 and 3 get SIGKILL, API Call should be:
         (   
-            [_make_proc(2, ["viewport.py"]),
-             _make_proc(3, ["viewport.py"]),
-             _make_proc(4, ["other"])], 
+            [_make_proc(2, ["viewport/viewport.py"]),
+            _make_proc(3, ["viewport.py"]),
+            _make_proc(4, ["other"])], 
             999, "viewport.py", "kill", False,
             [(2, signal.SIGKILL), (3, signal.SIGKILL)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2, 3"]
         ),
@@ -129,7 +142,7 @@ def _make_proc(pid, cmdline, uids=None, name=None, cpu: float = 0.0, mem: int = 
         # Process 2, API Call should be:
         (   
             [_make_proc(2, ["viewport.py"]),
-             _make_proc(3, ["other"])], 
+            _make_proc(3, ["other"])], 
             999, "viewport.py", "kill", False,
             [(2, signal.SIGKILL)], ["Killed process 'viewport.py'"], ["Killed process 'viewport.py' with PIDs: 2"]
         ),

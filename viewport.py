@@ -190,9 +190,9 @@ def args_handler(args):
     if args.api:
         if process_handler("monitoring.py", action="check"):
             logging.info("Stopping the API...")
-            process_handler('monitoring.py', action="kill")
+            process_handler("monitoring.py", action="kill")
             api_status("API Stopped")
-        elif API: 
+        elif API:
             # Exit with error if API failed to start
             if not api_handler(): sys.exit(1)  
         else:
@@ -314,13 +314,12 @@ def api_status(msg):
     with open(status_file, 'w') as f:
         f.write(msg)
 def api_handler():
-    if process_handler('monitoring.py', action="check"):
+    if process_handler("monitoring.py", action="check"):
         logging.info("API is already running")
         return True
-
     logging.info("Starting API...")
     api_status("Starting API...")
-    api_script = _base / 'monitoring.py'
+    api_script = _base / "monitoring.py"
     try:
         # Start process with output capture
         process = subprocess.Popen(
@@ -333,7 +332,6 @@ def api_handler():
             universal_newlines=True,
             start_new_session=True
         )
-
         def filter_output(stream):
             WERKZEUG_MESSAGES = {
                 "WARNING: This is a development server",
@@ -347,16 +345,13 @@ def api_handler():
                 if not line or any(msg in line for msg in WERKZEUG_MESSAGES): continue
                 else: pass
                 logging.info(line)
-
         # Start output‐filtering threads
         threading.Thread(target=filter_output, args=(process.stdout,), daemon=True).start()
         threading.Thread(target=filter_output, args=(process.stderr,), daemon=True).start()
-
         # Verify process started
         time.sleep(1)
         if process.poll() is not None:
             raise RuntimeError(f"API failed to start (code {process.returncode})")
-
         logging.info("API started successfully")
         return True
     except Exception as e:
@@ -659,56 +654,45 @@ def status_handler():
     except Exception as e:
         log_error("Error while checking status: ", e)
 def process_handler(name, action="check"):
-    # Handles process management for the script. Checks if a process is running and takes action based on the specified behavior
-    # Ensures the current instance is not affected if told to kill the process
-    # Args: name (str): The name of the process to check (e.g., 'monitoring.py', 'viewport.py').
-    # action (str): The action to take if the process is found. Options are:
-    # - "check": Checks that the process is running and return True. 
-    # - "kill": Kill the process if it is running (excluding the current instance).
-    # Returns: bool: True if a process exists with that name, False otherwise.
+    # Handles process management for the script or browser.
+    # For 'viewport.py' and 'monitoring.py', matches only the script name as a standalone argument.
+    # For browsers, matches any process whose cmdline or executable path contains the browser name.
     try:
         me = os.geteuid()
         current_pid = os.getpid()
         matches = []
-
-        # prepare lowercase tokens
-        lower_name   = name.lower()
+        lower_name = name.lower()
         script_token = lower_name[:-3] if lower_name.endswith(".py") else lower_name
-
-        # iterate with both name & cmdline available
-        for proc in psutil.process_iter(['pid', 'name', 'uids', 'cmdline']):
+        # Determine if we're matching a script or a browser
+        is_script = lower_name in ("viewport.py", "monitoring.py")
+        for proc in psutil.process_iter(['pid', 'name', 'uids', 'cmdline', 'exe']):
             try:
                 info = proc.info
                 proc_name = (info.get('name') or '').lower()
-                raw_cmd  = info.get('cmdline') or []
-                cmd = " ".join(raw_cmd) if isinstance(raw_cmd, (list,tuple)) else str(raw_cmd)
-
-                # match if either the exe-name or the cmdline contains our token
-                if not (
-                    proc_name in (lower_name, script_token)
-                    or lower_name in cmd
-                    or script_token in cmd
-                ):
-                    continue
-
-                # only kill/check processes _you_ own
+                raw_cmd = info.get('cmdline') or []
+                exe_path = (info.get('exe') or '').lower()
+                if is_script:
+                    # Strict: match only if script name is a standalone argument
+                    cmd_args = [os.path.basename(str(arg)).lower() for arg in raw_cmd]
+                    if lower_name not in cmd_args and script_token not in cmd_args:
+                        continue
+                else:
+                    # Browser: match if name appears anywhere in cmdline or exe path
+                    cmd = " ".join(raw_cmd).lower()
+                    if lower_name not in proc_name and lower_name not in cmd and lower_name not in exe_path:
+                        continue
+                # Only kill/check processes you own
                 uids = info.get('uids')
                 if uids is not None and uids.real != me:
                     continue
-
                 pid = info.get('pid')
-                # skip yourself
                 if pid == current_pid:
                     continue
-
                 matches.append(pid)
                 if action == "check":
                     return True
-
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-
-        # in "kill" mode: terminate them all
         if action == "kill" and matches:
             for pid in matches:
                 try:
@@ -719,10 +703,8 @@ def process_handler(name, action="check"):
             logging.info(f"Killed process '{name}' with PIDs: {pids}")
             api_status(f"Killed process '{name}'")
             return False
-
         return bool(matches)
     except Exception as e:
-        # catch-all: log and notify API on unexpected errors
         log_error(f"Error while checking process '{name}'", e)
         api_status(f"Error Checking Process '{name}'")
         return False
