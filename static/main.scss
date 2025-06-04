@@ -450,21 +450,33 @@ section#navigation {
 section#status, section#info {
   // Reset tooltip for Control buttons
   .tooltip {
-    left: 50%;
-    right: unset;
-    transform: translateX(-50%);
-    border-bottom-right-radius: 6px;
     display: block;
     cursor: unset;
-    @include hover {
-      .tooltip-text {
+    .tooltip-text {
+      left: 50%;
+      right: unset;
+      transform: translateX(-50%);
+      border-bottom-right-radius: $border-radius;
+      cursor: unset;
+      @include hover {
         visibility: hidden;
         opacity: 0;
+      }
+      &::after{
+        right: 50%;
+      }
+    }
+    &:not([disabled]) {
+      @include hover {
+        .tooltip-text{
+          visibility: hidden;
+          opacity: 0;
+        }
       }
     }
     &.show {
       @include hover {
-        .tooltip-text {
+        .tooltip-text{
           visibility: visible;
           opacity: 1;
         }
