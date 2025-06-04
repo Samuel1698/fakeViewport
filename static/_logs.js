@@ -1,4 +1,4 @@
-import { fetchJSON } from "./_info.js";
+import { fetchJSON } from "./_device.js";
 
 // Store the last used limit value
 let lastLogLimit = 10;

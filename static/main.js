@@ -1,12 +1,12 @@
 import { initLogs } from "./_logs.js";
-import { loadInfo, loadStatus, loadInfoData, setActiveTab } from "./_info.js";
+import { loadInfo, loadStatus, loadDeviceData, setActiveTab } from "./_device.js";
 import { checkForUpdate, CACHE_TTL, initUpdateButton } from "./_update.js";
 import { control } from "./_control.js";
 import { initSections } from "./_sections.js";
 
 // Track refresh intervals so we can clear them
 let statusRefreshInterval;
-let infoRefreshInterval;
+let deviceRefreshInterval;
 let configRefreshInterval;
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -114,7 +114,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSections();
 
   // Load data for both tabs on initial load
-  await Promise.all([loadStatus(), loadInfoData()]);
+  await Promise.all([loadStatus(), loadDeviceData()]);
   initLogs();
 
   // Check for update last
@@ -127,9 +127,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }, 5_000); // 5 second for status tab
 
-  infoRefreshInterval = setInterval(() => {
-    if (document.getElementById("info").hasAttribute("hidden") === false) {
-      loadInfo(); // Will only refresh info data
+  deviceRefreshInterval = setInterval(() => {
+    if (document.getElementById("device").hasAttribute("hidden") === false) {
+      loadInfo(); // Will only refresh device data
     }
   }, 5_000);
 

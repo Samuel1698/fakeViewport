@@ -401,9 +401,9 @@ export async function loadStatus(forceRefreshConfig = false) {
   await configCache.get(forceRefreshConfig);
 }
 // -----------------------------------------------------------------------------
-// Info-related updates (less frequent updates)
+// Device-related updates (less frequent updates)
 // -----------------------------------------------------------------------------
-export async function loadInfoData() {
+export async function loadDeviceData() {
   // Version
   try {
     const { current, latest } = await loadUpdateData();
@@ -492,8 +492,8 @@ export async function loadInfo(options = {}) {
   const { forceRefreshConfig = false } = options;
   if (activeTab === "status") {
     await loadStatus(forceRefreshConfig);
-  } else if (activeTab === "info") {
-    await loadInfoData();
+  } else if (activeTab === "device") {
+    await loadDeviceData();
   } else if (activeTab === "config") {
     await configCache.get(forceRefreshConfig);
   }

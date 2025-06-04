@@ -1,4 +1,4 @@
-import { fetchJSON } from "./_info.js";
+import { fetchJSON } from "./_device.js";
 export const CACHE_TTL = 60 * 15 * 1000; // 15 minutes
 let updateCache = {
   timestamp: 0,

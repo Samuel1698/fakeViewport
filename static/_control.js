@@ -1,4 +1,4 @@
-import { loadInfo } from "./_info.js";
+import { loadInfo } from "./_device.js";
 
 // send control and update inline message
 export async function control(action) {
