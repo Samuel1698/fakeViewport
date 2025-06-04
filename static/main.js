@@ -10,98 +10,6 @@ let infoRefreshInterval;
 let configRefreshInterval;
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // Light Theme toggle
-  document.getElementById("themeToggle").addEventListener("click", () => {
-    const html = document.documentElement;
-    const currentTheme = html.getAttribute("data-theme");
-    const newTheme = currentTheme === "light" ? "dark" : "light";
-
-    html.setAttribute("data-theme", newTheme);
-    localStorage.setItem("theme", newTheme);
-  });
-
-  // Check for saved theme preference
-  if (typeof window !== "undefined") {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme) {
-      document.documentElement.setAttribute("data-theme", savedTheme);
-    }
-  }
-  // Initialize all components
-  setActiveTab("status"); // Set initial tab to status
-  initSections();
-
-  // Load data for both tabs on initial load
-  await Promise.all([loadStatus(), loadInfoData()]);
-  initLogs();
-  initTooltips();
-
-  // Check for update last
-  checkForUpdate();
-  initUpdateButton();
-  // Set up intervals with different refresh rates
-  statusRefreshInterval = setInterval(() => {
-    if (document.getElementById("status").hasAttribute("hidden") === false) {
-      loadInfo(); // Will only refresh status data
-    }
-  }, 5_000); // 5 second for status tab
-
-  infoRefreshInterval = setInterval(() => {
-    if (document.getElementById("info").hasAttribute("hidden") === false) {
-      loadInfo(); // Will only refresh info data
-    }
-  }, 5_000);
-
-  configRefreshInterval = setInterval(() => {
-    if (document.getElementById("config").hasAttribute("hidden") === false) {
-      loadInfo(); // Will only refresh config data
-    }
-  }, CACHE_TTL);
-
-  setInterval(checkForUpdate, CACHE_TTL);
-
-  const controls = document.querySelector(".controls");
-  const parentTooltip = controls.parentElement;
-  const buttons = controls.querySelectorAll("button");
-  const COOLDOWN_TIME = 15_000;
-
-  // Store the original tooltip for restoration
-  const originalTooltip = controls.getAttribute("data-tooltip");
-
-  buttons.forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      // Disable all buttons and add visual feedback
-      buttons.forEach((b) => {
-        b.setAttribute("disabled", "");
-        b.classList.add("processing");
-      });
-      // Update tooltip to show action is processing
-      controls.setAttribute("data-tooltip", "Processing command...");
-      parentTooltip.classList.add("show");
-      try {
-        await control(btn.dataset.action, btn);
-      } catch (error) {
-        console.error("Control action failed:", error);
-        // Update tooltip to show error
-        controls.setAttribute(
-          "data-tooltip",
-          "Action failed. " + (error.message || "")
-        );
-      } finally {
-        // Re-enable buttons after cooldown
-        setTimeout(() => {
-          buttons.forEach((b) => {
-            b.removeAttribute("disabled");
-            b.classList.remove("processing");
-          });
-          parentTooltip.classList.remove("show");
-          // Restore original tooltip
-          controls.setAttribute("data-tooltip", originalTooltip);
-        }, COOLDOWN_TIME);
-      }
-    });
-  });
-
   function initTooltips() {
     const tooltipElements = document.querySelectorAll("[data-tooltip]");
 
@@ -177,4 +85,101 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
+  initTooltips();
+  // Light Theme toggle
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    const html = document.documentElement;
+    const currentTheme = html.getAttribute("data-theme");
+    const newTheme = currentTheme === "light" ? "dark" : "light";
+
+    html.setAttribute("data-theme", newTheme);
+    localStorage.setItem("theme", newTheme);
+  });
+
+  // Check for saved theme preference
+  if (typeof window !== "undefined") {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) {
+      document.documentElement.setAttribute("data-theme", savedTheme);
+    }
+  }
+  const isLoginPage =
+    window.location.pathname.includes("login.html") ||
+    window.location.pathname === "/login" ||
+    document.getElementById("login");
+
+  if (isLoginPage) return;
+  // Initialize all components
+  setActiveTab("status"); // Set initial tab to status
+  initSections();
+
+  // Load data for both tabs on initial load
+  await Promise.all([loadStatus(), loadInfoData()]);
+  initLogs();
+
+  // Check for update last
+  checkForUpdate();
+  initUpdateButton();
+  // Set up intervals with different refresh rates
+  statusRefreshInterval = setInterval(() => {
+    if (document.getElementById("status").hasAttribute("hidden") === false) {
+      loadInfo(); // Will only refresh status data
+    }
+  }, 5_000); // 5 second for status tab
+
+  infoRefreshInterval = setInterval(() => {
+    if (document.getElementById("info").hasAttribute("hidden") === false) {
+      loadInfo(); // Will only refresh info data
+    }
+  }, 5_000);
+
+  configRefreshInterval = setInterval(() => {
+    if (document.getElementById("config").hasAttribute("hidden") === false) {
+      loadInfo(); // Will only refresh config data
+    }
+  }, CACHE_TTL);
+
+  setInterval(checkForUpdate, CACHE_TTL);
+
+  const controls = document.querySelector(".controls");
+  const parentTooltip = controls.parentElement;
+  const buttons = controls.querySelectorAll("button");
+  const COOLDOWN_TIME = 15_000;
+
+  // Store the original tooltip for restoration
+  const originalTooltip = controls.getAttribute("data-tooltip");
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      // Disable all buttons and add visual feedback
+      buttons.forEach((b) => {
+        b.setAttribute("disabled", "");
+        b.classList.add("processing");
+      });
+      // Update tooltip to show action is processing
+      controls.setAttribute("data-tooltip", "Processing command...");
+      parentTooltip.classList.add("show");
+      try {
+        await control(btn.dataset.action, btn);
+      } catch (error) {
+        console.error("Control action failed:", error);
+        // Update tooltip to show error
+        controls.setAttribute(
+          "data-tooltip",
+          "Action failed. " + (error.message || "")
+        );
+      } finally {
+        // Re-enable buttons after cooldown
+        setTimeout(() => {
+          buttons.forEach((b) => {
+            b.removeAttribute("disabled");
+            b.classList.remove("processing");
+          });
+          parentTooltip.classList.remove("show");
+          // Restore original tooltip
+          controls.setAttribute("data-tooltip", originalTooltip);
+        }, COOLDOWN_TIME);
+      }
+    });
+  });
 });

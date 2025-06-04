@@ -367,7 +367,7 @@ export async function loadStatus(forceRefreshConfig = false) {
 
     const upEl = document.getElementById("up");
     const dnEl = document.getElementById("down");
-    if (upEl) {
+    if (sysInfo?.data?.network?.primary_interface) {
       const network = sysInfo.data.network;
       const primary = network.primary_interface;
       const sent = formatSpeed(primary.upload);
@@ -444,7 +444,7 @@ export async function loadInfoData() {
     if (osEl) osEl.textContent = sysInfo.data.os_name;
     if (hwEl) hwEl.textContent = sysInfo.data.hardware_model;
     // Disk Usage
-    if (diskEl) {
+    if (sysInfo?.data?.disk_available) {
       diskEl.textContent = sysInfo.data.disk_available;
       diskEl.classList.remove("Green", "Yellow", "Red");
       if (sysInfo.data.disk_bytes < 200 * 1024 * 1024) {
@@ -456,7 +456,7 @@ export async function loadInfoData() {
       }
     }
     // CPU
-    if (cpuEl) {
+    if (sysInfo?.data?.cpu?.percent) {
       const cpuPct = sysInfo.data.cpu.percent;
       cpuEl.textContent = `${cpuPct}%`;
       cpuEl.classList.remove("Green", "Yellow", "Red");
@@ -469,7 +469,7 @@ export async function loadInfoData() {
       }
     }
     // RAM
-    if (ramEl) {
+    if (sysInfo?.data?.memory?.percent) {
       const used = (sysInfo.data.memory.used / 1024 ** 3).toFixed(1);
       const tot = (sysInfo.data.memory.total / 1024 ** 3).toFixed(1);
       const pctUsed = sysInfo.data.memory.percent;

@@ -91,12 +91,12 @@ h1 {
 // Theme Swapping
 // --------------------------------------------------
 #themeToggle {
-  background: color("background");
+  background-color: color("background");
   border: none;
   border-radius: $border-radius;
   padding: 8px;
   cursor: pointer;
-  transition: background $transition-speed;
+  transition: background-color $transition-speed;
   svg {
     width: 24px;
     height: 24px;
@@ -128,6 +128,17 @@ h1 {
 }
 // Light theme overrides
 html[data-theme="light"]{
+  #login .wrapper {
+    border: none;
+  }
+  #login button[type="submit"] {
+    color: color("bText");
+    background-color: color("blue");
+    @include hover {
+      color: color("bText", $lightness: 10%);
+      background-color: color("blue", $lightness: 10%);
+    }
+  }
   button {
     border: 2px solid color("border");
     margin-bottom: -2px;
@@ -168,7 +179,12 @@ html[data-theme="light"]{
       }
     }
   }
-  @media (min-width: 40rem) {
+  @include respond-above($small) {
+    #login .wrapper {
+      border: 2px solid color("border");
+      border-radius: $border-radius;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
     section#logs .container button.expand-button {
       border: none;
       margin-bottom: 0;
@@ -192,35 +208,107 @@ html[data-theme="light"]{
 // Login Page Styles
 // --------------------------------------------------
 #login {
-  background-color: color("background");
-  padding: 1.5rem;
-  border-radius: $border-radius;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  max-width: 400px;
-  margin: 2rem auto;
-  label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: bold;
-  }
-  input[type="password"] {
+  background-color: color("box");
+  display: flex;
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  top: 0px;
+  display: flex;
+  align-items: center;
+  section {
+    //mobile
     width: 100%;
-    padding: 0.75rem;
-    border: 1px solid color("diminished");
+    margin-left: 0px;
+    padding: 32px 32px 64px;
+    height: 100%;
+    // Shared
+    max-height: 90%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
     border-radius: $border-radius;
-    margin-bottom: 1rem;
     box-sizing: border-box;
+    h1 {
+      font-size: 1.6rem;
+      margin-top: 0;
+      margin-bottom: 48px;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: bold;
+      }
+      input[type="password"] {
+        background-color: color("diminished");
+        color: color("text");
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid color("border");
+        border-radius: $border-radius;
+        margin-bottom: 1rem;
+        box-sizing: border-box;
+      }
+      // Forgot Password
+      span.tooltip {
+        font-size: 12px; 
+        display: inline-block;
+        color: color("blue");
+        border-bottom: 2px solid;
+        margin-bottom: -2px;
+        cursor: pointer;
+        @include hover {
+          color: color("yellow");
+        }
+        .tooltip-text {
+          font-size: 1rem;
+        }
+      }
+      // Log In
+      button[type="submit"] {
+        margin: 2rem auto;
+        width: 150px;
+        padding: 0.75rem;
+        background-color: color("diminished");
+        color: color("text");
+        border-radius: $border-radius;
+        cursor: pointer;
+        transition: background $transition-speed;
+        @include hover {
+          background-color: color("blue", $lightness: -10%);
+        }
+      }
+    }
   }
-  button {
-    width: 100%;
-    padding: 0.75rem;
-    background-color: color("blue");
-    color: color("text");
-    border-radius: $border-radius;
-    cursor: pointer;
+  .tooltip .tooltip-text {
+    left: 133%;
+    right: unset;
+    transform: translateX(-50%);
+    border-bottom-right-radius: $border-radius;
+    &::after{
+      right: 68%;
+    }
+  }
+  button#themeToggle {
+    background-color: color("box");
     transition: background $transition-speed;
-    @include hover {
-      background-color: color("blue", $lightness: -10%);
+    svg {
+      transition: fill $transition-speed;
+    }
+  }
+  @include respond-above($small){
+    background-color: color("background");
+    .tooltip .tooltip-text {
+      left: 50%;
+      &::after{
+        right: 50%;
+      }
     }
   }
 }
@@ -427,7 +515,7 @@ section#navigation {
       position: absolute;
       top: 100%;
       right: 12px;
-       // Makes sure it's centered in relation to border width
+      // Makes sure it's centered in relation to border width
       margin-right: -8px;
       border-width: 8px;
       border-style: solid;
@@ -664,8 +752,11 @@ section#update {
 // --------------------------------------------------
 @include respond-above($small) {
   // Slightly larger form and controls layout for tablets
-  #login{
-    max-width: 450px;
+  #login section {
+    width: 402px;
+    margin-left: 10%;
+    padding: 40px 64px 64px;
+    height: 597px;
   }
   section {
     margin-right: auto;
@@ -733,14 +824,6 @@ section#update {
   }
 }
 @include respond-above($medium) {
-  // Additional padding and larger containers for desktops
-  html, body {
-    padding: 2rem 4rem;
-  }
-  #login {
-    max-width: 600px;
-    margin: 0 auto;
-  }
   h1 {
     font-size: 2.5rem;
   }
