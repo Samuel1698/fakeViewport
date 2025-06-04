@@ -1,9 +1,10 @@
 #!/usr/bin/venv python3
 import os, psutil, sys, time, argparse, signal, subprocess
-import math, threading, logging, concurrent
+import math, threading, logging, concurrent, shutil, re
 from logging_config                      import configure_logging
 from validate_config                     import validate_config
 from pathlib                             import Path
+from typing                              import Tuple
 from datetime                            import datetime, timedelta
 from webdriver_manager.chrome            import ChromeDriverManager
 from webdriver_manager.firefox           import GeckoDriverManager
@@ -34,6 +35,7 @@ from css_selectors import (
 # Variable Declaration and file paths
 # -------------------------------------------------------------------
 _mod = sys.modules[__name__]
+_version_re = re.compile(r'\d+')
 driver = None # Declare it globally so that it can be accessed in the signal handler function
 os.environ['DISPLAY'] = ':0' # Sets Display 0 as the display environment. Very important for selenium to launch the browser.
 # Directory and file paths
@@ -554,6 +556,9 @@ def get_next_interval(interval_seconds, now=None):
         seconds_until_next_interval += interval_seconds
     next_interval = now + timedelta(seconds=seconds_until_next_interval)
     return next_interval.timestamp()
+def get_tuple(name: str) -> Tuple[int, ...]:
+    """Turn '137.0.7151.68' → (137, 0, 7151, 68) for proper numeric sorting."""
+    return tuple(int(x) for x in _version_re.findall(name))
 def get_driver_path(browser: str, timeout: int = 60) -> str:
     """
     Download (if needed) and return the path to a WebDriver binary.
@@ -562,7 +567,7 @@ def get_driver_path(browser: str, timeout: int = 60) -> str:
     background thread so that it can be timed-out cleanly.
 
     Args:
-        browser: Target browser - ``"chrome"``, ``"chromium"``, or
+        browser: Target browser - ``chrome``, ``chromium``, or
             ``"firefox"``.
         timeout: Maximum seconds to wait for the download to finish.
 
@@ -580,29 +585,50 @@ def get_driver_path(browser: str, timeout: int = 60) -> str:
         mgr = GeckoDriverManager()
     else:
         raise ValueError(f"Unsupported browser for driver install: {browser!r}")
-
     # spin up a single-worker executor
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     future = executor.submit(mgr.install)
-
     try:
-        # this will raise concurrent.futures.TimeoutError if it’s stuck
-        return future.result(timeout=timeout)
-
+        driver_path = Path(future.result(timeout=timeout))
+        stale_drivers_handler(driver_path)
+        return str(driver_path)
     except concurrent.futures.TimeoutError:
         msg = f"{browser.title()} driver download stuck (> {timeout}s)"
         log_error(msg)
         api_status("Driver download stuck; restart computer if it persists")
-        # shut down without waiting on the hung worker thread
         executor.shutdown(wait=False)
         raise DriverDownloadStuckError(msg)
-
     finally:
-        # ensure we always tear down the executor
         executor.shutdown(wait=False)
 # ----------------------------------------------------------------------------- 
 # Helper Functions for installing packages and handling processes
 # ----------------------------------------------------------------------------- 
+def stale_drivers_handler(driver_bin: Path, keep_latest: int = 1) -> None:
+    """
+    Remove old driver versions sitting next to *driver_bin*.
+
+    Args:
+        driver_bin: Path to the freshly-installed driver executable
+                    (…/<version>/chromedriver, …/<version>/geckodriver, …).
+        keep_latest: Number of newest version directories to keep.
+    """
+    version_dir   = driver_bin.parent          # …/linux64/<version>
+    platform_dir  = version_dir.parent         # …/linux64/
+
+    # every sibling except the freshly-installed one
+    versions = [d for d in platform_dir.iterdir()
+                if d.is_dir() and d.name != version_dir.name]
+    if not versions:
+        return
+    # newest → oldest by *semantic* version number
+    versions.sort(key=lambda d: get_tuple(d.name), reverse=True)
+
+    for stale in versions[keep_latest:]:
+        try:
+            shutil.rmtree(stale, ignore_errors=True)
+            logging.info("Deleted stale WebDriver build: %s", stale)
+        except Exception as exc:
+            logging.warning("Could not delete %s: %s", stale, exc)
 def screenshot_handler(logs_dir, max_age_days):
     """
     Delete stale screenshot PNGs from *logs_dir*.
