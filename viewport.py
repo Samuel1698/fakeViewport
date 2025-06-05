@@ -440,13 +440,20 @@ def signal_handler(signum, frame, driver=None):
         driver (selenium.webdriver.Remote | None, optional): Active
             WebDriver instance to close before shutdown.
     """  
-    if driver is not None:
-        logging.info(f'Gracefully shutting down {BROWSER}.')
-        driver.quit()
-    api_status("Stopped ")
-    logging.info("Gracefully shutting down script instance.")
-    clear_sst()
-    os._exit(0)
+    try:
+        if driver is not None:
+            logging.info(f'Gracefully shutting down {BROWSER}.')
+            try:
+                driver.quit()
+            except:
+                pass
+    except Exception as e:
+        logging.error(f"Error during shutdown: {str(e)}")
+    finally:
+        api_status("Stopped ")
+        logging.info("Gracefully shutting down script instance.")
+        clear_sst()
+        os._exit(0)
 signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, driver))
 signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
 # ----------------------------------------------------------------------------- 
@@ -1499,36 +1506,60 @@ def handle_loading_issue(driver):
         time.sleep(1)
 def handle_fullscreen_button(driver):
     """
-    Click the live-view fullscreen button.
-
+    Click the live-view fullscreen button with robust window management.
+    
     Args:
         driver: Selenium WebDriver instance.
-
+    
     Returns:
-        bool: ``True`` on success, ``False`` if the click fails.
+        bool: True on success, False if the click fails.
     """
     try:
-        # Wait for the parent container which holds the button to be present
-        parent = WebDriverWait(driver, WAIT_TIME).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, CSS_FULLSCREEN_PARENT))
-        )
-        # Move to the parent to trigger hover effects.
-        actions = ActionChains(driver)
-        actions.move_to_element(parent).perform()
-        # A small delay to allow UI elements to become interactive
-        time.sleep(0.5)  
-        # Wait until the child button is visible and clickable.
-        button = WebDriverWait(parent, WAIT_TIME).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_FULLSCREEN_BUTTON))
-        )
-        actions.move_to_element(button).click().perform()
-        logging.info("Fullscreen activated")
-        api_status("Fullscreen Activated")
-        return True
+        # First ensure window is visible and maximized
+        try:
+            if driver.get_window_rect()['width'] < 100:  # Likely minimized
+                driver.minimize_window()  # Workaround for some platforms
+                time.sleep(0.3)
+            driver.maximize_window()
+            time.sleep(0.5)  # Allow maximize to complete
+            # Double-check window state
+            window_rect = driver.get_window_rect()
+            screen_width = driver.execute_script("return screen.width")
+            if window_rect['width'] < (screen_width * 0.9):
+                raise WebDriverException("Window failed to maximize")
+        except WebDriverException as e:
+            if "maximized" not in str(e):
+                log_error(f"Window restoration failed: {str(e)}", driver=driver)
+                api_status("Window restoration failed")
+                return False
+        # Now handle fullscreen button
+        try:
+            # Wait for the parent container which holds the button to be present
+            parent = WebDriverWait(driver, WAIT_TIME).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, CSS_FULLSCREEN_PARENT))
+            )
+            # Move to the parent to trigger hover effects.
+            actions = ActionChains(driver)
+            actions.move_to_element(parent).perform()
+            # A small delay to allow UI elements to become interactive
+            time.sleep(0.5)  
+            # Wait until the child button is visible and clickable.
+            button = WebDriverWait(parent, WAIT_TIME).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_FULLSCREEN_BUTTON))
+            )
+            actions.move_to_element(button).click().perform()   
+            logging.info("Fullscreen activated")
+            api_status("Fullscreen restored")
+            return True
+        except Exception as e:
+            log_error("Fullscreen button click failed", e, driver)
+            api_status("Fullscreen click failed")
+            return False
     except Exception as e:
-        log_error("Error while clicking the fullscreen button: ", e, driver)
-        api_status("Error Clicking Fullscreen")
+        log_error("Critical error in fullscreen handling", e, driver)
+        api_status("Fullscreen Error")
         return False
+
 def handle_login(driver):
     """
     Complete the UniFi OS login flow.
@@ -1782,14 +1813,12 @@ def handle_view(driver, url):
                     EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
                 )
                 # Attempt to keep the window maximized every loop
-                driver.maximize_window() 
                 screen_size = driver.get_window_size()
                 if screen_size['width'] != driver.execute_script("return screen.width;") or \
                     screen_size['height'] != driver.execute_script("return screen.height;"):
                     logging.info("Attempting to make live-view fullscreen.")
                     handle_fullscreen_button(driver) \
                     or logging.warning("Failed to activate fullscreen, but continuing anyway.")
-                # Check for "Unable to Stream" message
                 handle_loading_issue(driver)
                 handle_elements(driver)     # Hides cursor and camera controls until mouse moves
                 handle_pause_banner(driver) # Injects a pause banner on mouse move

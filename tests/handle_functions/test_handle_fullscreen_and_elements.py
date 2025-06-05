@@ -42,7 +42,7 @@ def test_banner_script_always_injected(invocations):
 # ----------------------------------------------------------------------------- 
 @pytest.mark.parametrize("throw_exc, expect_return, expect_error_msg, expect_api", [
     (None, True, None, "Fullscreen Activated"),
-    (Exception("bad"), False, "Error while clicking the fullscreen button: ", "Error Clicking Fullscreen"),
+    (Exception("bad"), False, "Error while clicking the fullscreen button: ", "Fullscreen Error"),
 ])
 @patch("viewport.browser_restart_handler")
 @patch("viewport.api_status")
