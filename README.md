@@ -5,17 +5,15 @@
 <!-- [END BADGES] -->
 
 # SNAPSHOT
+
 You are currently seeing the snapshot branch. This is where I make rapid changes and experiment with new code. If this branch is ahead of main, it is most likely broken.
 Check the [latest release](https://github.com/Samuel1698/fakeViewport/releases) or go to [main](https://github.com/Samuel1698/fakeViewport/tree/main) for a stable version of the code.
 
 ---
 
-
-
 # Fake Viewport
 
 Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. The script will automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
-
 
 <!-- markdownlint-disable no-inline-html -->
 <table><tr>
@@ -53,9 +51,11 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 ## Requirements
 
 **Hardware:**  
+
 - Dell Wyse Thin Client, NUC, Raspberry Pi, or similar Linux-capable device.
 
-**Software:**  
+**Software:**
+
 - Debian-based Linux.
 - Firefox, Chrome, or Chromium.
 - Python 3.
@@ -74,10 +74,10 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    cd fakeViewport
    ```
 
-
 2. **Optional: Minimize the directory**
 
    If you cloned the repository or got the `full` version of the `tar.gz` file, you can save space and de-clutter the directory by running the `minimize.sh` script. It will remove all test and development files, `.md` files, and github specific files while leaving the script fully functional.
+
    ```bash
    ./minimize.sh
    ```
@@ -87,11 +87,13 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ```bash
    ./setup.sh
    ```
+
    Follow the prompt to reload your shell (`source ~/.bashrc` or `source ~/.zshrc`).
 
 4. **Configure `.env`**
 
    Edit `.env` with your credentials and Protect Live View URL:
+
    ```ini
    USERNAME=YourLocalUsername
    PASSWORD=YourLocalPassword
@@ -105,29 +107,32 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ```diff
    @@ I strongly recommend using a Local Account for this @@
    ```
-   
+
    The `FLASK_RUN_HOST`, `FLASK_RUN_PORT` and `SECRET` are optional. Feel free to delete them if you're not using the API.
 
 5. **Configure the `config.ini` file**
 
    Open the `config.ini` file and check what options there are available for customization of how the script runs.
-   
+
    The script will default to using Chrome for **Profile Path** and **Browser Binary**. If you are okay with this, you do not need to change those variables in the config file. Still, might be useful to go through this step to make sure the script executes the browser from the correct path.
 
-   #### Chrome or Chromium
+   ### Chrome or Chromium
+
    Navigate to `chrome://version/` and check the **Profile Path.** It should say something along the lines of:
 
-   `/home/your-user/.config/chromium/Default`. 
-   
+   `/home/your-user/.config/chromium/Default`.
+
    Drop the `Default` and copy the parent folder, in this case it would be `/home/your-user/.config/chromium/`. That path goes in your `BROWSER_PROFILE_PATH=` config.
 
    Next, look for **Command Line** in `chrome://version/` and copy the executable path without the `--flags`. For instance:
    `/usr/lib/chromium/chromium` or `/usr/bin/google-chrome-stable` and paste it next to `BROWSER_BINARY=`.
-   #### Firefox
+
+   ### Firefox
 
    Navigate to `about:support`, copying the **Profile Folder** path as well as the **Application Binary** path into `BROWSER_PROFILE_PATH=` and `BROWSER_BINARY=`, dropping the `Default` and the `--flags` as well.
 
-   This is how that might look like: 
+   This is how that might look like:
+
    ```ini
    # Firefox
    BROWSER_PROFILE_PATH=/home/your-user/.mozilla/firefox/
@@ -145,16 +150,19 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    ```bash
    viewport -h
    ```
+
    Expected Output:
 
    <img width="550" alt="viewport -h output" src="https://github.com/user-attachments/assets/21d97cc2-96d0-405c-8961-8f2301c96f0c" />
-   
+
    This command will validate the variables you have in your `.env` and `config.ini` files.
+
    ```bash
    viewport -d
    ```
-   
+
    Start the script using the following command:
+
    ```bash
    viewport
    ```
@@ -164,36 +172,48 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 ## <a name="usage"></a>Usage
 
 - Run in background:
-  ```bash
-  viewport -b
-  ```
+
+   ```bash
+   viewport -b
+   ```
+
 - Show status:
-  ```bash
-  viewport -s
-  ```
+
+   ```bash
+   viewport -s
+   ```
+
 - Stop script:
-  ```bash
-  viewport -q
-  ```
+
+   ```bash
+   viewport -q
+   ```
+
 - Pause health checks:
-  ```bash
-  viewport -p
-  ```
+
+   ```bash
+   viewport -p
+   ```
+
 - View logs:
-  ```bash
-  viewport -l 10
-  ```
+
+   ```bash
+   viewport -l 10
+   ```
+
 - If alias doesn't work, run:
-  ```bash
-  venv/bin/python3 viewport.py
-  ```
+
+   ```bash
+   venv/bin/python3 viewport.py
+   ```
 
 ---
 
 ## Update
-If you're running an older version of the script, the easiest way to update is through the Dashboard. An `Update` button will appear (see <a href="#API">API</a>), read the Changelog for any possible breaking changes, and click the Update button. 
 
-Note that updating through the Dashboard will also run the `minimize.sh` script and remove all the developmental/test files. 
+If you're running an older version of the script, the easiest way to update is through the Dashboard. An `Update` button will appear (see <a href="#API">API</a>), read the Changelog for any possible breaking changes, and click the Update button.
+
+Note that updating through the Dashboard will also run the `minimize.sh` script and remove all the developmental/test files.
 
 Updating manually takes opening a console, or using ssh to the machine and running `git pull` inside the `fakeViewport` directory. If you downloaded a release manually, you can grab the latest version and unzip it over your current directory.
 
@@ -202,17 +222,20 @@ Any breaking changes will be clearly marked with a 💥 in the release notes and
 ---
 
 ## Uninstalling
+
 If you wish to remove all the files and changes this script makes, run the `uninstall.sh` script. Make sure you do run it in the `fakeViewport` directory.
 
 It does the following:
-   - Removes cron job if present
-   - Removes alias entry in the .bashrc/.zshrc files
-   - Removes Desktop shortcut if present
-   - Removes all files from the directory except `.env` (in case you want a fresh re-install and want to keep the credentials and url saved.)
+
+- Removes cron job if present
+- Removes alias entry in the .bashrc/.zshrc files
+- Removes Desktop shortcut if present
+- Removes all files from the directory except `.env` (in case you want a fresh re-install and want to keep the credentials and url saved.)
 
 ```shell
 ./uninstall.sh
 ```
+
 Because this script executes in a child shell, it cannot reload the parent shell, and the alias persists. Manually type:
 `unalias viewport` after running the uninstall script.
 
@@ -222,9 +245,11 @@ Because this script executes in a child shell, it cannot reload the parent shell
 
 - Enable in `config.ini` with `USE_API=True`.
 - Start API:
-  ```bash
-  viewport -a
-  ```
+
+   ```bash
+   viewport -a
+   ```
+
 - Access via browser: `http://[device IP]:5000`
 - Set `SECRET` in `.env` for authentication.
 
@@ -243,10 +268,11 @@ EOF
 
 <sup>Button will flash blue and yellow when there's an update available</sup>
 
-### <a name="endpoints"></a>Endpoints:
+### <a name="endpoints"></a>Endpoints
 
-These endpoints display raw data, meant to be integrated into a third party tool like HomeAssistant or Rainmeter. 
-```
+These endpoints display raw data, meant to be integrated into a third party tool like HomeAssistant or Rainmeter.
+
+```none
 /api | Displays a list of all the urls
 /api/config | Displays all the values in your config file
    - browser
@@ -304,25 +330,27 @@ These endpoints display raw data, meant to be integrated into a third party tool
 
 Because this script simply displays the live view on a webpage, it has several advantages to running it over a TV App or even a real Viewport. Below is a comparison of it's advantages and disadvantages:
 
-### Advantages:
-  - **Vintage Point Support** - Display several consoles' cameras in a single view.
-  - **Enhanced Encoding** - Native TV Apps are slow to adapt enhanced encoding, but firefox supports it on Linux.
-  - **Cost Effective** - Less than $50 **total** as opposed to $100-$200+
-  - **4K Streaming** - Some native TV Apps cannot display 4K cameras.
-  - **WiFi Compatible** - Viewport requires wired connection.
-  - **No Vendor Lock-in** - AppleTV requires an AppleID to use.
-  - **Local & Private** - No cloud dependency; runs entirely on your local network.
-  - **360 Camera Support** - Protect Viewport does not support de-warping 360 camera feeds into separate views.
+### Advantages
 
-### Limitations:
-  - **Initial Setup Required** – More configuration than plug-and-play alternatives
-  - **Larger Footprint** – Slightly bulkier than some devices (but easily hidden behind a TV/monitor)
-  - **Requires internet access at least once** - If you want to run it locally you must have internet access once when running the script to download the drivers to control the browser.
+- **Vintage Point Support** - Display several consoles' cameras in a single view.
+- **Enhanced Encoding** - Native TV Apps are slow to adapt enhanced encoding, but firefox supports it on Linux.
+- **Cost Effective** - Less than $50 **total** as opposed to $100-$200+
+- **4K Streaming** - Some native TV Apps cannot display 4K cameras.
+- **WiFi Compatible** - Viewport requires wired connection.
+- **No Vendor Lock-in** - AppleTV requires an AppleID to use.
+- **Local & Private** - No cloud dependency; runs entirely on your local network.
+- **360 Camera Support** - Protect Viewport does not support de-warping 360 camera feeds into separate views.
 
+### Limitations
+
+- **Initial Setup Required** – More configuration than plug-and-play alternatives
+- **Larger Footprint** – Slightly bulkier than some devices (but easily hidden behind a TV/monitor)
+- **Requires internet access at least once** - If you want to run it locally you must have internet access once when running the script to download the drivers to control the browser.
 
 ---
 
 ## <a name="show"></a>Showcase
+
 <img width="550" alt="Console showing viewport -s output" src="https://github.com/user-attachments/assets/f80ae222-874c-4ffe-8327-67134a5c97a4" />
 
 <sup>`viewport -s` output</sup>
@@ -357,7 +385,6 @@ Because this script simply displays the live view on a webpage, it has several a
 
 - The thin clients used in this setup only have DisplayPort outputs. Ensure your monitor or TV supports DisplayPort, or use a compatible adapter.
 - The tested Thin Clients do not include built-in WiFi antennas. However, you can use a USB WiFi adapter to connect wirelessly. Some thin clients do include wifi.
-- If you use the machine for things other than just a viewport display, make sure you do your other internet browsing in a different browser than the script uses. The browser window it launches is very limited and stripped of functionality (for better resource management), and the script will kill all other instances of the same browser when resurrecting itself. 
-
+- If you use the machine for things other than just a viewport display, make sure you do your other internet browsing in a different browser than the script uses. The browser window it launches is very limited and stripped of functionality (for better resource management), and the script will kill all other instances of the same browser when resurrecting itself.
 
 ---

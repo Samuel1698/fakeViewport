@@ -14,7 +14,7 @@ Thank you for considering contributing to this project! All contributions (bug r
 ## Code Style
 
 - Follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) style guidelines
-- Document new functions with comments (I tend to avoid Docstrings, but you may use them if it's your preference)
+- Use DOCSTRINGS on any new tests/functions
 
 ## Commit Messages
 
@@ -22,7 +22,6 @@ Thank you for considering contributing to this project! All contributions (bug r
 - Keep the subject line under 50 characters
 - Include a more detailed body when necessary
 - Reference issues with `#123` when applicable
-
 
 ## Pull Requests
 
@@ -35,7 +34,15 @@ Thank you for considering contributing to this project! All contributions (bug r
 
 1. Run the `setup` script with `dev` as an argument: `./setup.sh dev`
 2. Activate the virtual environment
+
    ```bash
    source venv/bin/activate
    ```
+
 3. Run `pytest` locally before submitting a pull request
+
+4. Check the code coverage
+
+```shell
+pytest --cov --cov-branch --cov-report=term-missing
+```
