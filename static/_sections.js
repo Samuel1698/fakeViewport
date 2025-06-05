@@ -91,7 +91,7 @@ export function initSections() {
   });
 
   buttons.refreshButton.addEventListener("click", () => {
-    loadDevice({ forceRefreshConfig: true });
+    loadInfo({ forceRefreshConfig: true });
     buttons.refreshButton.classList.add("refreshing");
     setTimeout(() => {
       buttons.refreshButton.classList.remove("refreshing");
