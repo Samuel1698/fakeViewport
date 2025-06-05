@@ -275,7 +275,7 @@ html[data-theme="light"]{
         margin: 2rem auto;
         width: 150px;
         padding: 0.75rem;
-        background-color: color("diminished");
+        background-color: color("blue");
         color: color("text");
         border-radius: $border-radius;
         cursor: pointer;
@@ -296,8 +296,8 @@ html[data-theme="light"]{
     }
   }
   button#themeToggle {
-    background-color: color("box");
-    transition: background $transition-speed;
+    background: transparent;
+    transition: background-color $transition-speed;
     svg {
       transition: fill $transition-speed;
     }
@@ -637,11 +637,8 @@ section.display {
 // --------------------------------------------------
 section#status {
   li:last-of-type {
-    position: relative;
     span:last-child {
-      position: absolute;
-      right: 0;
-      margin-left: 105px;
+      margin-left: 20px;
     }
   }
   span.network {

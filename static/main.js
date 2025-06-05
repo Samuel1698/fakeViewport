@@ -10,6 +10,22 @@ let deviceRefreshInterval;
 let configRefreshInterval;
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Light Theme toggle
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    const html = document.documentElement;
+    const currentTheme = html.getAttribute("data-theme");
+    const newTheme = currentTheme === "light" ? "dark" : "light";
+
+    html.setAttribute("data-theme", newTheme);
+    localStorage.setItem("theme", newTheme);
+  });
+  // Check for saved theme preference
+  if (typeof window !== "undefined") {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) {
+      document.documentElement.setAttribute("data-theme", savedTheme);
+    }
+  }
   function initTooltips() {
     const tooltipElements = document.querySelectorAll("[data-tooltip]");
 
@@ -86,23 +102,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
   initTooltips();
-  // Light Theme toggle
-  document.getElementById("themeToggle").addEventListener("click", () => {
-    const html = document.documentElement;
-    const currentTheme = html.getAttribute("data-theme");
-    const newTheme = currentTheme === "light" ? "dark" : "light";
-
-    html.setAttribute("data-theme", newTheme);
-    localStorage.setItem("theme", newTheme);
-  });
-
-  // Check for saved theme preference
-  if (typeof window !== "undefined") {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme) {
-      document.documentElement.setAttribute("data-theme", savedTheme);
-    }
-  }
+  
   const isLoginPage =
     window.location.pathname.includes("login.html") ||
     window.location.pathname === "/login" ||

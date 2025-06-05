@@ -1,7 +1,7 @@
 let lastScriptUptime = null;
 let activeTab = "status";
 import { loadUpdateData } from "./_update.js";
-
+import { colorLogEntry } from "./_logs.js";
 // -----------------------------------------------------------------------------
 // Helper functions
 // -----------------------------------------------------------------------------
@@ -380,21 +380,7 @@ export async function loadStatus(forceRefreshConfig = false) {
   // Log entry
   if (le?.data?.logs && le.data.logs.length > 0) {
     const entry = document.getElementById("logEntry");
-    const logText = le.data.logs[0].trim();
-    entry.textContent = logText;
-    entry.classList.remove("Green", "Blue", "Red");
-
-    if (logText.includes("[ERROR]")) {
-      entry.classList.add("Red");
-    } else if (logText.includes("[WARN]")) {
-      entry.classList.add("Yellow");
-    } else if (logText.includes("[DEBUG]")) {
-      entry.classList.add("Blue");
-    } else if (logText.includes("[INFO]")) {
-      entry.classList.add("Green");
-    } else {
-      entry.classList.add("Green");
-    }
+    colorLogEntry(le.data.logs[0], entry);
   }
 
   // Get config with optional force refresh
