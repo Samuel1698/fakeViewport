@@ -58,9 +58,9 @@ def write_base(tmp_path: Path, ini_overrides=None, env_overrides=None):
     # create dirs
     (tmp_path / "logs").mkdir(exist_ok=True)  
     (tmp_path / "api").mkdir(exist_ok=True)
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Strict mode should exit
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_strict_mode_exits_on_missing(tmp_path):
     # no files at all
     with pytest.raises(SystemExit):
@@ -69,9 +69,10 @@ def test_strict_mode_exits_on_missing(tmp_path):
                         env_file=tmp_path / ".env",
                         logs_dir=tmp_path / "logs",
                         api_dir=tmp_path / "api")
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # INI value errors in loose mode
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("ini_overrides, expected_msg", [
     ({"WAIT_TIME":"string"},      "General.WAIT_TIME must be a valid integer"),
     ({"HEADLESS":"string"},       "Browser.HEADLESS must be a valid boolean"),
@@ -88,9 +89,10 @@ def test_invalid_ini_loose(tmp_path, caplog, ini_overrides, expected_msg):
                         api_dir=tmp_path / "api")
     assert ok is False
     assert any(expected_msg in rec.message for rec in caplog.records)
-# ----------------------------------------------------------------------------- 
+
+#  --------------------------------------------------------------------------- #
 # .env value errors in loose mode
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("env_overrides, expected_msg", [
     ({"URL":"//nohost"},        "URL must start with http:// or https:// and include a host"),
     ({"URL":"ftp://example"},   "URL must start with http:// or https:// and include a host"),
@@ -111,9 +113,10 @@ def test_invalid_env_loose(tmp_path, caplog, monkeypatch, env_overrides, expecte
                         api_dir=tmp_path / "api")
     assert ok is False
     assert any(expected_msg in rec.message for rec in caplog.records)
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # .env exception
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_env_parsing_exception(tmp_path, caplog):
     #If the .env file is malformed (e.g. a line without “=”)
     write_base(tmp_path)
@@ -131,9 +134,10 @@ def test_env_parsing_exception(tmp_path, caplog):
     assert ok is False
     assert any("Failed to validate .env file:" in rec.message for rec in caplog.records)
     assert any("Format should be KEY=value." in rec.message for rec in caplog.records)
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Host/Port parsing in loose mode (no validation errors)
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(
     "host,port,expected_errors",
     [
@@ -164,9 +168,10 @@ def test_host_port_validation_api_mode(tmp_path, caplog, monkeypatch, host, port
     for msg in expected_errors:
         assert any(msg in record.message for record in caplog.records), \
             f"Expected to find error '{msg}' in:\n" + "\n".join(r.message for r in caplog.records)
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Missing host/port should not error
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_missing_host_port_no_errors(tmp_path, caplog, monkeypatch):
     write_base(tmp_path)
     # remove host/port
@@ -183,9 +188,9 @@ def test_missing_host_port_no_errors(tmp_path, caplog, monkeypatch):
     assert not isinstance(ok, bool)  # returns AppConfig object
     assert not any("FLASK_RUN_HOST" in rec.message or "FLASK_RUN_PORT" in rec.message for rec in caplog.records)
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Optional .env fields missing vs empty
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("field", ["FLASK_RUN_HOST", "FLASK_RUN_PORT", "SECRET"])
 def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, field):
     # Any optional_fields (FLASK_RUN_HOST, FLASK_RUN_PORT, SECRET):
@@ -220,9 +225,10 @@ def test_optional_env_fields_missing_and_empty(tmp_path, caplog, monkeypatch, fi
         f"{field} is specified but empty." in rec.message
         for rec in caplog.records
     )
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Error displays INI + env
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("ini_overrides, env_overrides, expected_msg", [
     # example‐value still set
     (None, {"USERNAME": "YourLocalUsername"}, "USERNAME is still set to the example value. Please update it."),
@@ -294,9 +300,10 @@ def test_validate_config_strict_mode_exits_after_logging(tmp_path, caplog):
     # And verify we still logged our errors before exiting
     messages = [rec.message for rec in caplog.records]
     assert any("SECRET is specified but empty." in m for m in messages)
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Print and Exit behavior
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_no_errors_skips_reporting(tmp_path, caplog):
     # Write base config with all valid values
     write_base(tmp_path)
@@ -313,7 +320,6 @@ def test_no_errors_skips_reporting(tmp_path, caplog):
 
     assert ok  # Should return AppConfig, not False
     assert not caplog.records  # No errors expected
-
 
 def test_print_only_logs_errors(tmp_path, caplog):
     # Force a known error (SECRET empty)

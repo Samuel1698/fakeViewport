@@ -5,7 +5,9 @@ import viewport
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
 
+# --------------------------------------------------------------------------- #
 # helper to build a fake psutil.Process‐like object
+# --------------------------------------------------------------------------- #
 def _make_proc(pid, cmdline, uids=None, name=None, cpu: float = 0.0, mem: int = 0):
     # pid: process ID
     # cmdline: either a list of strings or a single binary name
@@ -37,9 +39,9 @@ def _make_proc(pid, cmdline, uids=None, name=None, cpu: float = 0.0, mem: int = 
     proc.memory_info.return_value = MagicMock(rss=mem)
     return proc
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Test for Process Handler
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(
     "proc_list, current_pid, name, action, expected_result, expected_kill_calls, expected_api_calls, expected_log_info",
     [
@@ -206,9 +208,9 @@ def test_process_handler(
     else:
         mock_api.assert_not_called()
 
-# -----------------------------------------------------------------------------
+# --------------------------------------------------------------------------- #
 # Cover the psutil.NoSuchProcess / AccessDenied path in the loop
-# -----------------------------------------------------------------------------
+# --------------------------------------------------------------------------- #
 @patch("viewport.psutil.process_iter")
 def test_process_handler_ignores_uninspectable_procs(mock_iter):
     class BadProc:
@@ -228,9 +230,9 @@ def test_process_handler_ignores_uninspectable_procs(mock_iter):
     mock_iter.return_value = iter([DeniedProc()])
     assert viewport.process_handler("anything", action="check") is False
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Cover the ProcessLookupError inside the kill loop
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @patch("viewport.os.kill")
 @patch("viewport.os.getpid", return_value=0)
 @patch("viewport.os.geteuid", return_value=1000)
@@ -267,10 +269,10 @@ def test_process_handler_kill_handles_processlookuperror(
     mock_info.assert_called_once_with("Killed process 'foo' with PIDs: 99")
     # ensure API was still notified
     mock_api.assert_called_once_with("Killed process 'foo'")
-    
-# -----------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------- #
 # Cover the catch-all Exception path
-# -----------------------------------------------------------------------------
+# --------------------------------------------------------------------------- #
 @patch("viewport.api_status")
 @patch("viewport.log_error")
 @patch("viewport.os.geteuid", side_effect=RuntimeError("oh no"))

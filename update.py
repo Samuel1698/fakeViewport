@@ -18,9 +18,9 @@ GIT   = ["git", "-C", str(ROOT)]
 VERS  = ROOT / "api" / "VERSION"
 last_release_fetched: datetime | None = None
 cached_release_data: dict | None = None
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Helper functions
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def _github(url: str, *, accept="application/vnd.github+json"):
     """
     Open a GitHub API endpoint with automatic token and rate-limit handling.
@@ -99,9 +99,9 @@ def _default_branch() -> str:
                 return json.load(r)["default_branch"]
         except Exception:
             return "main"
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Strategies
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def update_via_git(tag: str) -> bool:
     """
     Fast-forward the local repo to *tag* and run ``minimize.sh``.
@@ -190,9 +190,9 @@ def update_via_tar(tag: str) -> bool:
     except Exception as exc:
         logging.exception("tar update failed: %s", exc)
         return False
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # API
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def current_version() -> str:
     """
     Read the locally installed version string.

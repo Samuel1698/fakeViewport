@@ -4,9 +4,9 @@ from pathlib import Path
 import psutil, builtins, subprocess, io
 import monitoring
 from types import SimpleNamespace
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Fake out datetime.now() for determinism
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 class DummyDateTime:
     _fixed_now = real_datetime(2023, 1, 1, 12, 0, 0)
     
@@ -46,9 +46,10 @@ def test_dummy_datetime_now():
     
     import monitoring
     assert monitoring.datetime.now() == test_time
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Helper to build a client with a given RESTART_TIMES string
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.fixture
 def client(tmp_path, monkeypatch, restart_times):
     # stub out the shared validate_config(...) to return exactly what we need
@@ -97,9 +98,10 @@ def client(tmp_path, monkeypatch, restart_times):
     app = monitoring.create_app()
     app.testing = True
     return app.test_client()
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # /api index
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_api_index_links(client):
     resp = client.get('/api')
     assert resp.status_code == 200
@@ -117,9 +119,9 @@ def test_api_index_links(client):
     for key, url in data.items():
         assert url.endswith(f'/api/{key}')
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # /api/script_uptime
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_script_uptime_missing(client):
     resp = client.get('/api/script_uptime')
     assert resp.status_code == 404
@@ -167,9 +169,10 @@ def test_script_uptime_ok(client, tmp_path, monkeypatch):
     obj = resp.get_json()
     assert obj['status'] == 'ok'
     assert pytest.approx(obj['data']['script_uptime'], rel=1e-3) == 10
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # /api/system_info
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_api_system_info_ok(client, monkeypatch):
     # Mock the network statistics
     class LastNetIO:
@@ -446,9 +449,10 @@ def test_api_system_info_error(client, monkeypatch):
     payload = resp.get_json()
     assert payload["status"] == "error"
     assert "An internal error occurred while fetching system information." in payload["message"]
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # /api/logs?limit
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_default_limit_returns_100_lines(client, tmp_path, monkeypatch):
     client_app = client
     # point script_dir at tmp
@@ -538,9 +542,9 @@ def test_missing_file_returns_500(client, tmp_path, monkeypatch):
     # should mention the missing file
     assert "An internal error occurred while reading logs" in body["message"]
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # /api/status
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_status_missing(client):
     resp = client.get('/api/status')
     assert resp.status_code == 404
@@ -563,9 +567,9 @@ def test_status_ok(client, tmp_path, monkeypatch):
     assert obj['status'] == 'ok'
     assert obj['data']['status'] == 'All Good'
     
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # /api/config
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_api_config_no_restart(client, monkeypatch):
     # When RESTART_TIMES is an empty list, /api/config should return
     # restart_times = None and next_restart = None.

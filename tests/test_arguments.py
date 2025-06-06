@@ -85,7 +85,7 @@ def test_diagnose_flag_success(mock_logging, mock_validate, mock_exit):
     mock_validate.assert_called_once_with(strict=False)
     mock_logging.info.assert_any_call("No errors found.")
     mock_exit.assert_called_once_with(0)
-    
+
 @patch("viewport.sys.exit")
 @patch("viewport.process_handler")
 def test_api_flag_stop_monitoring(mock_process_handler, mock_exit):
@@ -97,7 +97,7 @@ def test_api_flag_stop_monitoring(mock_process_handler, mock_exit):
     viewport.args_handler(mock_args)
     assert mock_process_handler.call_count >= 2
     mock_exit.assert_called_once_with(0)
-    
+
 @patch("viewport.sys.exit")
 def test_args_handler_api_enabled_calls_api_handler(mock_exit, monkeypatch):
     # Simulate “monitoring.py” not running, so we skip the stop‐monitoring branch:
@@ -223,7 +223,7 @@ def test_restart_flag_when_not_running(monkeypatch, caplog):
 
     # Verify log message
     assert "Fake Viewport is not running." in caplog.text
-    
+
 def test_no_arguments_passed():
     mock_args = type("Args", (), {
         "status": False, "logs": None, "background": False, "pause": False,
@@ -280,7 +280,6 @@ def test_args_child_handler_override_list_and_single_value():
     flags2 = viewport.args_child_handler(args, add_flags={"logs": 42})
     assert flags2 == ["--logs", "42"]
 
-
 def test_args_child_handler_override_none_value():
     args = type("Args", (), {
         "status": False, "background": False, "pause": False, "restart": False,
@@ -294,7 +293,6 @@ def test_args_child_handler_override_none_value():
     # unknown dest falls back to "--<dest>"
     flags2 = viewport.args_child_handler(args, add_flags={"foo": None})
     assert flags2 == ["--foo"]
-
 
 def test_args_child_handler_add_flags_as_list_or_tuple():
     args = type("Args", (), {
@@ -384,7 +382,7 @@ def test_api_flag_disabled(mock_info, mock_exit):
         "API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature."
     )
     mock_exit.assert_called_once_with(0)
-    
+
 def test_pause_flag_when_not_running(monkeypatch, caplog):
     # Simulate viewport not running
     monkeypatch.setattr(viewport, "process_handler", lambda name, action: False)
@@ -430,7 +428,6 @@ def test_pause_flag_toggle(monkeypatch, caplog, initial, expected_msg, expected_
 
     # And that the file was toggled
     assert viewport.pause_file.exists() == (not initial)
-    
 
 def test_pause_flag_exception_branch(monkeypatch):
     # Make process_handler raise, to force the exception path

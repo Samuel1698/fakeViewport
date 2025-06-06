@@ -31,9 +31,9 @@ from css_selectors import (
     CSS_PLAYER_OPTIONS,
     CSS_CURSOR
 )
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Variable Declaration and file paths
-# -------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 _mod = sys.modules[__name__]
 _version_re = re.compile(r'\d+')
 driver = None # Declare it globally so that it can be accessed in the signal handler function
@@ -57,9 +57,9 @@ GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
 CYAN = "\033[36m"
 NC="\033[0m"
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Argument Handlers
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def args_helper():
     """
     Parse command-line options.
@@ -298,9 +298,9 @@ def args_child_handler(args, *, drop_flags=(), add_flags=None):
             else:
                 child.extend([f"--{dest}", str(override)])
     return child
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Logging setup
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 configure_logging(
     log_file_path=str(log_file),
     log_file=LOG_FILE_FLAG,
@@ -336,9 +336,9 @@ def log_error(message, exception=None, driver=None):
             logging.warning(f"Could not take screenshot: WebDriver not alive ({e})")
         except Exception as e:
             logging.warning(f"Unexpected error taking screenshot: {e}")
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # API setup
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def clear_sst():
     """
     Truncate the SST file and remove the pause flag.
@@ -423,9 +423,9 @@ def api_handler():
         log_error("Error starting API: ", e)
         api_status("Error Starting API")
         return False
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Signal Handler (Closing gracefully with CTRL+C)
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def signal_handler(signum, frame, driver=None):
     """
     Gracefully handle termination signals.
@@ -452,9 +452,9 @@ def signal_handler(signum, frame, driver=None):
     os._exit(0)
 signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, driver))
 signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Helper functions for getting information
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def get_cpu_color(name, pct):
     """
     Map CPU-usage percentage to a color code.
@@ -649,9 +649,9 @@ def get_driver_path(browser: str, timeout: int = 60) -> str:
         raise DriverDownloadStuckError(msg)
     finally:
         executor.shutdown(wait=False)
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Helper Functions for installing packages and handling processes
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def stale_drivers_handler(driver_bin: Path, keep_latest: int = 1) -> None:
     """
     Remove old driver versions sitting next to *driver_bin*.
@@ -1145,10 +1145,10 @@ def restart_handler(driver):
         api_status("Error Restarting, exiting...")
         clear_sst()
         sys.exit(1)
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Helper Functions for main script
 # These functions return true or false but don't interact directly with the webpage
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def check_crash(driver):
     """
     Determine whether the current browser tab has crashed.
@@ -1243,10 +1243,10 @@ def check_unable_to_stream(driver):
         log_error("Error while checking for 'Unable to Stream' message: ", e, driver)
         api_status("Error Checking Unable to Stream")
         return False
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Interactive Functions for main logic
 # These functions directly interact with the webpage
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def handle_clear(driver, element):
     """
     Force-clear a text input field.
@@ -1867,9 +1867,9 @@ def handle_view(driver, url):
             time.sleep(WAIT_TIME)
             retry_count += 1
             handle_retry(driver, url, retry_count, max_retries)
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Main function to start the script
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def main():
     """
     Script entry point.

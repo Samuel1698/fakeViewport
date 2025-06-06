@@ -7,9 +7,9 @@ from urllib.error import HTTPError
 import pytest
 import monitoring
 import update as uu
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 # Fixtures
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 @pytest.fixture
 def dummy_repo(tmp_path, monkeypatch):
     # Create an isolated fake repo tree:  api/VERSION  +  .git dir
@@ -37,9 +37,9 @@ def app_client(dummy_repo, monkeypatch):
     app.testing = True
     return app.test_client()
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 # current_version / latest_version
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 def test_current_version_reads_file(dummy_repo):
     assert uu.current_version() == "0.1.0"
 
@@ -213,9 +213,9 @@ def test__get_release_data_returns_cached(monkeypatch):
     result = uu._get_release_data()
     assert result == {"tag_name": "vX.Y.Z", "body": "ignored"}
     
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 # helpers: _clean_worktree / _current_branch / _default_branch
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 @pytest.mark.parametrize("stdout,expected", [("", True), (" M file", False)])
 def test_clean_worktree(monkeypatch, stdout, expected):
     monkeypatch.setattr(
@@ -255,9 +255,9 @@ def test_default_branch_paths(monkeypatch):
     monkeypatch.setattr(uu, "_github", lambda *a, **k: (_ for _ in ()).throw(RuntimeError))
     assert uu._default_branch() == "main"
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 # update_via_git
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 @pytest.mark.parametrize("clean,step_ok,expected", [
     (False, True,  False),   # dirty tree → abort
     (True,  True,  True),    # all steps succeed
@@ -350,9 +350,9 @@ def test_update_via_git_no_token(monkeypatch):
                 "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0"):
         assert key not in captured_env
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 # update_via_tar
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 @pytest.mark.parametrize("asset_ok,tar_ok,expected,has_dirs", [
     (False, True,  False, False),   # no asset found
     (True,  False, False, False),   # tarfile.open blows
@@ -520,9 +520,9 @@ def test_update_via_tar_directory_filtering(monkeypatch, tmp_path):
     assert "nested/" in extracted_names       # Nested dir was kept
     assert "file.txt" in extracted_names      # Root file was kept
     assert "nested/file.js" in extracted_names  # Nested file was kept
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 # perform_update – all branches
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 def _write_version(path: Path, val: str):
     path.write_text(val + "\n")
 
@@ -568,9 +568,9 @@ def test_perform_update_tar_only(dummy_repo, monkeypatch):
     res = uu.perform_update()
     assert res.startswith("updated-to-0.2.0-via-tar")
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 # _github helper / API integration
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 def test__github_headers(monkeypatch):
     # Without token
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
@@ -653,9 +653,9 @@ def test__download_asset(monkeypatch, assets, keyword, expected):
     result = uu._download_asset(tag, keyword)
     assert result == expected
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 # Monitoring API endpoints
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 @patch.object(monitoring.update, "latest_version", lambda: "0.2.0")
 def test_update_info_endpoint(app_client):
     r = app_client.get("/api/update")
@@ -710,9 +710,9 @@ def test_update_changelog_endpoint_error(app_client, monkeypatch, caplog):
     # The log should contain the "changelog fetch failed" message
     assert "changelog fetch failed" in caplog.text
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 # latest_changelog: error & cache branches
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 @pytest.mark.parametrize("body, expected", [
     ("Fix bug\nAdd feature\n",            "Fix bug\nAdd feature"),
     ("Release notes\n---\n-- tar info\n",  "Release notes"),

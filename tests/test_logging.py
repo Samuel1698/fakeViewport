@@ -3,16 +3,17 @@ import logging, datetime, os, sys
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
 from logging_config import configure_logging, ColoredFormatter
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- # 
 # Override conftest's autouse isolate_logging
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- # 
 @pytest.fixture(autouse=True)
 def isolate_logging_override():
     # no-op: prevents conftest.py from reconfiguring logging for these tests
     yield
-# ------------------------------------------------------------------ #
+
+# --------------------------------------------------------------------------- # 
 # Clear root handlers before each test
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- # 
 @pytest.fixture(autouse=True)
 def clear_root_handlers():
     root = logging.getLogger()
@@ -119,9 +120,9 @@ def test_colored_formatter_all_branches(level, expected_color):
     assert out.endswith(ColoredFormatter.NC)
     assert "Payload" in out
 
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- # 
 # Test log rotation
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- # 
 def test_date_only_rotation_culls_old_backups(tmp_path):
     """
     Create “test.log.YYYY-MM-DD” files by hand and verify the handler

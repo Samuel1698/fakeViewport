@@ -30,16 +30,17 @@ env_file    = _base / '.env'
 logs_dir    = _base / 'logs'
 api_dir     = _base / 'api'
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Load and validate everything via our shared validator
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 cfg = validate_config(strict=False, print=False)
 # pull everything out into locals/globals
 for name, val in vars(cfg).items():
     setattr(_mon, name, val)
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- # 
 # Setup Logging
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 configure_logging(
     log_file_path=str(mon_file),
     log_file=LOG_FILE_FLAG,
@@ -47,9 +48,10 @@ configure_logging(
     log_days=LOG_DAYS,
     Debug_logging=DEBUG_LOGGING
 )
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- # 
 # Application for the monitoring API
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def create_app():
     """
     Build and configure the Flask Monitoring API application.
@@ -73,13 +75,13 @@ def create_app():
         for name, val in vars(cfg).items():
             setattr(_mon, name, val)
     app.secret_key  = CONTROL_TOKEN or os.urandom(24)
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     # Enable CORS
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     CORS(app)
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     # Helper: read and strip text files
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     def _read_api_file(path):
         if not path.exists():
             return None
@@ -89,9 +91,9 @@ def create_app():
             app.logger.error(f"Error reading {path}: {e}")
             return None
     app._read_api_file = _read_api_file
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     # Protect routes if SECRET is set
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     def login_required(f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -102,9 +104,9 @@ def create_app():
                     return redirect(url_for("login", next=request.path))
             return f(*args, **kwargs)
         return decorated
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     # Dashboard Routes
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/login", methods=["GET", "POST"])
     def login():
         """
@@ -155,7 +157,7 @@ def create_app():
         # Render login form (with any flashed message)
         return render_template("login.html", error=error)
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/logout")
     def logout():
         """
@@ -167,7 +169,7 @@ def create_app():
         session.clear()
         return redirect(url_for("login"))
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/")
     @login_required
     def dashboard():
@@ -179,9 +181,9 @@ def create_app():
         """
         return render_template("index.html")
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     # POSTS Routes
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/api/control/<action>", methods=["POST"])
     @login_required
     def api_control(action):
@@ -216,7 +218,7 @@ def create_app():
             app.logger.exception("Failed to dispatch control command")
             return jsonify(status="error", message="Failed to dispatch control command"), 500
     
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/api/update/apply", methods=["POST"])
     @login_required
     def api_update_apply():
@@ -229,7 +231,7 @@ def create_app():
         outcome = update.perform_update()
         return jsonify(status="ok", data={"outcome": outcome}), 202
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/api/self/restart", methods=["POST"])
     @login_required
     def api_restart():
@@ -257,9 +259,9 @@ def create_app():
             app.logger.exception("Failed to restart API")
             return jsonify(status="error", message="An internal error has occurred."), 500
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     # GET Routes
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/api")
     @app.route("/api/")
     def api_index():
@@ -279,7 +281,7 @@ def create_app():
             "config":          url_for("api_config",          _external=True),
         })
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/api/update")
     def api_update_info():
         """
@@ -297,7 +299,7 @@ def create_app():
             app.logger.exception("version check failed")
             return jsonify(status="error", message="An internal error has occurred."), 500
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/api/update/changelog")
     def api_update_changelog():
         """
@@ -321,7 +323,7 @@ def create_app():
             app.logger.exception("changelog fetch failed")
             return jsonify(status="error", message="An internal error has occurred."), 500
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/api/script_uptime")
     def api_script_uptime():
         """
@@ -340,7 +342,7 @@ def create_app():
         except ValueError:
             return jsonify(status="error", message="Malformed SST timestamp"), 400
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/api/system_info")
     def api_system_info():
         """
@@ -444,7 +446,7 @@ def create_app():
                 message="An internal error occurred while fetching system information."
             ), 500
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/api/log")
     @app.route("/api/logs")
     def api_logs():
@@ -471,7 +473,7 @@ def create_app():
             app.logger.exception("Failed reading logs")
             return jsonify(status="error", message="An internal error occurred while reading logs"), 500
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/api/status")
     def api_status():
         """
@@ -485,7 +487,7 @@ def create_app():
             return jsonify(status="error", message="Status file not found"), 404
         return jsonify(status="ok", data={"status": line})    
 
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     @app.route("/api/config")
     def api_config():
         """
@@ -551,9 +553,9 @@ def create_app():
             
     return app
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Run server when invoked directly
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def main():
     """
     Entry point for launching the monitoring API.

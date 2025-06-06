@@ -4,9 +4,9 @@ from unittest.mock import MagicMock, patch, call
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.keys import Keys
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Tests for handle_login function
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 @pytest.mark.parametrize("exc, expect_ret, expect_error_msg, expect_api", [
     (None, True, None, None),
     (Exception("oops"), False, "Error during login: ", "Error Logging In"),
@@ -51,7 +51,6 @@ def test_handle_login(
             mock_log_error.assert_called()
             mock_api_status.assert_called_with(expect_api)
             assert result is False
-            
 
 @patch("viewport.handle_clear")
 def test_handle_login_trust_prompt_not_found(mock_handle_clear, monkeypatch):
@@ -189,9 +188,9 @@ def test_handle_login_uses_force_clear(mock_wdw, mock_handle_clear, mock_sleep, 
         [call(driver, user_el), call(driver, pass_el)]
     )
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Tests for the handle_clear function
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 class DummyField:
     def __init__(self):
         self.value = "savedPASS"

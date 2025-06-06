@@ -5,9 +5,9 @@ from unittest.mock import patch
 from datetime import datetime, time as dt_time
 import pytest
 import viewport
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Fixtures and Helpers
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 class DummyMgr:
     """
     Test double that mimics selenium-manager objects created by
@@ -46,9 +46,9 @@ def mock_common(mocker):
         "logging": mocker.patch("viewport.logging"),
     }
     return patches
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Tests for get_cpu_color and get_mem_color
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(
     "name, pct, expected_color",
     [
@@ -76,9 +76,9 @@ def test_get_cpu_color(name, pct, expected_color):
 def test_get_mem_color(pct, expected_color):
     assert viewport.get_mem_color(pct) == expected_color
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Test get_browser_version
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_get_browser_version(monkeypatch):
     # stub subprocess.check_output to return a fake version string
     fake_output = b"Google-Chrome 100.0.4896.127\n"
@@ -87,9 +87,9 @@ def test_get_browser_version(monkeypatch):
     version = viewport.get_browser_version("chrome")
     assert version == "100.0.4896.127"
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Test get_next_restart
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @patch("viewport.RESTART_TIMES", [dt_time(3, 0), dt_time(15, 0)])
 def test_get_next_restart_future_today():
     now = datetime(2025, 5, 10, 2, 0)  # Before 03:00
@@ -107,9 +107,9 @@ def test_get_next_restart_tomorrow():
     now = datetime(2025, 5, 10, 16, 0)  # After all times
     expected = datetime(2025, 5, 11, 3, 0)
     assert viewport.get_next_restart(now) == expected
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Test: get_next_interval and get_local_driver
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(
     "interval_seconds, now, expected",
     [
@@ -244,7 +244,7 @@ def test_get_driver_path_success_invokes_cleanup(monkeypatch):
     assert called["clean"] == 1
 # --------------------------------------------------------------------------- #
 # stale_drivers_handler
-# --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- # 
 def stale_drivers_tree(base: Path, versions):
     """
     Create …/linux64/<version>/chromedriver (or geckodriver) files under *base*.
