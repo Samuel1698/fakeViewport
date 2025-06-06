@@ -272,56 +272,171 @@ EOF
 
 These endpoints display raw data, meant to be integrated into a third party tool like HomeAssistant or Rainmeter.
 
-```none
-/api | Displays a list of all the urls
-/api/config | Displays all the values in your config file
-   - browser
-      - binary_path
-      - profile_path
-      - headless
-   - general
-      - health_interval_sec
-      - wait_time_sec
-      - max_retries
-      - next_restart
-      - restart_times
-         - 0
-         - 1
-         ...
-   - logging
-      - log_interval_min
-      - log_file_flag
-      - log_console_flag
-      - log_days
-      - debug_logging
-      - error_logging
-      - ERROR_PRTSCR
-/api/logs 
-/api/logs?limit= | Displays the last N logs in the logfile. Default 100
-/api/status | Self-Reported status of the script's health
-/api/system_info
-   - disk space available
-   - hardware model
-   - Operating System
-   - System Uptime
-   - CPU
-      - cores
-      - percent used
-      - threads
-   - RAM
-      - used
-      - total
-      - percent used
-   - network
-      - interfaces
-         - download
-         - upload
-         - total download
-         - total upload
-/api/update | Displays version numbers
-   - current
-   - latest
-/api/update/changelog | Grabs the changelog from the latest release
+```pgsql
+-- ======================================================================
+--  Viewport REST API – route catalogue
+--  Conventions
+--      • All routes answer with JSON: {"status": <"ok" | "error">, ...}
+--      • 200 on success, 4xx/5xx on error unless noted.
+--      • Timestamps are ISO-8601 local time.
+--      • Uptimes are seconds. Data is shown in Bytes. 
+-- ======================================================================
+
+-- ----------------------------------------------------------------------
+-- GET /api
+-- Description   List every available endpoint.
+-- Response
+-- {
+--   "status": "ok",
+--   "data": [
+--     "/api/config",
+--     "/api/logs",
+--     ...
+--   ]
+-- }
+-- ----------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------
+-- GET /api/config
+-- Description   Current runtime configuration.
+-- Response
+-- {
+--   "status": "ok",
+--   "data": {
+--     "browser": {
+--       "binary_path": "/usr/bin/google-chrome",
+--       "profile_path": "/home/user/.config/chrome",
+--       "headless": false
+--     },
+--     "general": {
+--       "health_interval_sec": 30,
+--       "max_retries": 3,
+--       "next_restart": "2025-06-06 03:00:00" | null,
+--       "restart_times": [ "03:00", "15:00" ] | null,
+--       "wait_time_sec": 10,
+--     },
+--     "logging": {
+--       "ERROR_PRTSCR": false,
+--       "debug_logging": false,
+--       "error_logging": true,
+--       "log_console_flag": true,
+--       "log_days": 7,
+--       "log_file_flag": true,
+--       "log_interval_min": 60,
+--     }
+--   }
+-- }
+-- ----------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------
+-- GET /api/logs
+-- GET /api/logs?limit=<N>
+-- Description   Tail the script log (default N = 100).
+-- Response
+-- {
+--   "status": "ok",
+--   "data": {
+--     "logs": [
+--       "[2025-06-05 17:52:48] API started successfully",
+--       ...
+--     ]
+--   }
+-- }
+-- ----------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------
+-- GET /api/status
+-- Description   One-shot health snapshot produced by the script.
+-- Response
+-- {
+--   "status": "ok",
+--   "data": {
+--     "status":       "Feed Healthy"
+--   }
+-- }
+-- ----------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------
+-- GET /api/system_info
+-- Description   Host statistics.
+-- Response
+-- {
+--   "status": "ok",
+--   "data": {
+--     "cpu": {  
+--             "cores": 8, 
+--             "percent": 12.5, 
+--             "threads": 16
+--            },
+--     "disk_available":  "123.4G",
+--     "hardware_model":  "NUC12WSKi7",
+--     "memory": { 
+--             "percent": 19.3, 
+--             "total": 16618045440, 
+--             "used": 2780758016 
+--             },
+--     "network": {
+--       "eth0": {
+--         "download":    1234.18471531050941,
+--         "upload":      3537.10995406011205,
+--         "total_download": 67134056,
+--         "total_upload": 15068848,
+--         "interface": "eth0"
+--       },
+--       "primary_interface": {
+--         "download":    1234.18471531050941,
+--         "upload":      3537.10995406011205,
+--         "total_download": 67134056,
+--         "total_upload": 15068848,
+--         "interface": "eth0"
+--       },
+--     },
+--     "os_name":   "Debian 12 (bookworm)",
+--     "system_uptime": 86400.388867378235
+--   }
+-- }
+-- ----------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------
+-- GET /api/update
+-- Description   Version comparison.
+-- Response
+-- {
+--   "status": "ok",
+--   "data": {
+--     "current": "1.3.2",
+--     "latest":  "1.4.0"
+--   }
+-- }
+-- ----------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------
+-- GET /api/update/changelog
+-- Description   Raw markdown changelog of the latest release.
+-- Response
+-- {
+--   "status": "ok",
+--   "data": {
+--     "changelog": "# 1.4.0\n\n* Added feature X\n* Fixed bug Y\n..."
+--     "release_url": "https://github.com.../releases/latest"
+--   }
+-- }
+-- ----------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------
+-- GET /api/script_uptime
+-- Description   Script-level uptime in seconds.
+-- Response (running)
+-- {
+--   "status": "ok",
+--   "data": {
+--     "running": true,
+--     "uptime": 345.67 | null
+--   }
+-- }
+-- ----------------------------------------------------------------------
+
+-- End of route catalogue
 ```
 
 ---
