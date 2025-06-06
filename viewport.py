@@ -408,8 +408,16 @@ def api_handler(*, standalone: bool = False):
                     "Debug mode:",
                     "Running on"
                 }
+                # Regular expression to match ANSI color codes
+                ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+                # Regular expression to match timestamp prefixes (e.g., "[2023-01-01 12:00:00] ")
+                timestamp_prefix = re.compile(r'^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] ')
                 for line in stream:
                     line = line.strip()
+                    # Remove ANSI color codes
+                    line = ansi_escape.sub('', line)
+                    # Remove timestamp prefix if present
+                    line = timestamp_prefix.sub('', line).strip()
                     if not line or any(msg in line for msg in WERKZEUG_MESSAGES): continue
                     else: pass
                     logging.info(line)
