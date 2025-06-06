@@ -302,8 +302,8 @@ export async function loadStatus(forceRefreshConfig = false) {
 
   // Script uptime
   const el = document.getElementById("scriptUptime");
-  if (sud?.data && typeof sud.data.script_uptime === "number") {
-    const current = sud.data.script_uptime;
+  if (sud?.data?.running === true) {
+    const current = sud.data.uptime;
     el.classList.remove("Green", "Red");
     if (lastScriptUptime !== null && current === lastScriptUptime) {
       el.textContent = "Not Running";
@@ -322,42 +322,56 @@ export async function loadStatus(forceRefreshConfig = false) {
   const entry = document.getElementById("statusMsg");
   // Status message
   if (st?.data && entry) {
-    entry.textContent = st.data.status;
-    entry.classList.remove("Green", "Blue", "Red");
-
+    let displayText = st.data.status.trim();
+    const lowerEntry = displayText.toLowerCase();
+    entry.classList.remove("Green", "Yellow", "Blue", "Red");
     if (
-      entry.textContent.includes("Healthy") ||
-      entry.textContent.includes("Resumed") ||
-      entry.textContent.includes("restart") ||
-      entry.textContent.includes("Fullscreen") ||
-      entry.textContent.includes("Saved")
+      // Success
+      lowerEntry.includes("healthy") ||
+      lowerEntry.includes("resumed") ||
+      lowerEntry.includes("restart") ||
+      lowerEntry.includes("fullscreen") ||
+      lowerEntry.includes("saved")
     ) {
       entry.classList.add("Green");
     } else if (
-      entry.textContent.includes("Stopped") ||
-      entry.textContent.includes("Killed") ||
-      entry.textContent.includes("Restarting") ||
-      entry.textContent.includes("Loaded") ||
-      entry.textContent.includes("Crashed") ||
-      entry.textContent.includes("Retrying") ||
-      entry.textContent.includes("Starting")
+      // Normal actions
+      lowerEntry.includes("killed process") ||
+      lowerEntry.includes("stopped") ||
+      lowerEntry.includes("loaded") ||
+      lowerEntry.includes("deleted old") ||
+      lowerEntry.includes("starting")
     ) {
       entry.classList.add("Blue");
     } else if (
-      entry.textContent.includes("Error") ||
-      entry.textContent.includes("stuck") ||
-      entry.textContent.includes("Unsupported") ||
-      entry.textContent.includes("Timed") ||
-      entry.textContent.includes("Issue") ||
-      entry.textContent.includes("Couldn't") ||
-      entry.textContent.includes("Paused") ||
-      entry.textContent.includes("Offline") ||
-      entry.textContent.includes("unresponsive") ||
-      entry.textContent.includes("Not Found") ||
-      entry.textContent.includes("Error")
+      // Actions that raise an eyebrow
+      lowerEntry.includes("paused") ||
+      lowerEntry.includes("issue") ||
+      lowerEntry.includes("restarting") ||
+      lowerEntry.includes("retrying") ||
+      lowerEntry.includes("couldn't") ||
+      lowerEntry.includes("download slow") ||
+      lowerEntry.includes("restoration failed")
+    ) {
+      entry.classList.add("Yellow");
+    } else if (
+      // ERRORS
+      lowerEntry.includes("crashed") ||
+      lowerEntry.includes("unsupported browser") ||
+      lowerEntry.includes("error") ||
+      lowerEntry.includes("download stuck") ||
+      lowerEntry.includes("page timed") ||
+      lowerEntry.includes("failed to start") ||
+      lowerEntry.includes("restoration failed") ||
+      lowerEntry.includes("click failed") ||
+      lowerEntry.includes("offline") ||
+      lowerEntry.includes("to display") ||
+      lowerEntry.includes("unresponsive") ||
+      lowerEntry.includes("not found")
     ) {
       entry.classList.add("Red");
     }
+    entry.textContent = displayText;
   }
 
   // System info
