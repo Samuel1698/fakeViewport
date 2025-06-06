@@ -27,7 +27,7 @@ jobs:
             const file = 'README.md';
             let md = fs.readFileSync(file, 'utf8');
             md = md.replace(
-              /# SNAPSHOT[\s\S]*?for a stable version of the code\.\n+---\s*/m,
+              /## SNAPSHOT[\s\S]*?for a stable version of the code\.\n+---\s*/m,
               ''
             );
 

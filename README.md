@@ -1,17 +1,17 @@
+# Fake Viewport
+
 <!-- [START BADGES] -->
 
 [![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg?branch=snapshot)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
 
 <!-- [END BADGES] -->
 
-# SNAPSHOT
+## SNAPSHOT
 
 You are currently seeing the snapshot branch. This is where I make rapid changes and experiment with new code. If this branch is ahead of main, it is most likely broken.
 Check the [latest release](https://github.com/Samuel1698/fakeViewport/releases) or go to [main](https://github.com/Samuel1698/fakeViewport/tree/main) for a stable version of the code.
 
 ---
-
-# Fake Viewport
 
 Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. The script will automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
 
@@ -478,21 +478,25 @@ Because this script simply displays the live view on a webpage, it has several a
 
 <sup>Setup at my parent's house—blurred for privacy</sup>
 
+<img width="678" alt="Login Page" src="https://github.com/user-attachments/assets/149bd036-1bbc-4ceb-9e4f-204e66471859" />
+
+<sup>Dashboard Login Page | Light Theme</sup>
+
 <img width="678" alt="Status Tab" src="https://github.com/user-attachments/assets/9cdfe8f5-a62b-4d20-ab10-08452e6f2602" />
 
-<sup>Control Panel | Status Tab</sup>
+<sup>Control Panel | Status Tab | Dark Theme</sup>
 
 <img width="678" alt="Device Tab" src="https://github.com/user-attachments/assets/7bdb2cd4-40a0-4da0-b86e-1c59491ea506" />
 
-<sup>Control Panel | Device Tab</sup>
+<sup>Control Panel | Device Tab | Light Theme</sup>
 
 <img width="678" alt="Config Tab" src="https://github.com/user-attachments/assets/1f1167c4-5682-471e-b65b-678eaba77ad9" />
 
-<sup>Control Panel | Config Tab</sup>
+<sup>Control Panel | Config Tab | Light Theme</sup>
 
 <img width="678" alt="Logs Tab" src="https://github.com/user-attachments/assets/cde75dd5-0428-4e25-b907-47f28a5ad771" />
 
-<sup>Control Panel | Logs Tab</sup>
+<sup>Control Panel | Logs Tab | Dark Theme</sup>
 
 ---
 
