@@ -450,7 +450,7 @@ def signal_handler(signum, frame, driver=None):
             driver.quit()
         except:
             pass
-    api_status("Stopped ")
+    api_status("Stopped")
     logging.info("Gracefully shutting down script instance.")
     clear_sst()
     os._exit(0)
@@ -1215,7 +1215,7 @@ def check_for_title(driver, title=None):
     except TimeoutException as e:
         if title is None:
             log_error("Timed out waiting for the page title to not be empty.", e, driver)
-            api_status("Paged Timed Out")
+            api_status("Page Timed Out")
         else:
             log_error(f"Timed out waiting for the title '{title}' to load.", e, driver)
             api_status(f"Timed Out Waiting for Title '{title}'")

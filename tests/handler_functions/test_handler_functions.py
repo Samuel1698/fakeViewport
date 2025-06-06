@@ -29,7 +29,7 @@ def test_signal_handler_calls_exit(mock__exit, mock_api_status, mock_logging):
     mock_driver.quit.assert_called_once()
     mock_logging.info.assert_any_call(f"Gracefully shutting down chrome.")
     mock_logging.info.assert_any_call("Gracefully shutting down script instance.")
-    mock_api_status.assert_called_once_with("Stopped ")
+    mock_api_status.assert_called_once_with("Stopped")
     mock__exit.assert_called_once_with(0)
 
 @patch("viewport.logging")
@@ -44,7 +44,7 @@ def test_signal_handler_quit_exception(mock__exit, mock_api_status, mock_logging
     mock_driver.quit.assert_called_once()
     mock_logging.info.assert_any_call(f"Gracefully shutting down {viewport.BROWSER}.")
     mock_logging.info.assert_any_call("Gracefully shutting down script instance.")
-    mock_api_status.assert_called_once_with("Stopped ")
+    mock_api_status.assert_called_once_with("Stopped")
     mock__exit.assert_called_once_with(0)
 
 # --------------------------------------------------------------------------- # 

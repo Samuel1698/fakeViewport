@@ -152,8 +152,8 @@ def test_check_for_title_no_title_timeout(mock_driver, mock_common):
         mock_driver,
     )
 
-    # And the API gets the "Paged Timed Out" status
-    mock_common["api_status"].assert_called_once_with("Paged Timed Out")
+    # And the API gets the "Page Timed Out" status
+    mock_common["api_status"].assert_called_once_with("Page Timed Out")
 
     # No generic logging.info should have been called
     mock_common["logging"].info.assert_not_called()
