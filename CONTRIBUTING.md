@@ -22,7 +22,7 @@ Thank you for considering contributing to this project! All contributions (bug r
 - Keep the subject line under 50 characters
 - Include a more detailed body when necessary
 - Reference issues with `#123` when applicable
-
+- Use [Conventional Commits](https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13)
 
 ## Pull Requests
 
@@ -35,7 +35,10 @@ Thank you for considering contributing to this project! All contributions (bug r
 
 1. Run the `setup` script with `dev` as an argument: `./setup.sh dev`
 2. Activate the virtual environment
+
    ```bash
    source venv/bin/activate
    ```
+
 3. Run `pytest` locally before submitting a pull request
+4. Check the code coverage with: `pytest --cov --cov-branch --cov-report=term-missing`
