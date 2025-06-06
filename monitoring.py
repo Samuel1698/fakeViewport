@@ -2,6 +2,7 @@
 import sys, os, time, configparser, psutil, subprocess, logging, socket
 from functools import wraps
 from pathlib import Path
+from collections import deque
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from flask import (
@@ -20,6 +21,7 @@ from viewport import process_handler
 _mon = sys.modules[__name__]
 dotenv_file = find_dotenv()
 load_dotenv(dotenv_file, override=True)
+LOG_HARD_CAP = 1000
 unwanted = None
 last_net_io = None
 last_check_time = time.time()
@@ -460,29 +462,58 @@ def create_app():
     # ----------------------------------------------------------------------- #
     @app.route("/api/log")
     @app.route("/api/logs")
-    def api_logs():
+    def api_logs() -> "flask.Response":
         """
-        Tail the application log file.
+        Tail the most recent log lines, spanning rotated files if needed.
+        ?limit=N   Number of lines to return (1-1000). Default 100.
 
-        Query Parameters:
-            limit (int): Maximum number of lines to return (default 100).
-
-        Returns:
-            flask.Response: JSON list of log lines or error.
+        Response schema
+        ---------------
+            {
+                "status": "ok",
+                "data": { "logs": [ "<line>", ... ] }
+            }
         """
         try:
             limit = int(request.args.get("limit", 100))
         except ValueError:
             limit = 100
-        try:
-            # tail the file
-            with open(log_file, 'r') as f:
-                last_lines = deque(f, maxlen=limit)
-            # return as an array of strings
-            return jsonify(status="ok", data={"logs": list(last_lines)})
-        except Exception as e:
-            app.logger.exception("Failed reading logs")
-            return jsonify(status="error", message="An internal error occurred while reading logs"), 500
+        limit = max(1, min(limit, LOG_HARD_CAP))
+
+        log_path  = Path(log_file).resolve()        # e.g. viewport.log
+        log_dir   = log_path.parent
+        base_name = log_path.name                   #   "viewport.log"
+
+        # TimedRotatingFileHandler names rotated files like
+        #   viewport.log.2025-06-05
+        rotated = sorted(
+            (p for p in log_dir.glob(f"{base_name}.*") if p.is_file()),
+            key=lambda p: p.stat().st_mtime,        # newest first
+            reverse=True
+        )
+
+        # Always examine current log first, then yesterday, then older …
+        candidates = [log_path] + rotated
+
+        remaining = limit
+        tail = deque(maxlen=limit)                  # keeps newest lines in order
+
+        for path in candidates:
+            try:
+                # Read only what we still need from *this* file
+                chunk = deque(maxlen=remaining)
+                with path.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        chunk.append(line.rstrip("\n"))
+                # Prepend so chronology is preserved when we move to older logs
+                tail.extendleft(reversed(chunk))
+                remaining = limit - len(tail)
+                if remaining == 0:                  # got everything we asked for
+                    break
+            except Exception:
+                app.logger.warning("Could not read %s", path, exc_info=True)
+
+        return jsonify(status="ok", data={"logs": list(tail)})
 
     # ----------------------------------------------------------------------- #
     @app.route("/api/status")

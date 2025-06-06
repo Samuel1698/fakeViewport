@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime as real_datetime, time as timecls, timedelta
 from pathlib import Path
-import psutil, builtins, subprocess, io
+import psutil, builtins, subprocess, io, os, time
 import monitoring
 from types import SimpleNamespace
 # --------------------------------------------------------------------------- #
@@ -494,8 +494,8 @@ def test_default_limit_returns_100_lines(client, tmp_path, monkeypatch):
     assert isinstance(logs, list)
     # last 100 of the 150
     assert len(logs) == 100
-    assert logs[0] == "entry 50\n"
-    assert logs[-1] == "entry 149\n"
+    assert logs[0] == "entry 50"
+    assert logs[-1] == "entry 149"
 
 @pytest.mark.parametrize("limit,expected_start", [
     (10, 140),
@@ -519,8 +519,8 @@ def test_custom_limit(client, limit, expected_start, tmp_path, monkeypatch):
 
     count = min(limit, 150)
     assert len(logs) == count
-    assert logs[0] == f"row {150 - count}\n"
-    assert logs[-1] == "row 149\n"
+    assert logs[0] == f"row {150 - count}"
+    assert logs[-1] == "row 149"
 
 def test_invalid_limit_falls_back_to_default(client, tmp_path, monkeypatch):
     client_app = client
@@ -540,8 +540,8 @@ def test_invalid_limit_falls_back_to_default(client, tmp_path, monkeypatch):
     logs = resp.get_json()["data"]["logs"]
 
     assert len(logs) == 100
-    assert logs[0] == "x20\n"   # 120 - 100 = 20
-    assert logs[-1] == "x119\n"
+    assert logs[0] == "x20"   # 120 - 100 = 20
+    assert logs[-1] == "x119"
 
 def test_missing_file_returns_500(client, tmp_path, monkeypatch):
     client_app = client
@@ -552,13 +552,60 @@ def test_missing_file_returns_500(client, tmp_path, monkeypatch):
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     resp = client_app.get("/api/logs")
-    assert resp.status_code == 500
-
+    assert resp.status_code == 200
     body = resp.get_json()
-    assert body["status"] == "error"
-    # should mention the missing file
-    assert "An internal error occurred while reading logs" in body["message"]
+    assert body["status"] == "ok"
+    assert body["data"]["logs"] == []          # no log files available
 
+def test_logs_limit_clamped_to_available(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(monitoring, "script_dir", tmp_path)
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    (logs_dir / "viewport.log").write_text("\n".join(f"L{i}" for i in range(240)))
+
+    resp = client.get("/api/logs?limit=1000")
+    assert resp.status_code == 200
+    logs = resp.get_json()["data"]["logs"]
+    assert len(logs) == 240
+    assert logs[0] == "L0"
+    assert logs[-1] == "L239"
+
+def test_logs_merge_two_files(client, tmp_path, monkeypatch):
+    """
+    The endpoint should:
+        • read today's viewport.log first,
+        • then pull additional lines from the newest rotated file,
+        • return the last <limit> lines in correct chronological order.
+    """
+    monkeypatch.setattr(monitoring, "script_dir", tmp_path)
+
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    current = logs_dir / "viewport.log"       # today
+    rotated = logs_dir / "viewport.log.1"     # yesterday (or any suffix)
+
+    # 100 'old' lines in the rotated file
+    old_lines = [f"old {i}" for i in range(100)]
+    rotated.write_text("\n".join(old_lines) + "\n")
+    # ensure its mtime is older than the current log’s
+    os.utime(rotated, (time.time() - 86_400,)*2)
+
+    # 50 'new' lines in the current log
+    new_lines = [f"new {i}" for i in range(50)]
+    current.write_text("\n".join(new_lines) + "\n")
+
+    resp = client.get("/api/logs?limit=120")     # want more than 100 but < 150
+    assert resp.status_code == 200
+    logs = resp.get_json()["data"]["logs"]
+
+    assert len(logs) == 120                      # got as many as requested
+    # First 70 come from old file (100-30 ... 99)
+    assert logs[0]  == "old 30"
+    assert logs[69] == "old 99"
+    # Remaining 50 come from new file (0 ... 49)
+    assert logs[70] == "new 0"
+    assert logs[-1] == "new 49"
 # --------------------------------------------------------------------------- #
 # /api/status
 # --------------------------------------------------------------------------- #
