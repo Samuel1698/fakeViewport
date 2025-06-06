@@ -35,6 +35,7 @@ def test_no_arguments_passed():
     })()
     result = viewport.args_handler(mock_args)
     assert result == "continue"
+
 # --------------------------------------------------------------------------- # 
 # Status
 # --------------------------------------------------------------------------- # 
@@ -146,6 +147,7 @@ def test_background_aliases_work(monkeypatch, flag):
     # all others default off
     assert not (args.status or args.restart or args.quit or args.api)
     assert args.logs is None
+
 # --------------------------------------------------------------------------- # 
 # Quit
 # --------------------------------------------------------------------------- # 
@@ -252,8 +254,8 @@ def test_args_handler_api_disabled_logs_message(mock_exit, monkeypatch, caplog):
     )
 
 @patch("viewport.sys.exit")
-@patch("viewport.logging.info")
-def test_api_flag_disabled(mock_info, mock_exit):
+@patch("viewport.log_error")
+def test_api_flag_disabled(mock_error, mock_exit):
     # Simulate args.api=True but no monitoring process and API flag off
     mock_args = type("Args", (), {
         "status": False, "logs": None, "background": False, "pause": False,
@@ -263,7 +265,7 @@ def test_api_flag_disabled(mock_info, mock_exit):
     with patch("viewport.process_handler", return_value=False):
         viewport.API = False
         viewport.args_handler(mock_args)
-    mock_info.assert_any_call(
+    mock_error.assert_called_once_with(
         "API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature."
     )
     mock_exit.assert_called_once_with(0)

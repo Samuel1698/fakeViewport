@@ -228,7 +228,7 @@ def test_log_error_with_driver_success(mock_api, mock_check, mock_sh, mock_log, 
 
         # Screenshot path should match expected format
         mock_driver.save_screenshot.assert_called_once_with("/mock/logs/screenshot_2025-05-10_12-00-00.png")
-        mock_log.info.assert_called_once()
+        mock_log.warning.assert_called_once()
         mock_api.assert_called_once_with("Saved error screenshot.")
 
 @patch("viewport.logging")

@@ -11,10 +11,11 @@ export function colorLogEntry(logText, element) {
   // Convert log text to lowercase once for all comparisons
   const lowerLogText = displayText.toLowerCase();
   if (
+    // Success
     lowerLogText.includes("healthy") ||
     lowerLogText.includes("resumed") ||
-    lowerLogText.includes("restart") ||
-    lowerLogText.includes("fullscreen") ||
+    lowerLogText.includes("reloaded") ||
+    lowerLogText.includes("fullscreen activated") ||
     lowerLogText.includes("saved") ||
     lowerLogText.includes("gracefully shutting down") ||
     lowerLogText.includes("already running") ||
@@ -22,62 +23,34 @@ export function colorLogEntry(logText, element) {
     lowerLogText.includes("started")
   ) {
     entry.classList.add("Green");
-  }
-  if (
-    lowerLogText.includes("stopped") ||
-    lowerLogText.includes("stopping") ||
-    lowerLogText.includes("killed") ||
-    lowerLogText.includes("attempting") ||
-    lowerLogText.includes("restarting") ||
-    lowerLogText.includes("loaded") ||
-    lowerLogText.includes("crashed") ||
-    lowerLogText.includes("retrying") ||
-    lowerLogText.includes("checking") ||
-    lowerLogText.includes("log-in") ||
-    lowerLogText.includes("killing existing") ||
-    lowerLogText.includes("starting")
-  ) {
-    entry.classList.remove("Green");
-    entry.classList.add("Blue");
-  }
-  if (
+  } else if (
+    // Actions that raise an eyebrow
+    lowerLogText.includes("[warning]") ||
     lowerLogText.includes("=====") ||
-    lowerLogText.includes("driver") ||
-    lowerLogText.includes("deleted") ||
+    lowerLogText.includes("chromedriver ") ||
+    lowerLogText.includes("geckodriver ") ||
+    lowerLogText.includes("response is 200") ||
+    lowerLogText.includes("WebDriver version") ||
+    lowerLogText.includes("download new driver") ||
+    lowerLogText.includes("version") ||
     lowerLogText.includes("getting latest") ||
     lowerLogText.includes("^^") ||
     lowerLogText.includes("get ")
   ) {
-    entry.classList.remove("Green", "Blue");
     entry.classList.add("Yellow");
-  }
-  if (
-    lowerLogText.includes("error") ||
-    lowerLogText.includes("stuck") ||
-    lowerLogText.includes("unsupported") ||
-    lowerLogText.includes("timed") ||
-    lowerLogText.includes("issue") ||
-    lowerLogText.includes("couldn't") ||
-    lowerLogText.includes("paused") ||
-    lowerLogText.includes("offline") ||
-    lowerLogText.includes("unresponsive") ||
-    lowerLogText.includes("[error]") ||
-    lowerLogText.includes(", line") ||
-    lowerLogText.includes("exception") ||
-    lowerLogText.includes("traceback") ||
-    lowerLogText.includes("webdriver.") ||
-    lowerLogText.includes("not found")
+  } else if (
+    // Normal actions
+    lowerLogText.includes("[info]")
   ) {
-    entry.classList.remove("Green", "Blue", "Yellow");
-    entry.classList.add("Red");
-  }
-  if (!entry.classList.contains("Green", "Blue", "Yellow")){
+    entry.classList.add("Blue");
+  } else {
+    // Errors and exceptions
     entry.classList.add("Red");
   }
   // If an existing element was passed, trim timestamp and log level
   if (element) {
     // Match timestamp followed by log level (e.g., "2023-01-01 12:00:00 [INFO] ")
-    const prefixMatch = displayText.match(/^.*?\[(INFO|ERROR|WARN|DEBUG)\]\s*/);
+    const prefixMatch = displayText.match(/^.*?\[(INFO|ERROR|WARNING|DEBUG)\]\s*/);
     if (prefixMatch) {
       displayText = displayText.substring(prefixMatch[0].length);
     }

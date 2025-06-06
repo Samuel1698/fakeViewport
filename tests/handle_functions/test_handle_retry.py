@@ -73,14 +73,14 @@ def test_handle_retry_final_before_restart(
 # max_retries branch
 # --------------------------------------------------------------------------- # 
 @patch("viewport.restart_handler")
-@patch("viewport.logging.info")
+@patch("viewport.logging.warning")
 @patch("viewport.api_status")
-def test_handle_retry_max_retries_calls_restart(mock_api, mock_info, mock_restart):
+def test_handle_retry_max_retries_calls_restart(mock_api, mock_warning, mock_restart):
     driver = MagicMock()
     url = "u"
     # attempt == max_retries triggers restart_handler
     viewport.handle_retry(driver, url, attempt=3, max_retries=3)
-    mock_info.assert_any_call("Max Attempts reached, restarting script...")
+    mock_warning.assert_any_call("Max Attempts reached, restarting script...")
     mock_api.assert_called_with("Max Attempts Reached, restarting script")
     mock_restart.assert_called_once_with(driver)
 # --------------------------------------------------------------------------- # 
@@ -112,7 +112,7 @@ def test_handle_retry_detects_driver_crash_and_restarts(
     result = viewport.handle_retry(driver, url, attempt=0, max_retries=3)
 
     # we should have warned about a crash...
-    mock_log_warning.assert_called_once_with("WebDriver crashed.")
+    mock_log_warning.assert_any_call("WebDriver crashed.")
     # ...and then invoked browser_restart_handler(url)
     mock_chrome_restart.assert_called_once_with(url)
 
@@ -157,7 +157,7 @@ def test_handle_retry_invalid_session(
 
     # return value is whatever restart_handler returned (None by default)
     assert result is driver
-    
+
 # --------------------------------------------------------------------------- # 
 # WebDriverException path
 # --------------------------------------------------------------------------- # 
@@ -224,7 +224,7 @@ def test_handle_retry_generic_exception(
 
     # since this is attempt < max_retries-1, we return the original driver
     assert result is driver
-    
+
 # --------------------------------------------------------------------------- # 
 # Page Failure path
 # --------------------------------------------------------------------------- # 
@@ -249,10 +249,10 @@ def test_handle_retry_page_failure(
     result = viewport.handle_retry(driver, url, attempt=attempt, max_retries=max_retries)
 
     # Assert: info-logging for failed reload
-    mock_log_info.assert_any_call("Couldn't reload page.")
+    mock_log_warning.assert_any_call("Couldn't reload page.")
 
     # Assert: warning-logging for skipping fullscreen / healthy-feed
-    mock_log_warning.assert_called_once_with(
+    mock_log_warning.assert_any_call(
         "Page reload failed; skipping fullscreen and healthy-feed status."
     )
 

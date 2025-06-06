@@ -173,10 +173,10 @@ def args_handler(args):
                     api_status("Resumed")
                 else:
                     pause_file.touch()
-                    logging.info("Pausing health checks.")
+                    logging.warning("Pausing health checks.")
                     api_status("Paused")
             else:
-                logging.info("Fake Viewport is not running.")
+                logging.warning("Fake Viewport is not running.")
         except Exception as e:
             log_error("Error toggling pause state:", e)
         sys.exit(0)
@@ -197,7 +197,7 @@ def args_handler(args):
         )
         sys.exit(0)
     if args.quit:
-        logging.info("Stopping the Fake Viewport script...")
+        logging.warning("Stopping the Fake Viewport script...")
         process_handler("viewport.py", action="kill")
         process_handler(BROWSER, action="kill")
         clear_sst()
@@ -209,20 +209,20 @@ def args_handler(args):
         sys.exit(0)
     if args.api:
         if process_handler("monitoring.py", action="check"):
-            logging.info("Stopping the API...")
+            logging.warning("Stopping the API...")
             process_handler("monitoring.py", action="kill")
             api_status("API Stopped")
         elif API:
             # Exit with error if API failed to start
             if not api_handler(standalone=True): sys.exit(1)  
         else:
-            logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
+            log_error("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
         sys.exit(0)
     if args.restart:
         # --restart from the CLI should kill the existing daemon
         # and spawn a fresh background instance, then exit immediately.
         if process_handler("viewport.py", action="check"):
-            logging.info("Restarting script...")  
+            logging.warning("Restarting script...")  
             child_argv = args_child_handler(
                 args,
                 drop_flags={"restart"},
@@ -239,7 +239,7 @@ def args_handler(args):
             )
             logging.info("Viewport started in the background")
         else:
-            logging.info("Fake Viewport is not running.")
+            logging.warning("Fake Viewport is not running.")
         sys.exit(0)
     else:
         return "continue"
@@ -330,7 +330,7 @@ def log_error(message, exception=None, driver=None):
             timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
             screenshot_path = logs_dir / f"screenshot_{timestamp}.png"
             driver.save_screenshot(str(screenshot_path))
-            logging.info(f"Saved screenshot to {screenshot_path}")
+            logging.warning(f"Saved screenshot to {screenshot_path}")
             api_status("Saved error screenshot.")
         except (InvalidSessionIdException, WebDriverException) as e:
             logging.warning(f"Could not take screenshot: WebDriver not alive ({e})")
@@ -1000,7 +1000,7 @@ def browser_handler(url):
             logging.info(f"Retrying... (Attempt {attempt - 1} of {MAX_RETRIES})")
         # Kill before the last retry to give it a clean slate
         if attempt == max_attempts:
-            logging.info(f"Killing existing {BROWSER} processes before final attempt...")
+            logging.warning(f"Killing existing {BROWSER} processes before final attempt...")
             process_handler(BROWSER, action="kill")
         try:
             driver_path = get_driver_path(BROWSER, timeout=WAIT_TIME)
@@ -1680,7 +1680,7 @@ def handle_retry(driver, url, attempt, max_retries):
     Returns:
         selenium.webdriver.Remote: The (potentially new) driver instance.
     """
-    logging.info(f"Retrying... (Attempt {attempt} of {max_retries})")
+    logging.warning(f"Retrying... (Attempt {attempt} of {max_retries})")
     api_status(f"Retrying: {attempt} of {max_retries}")
     if attempt < max_retries - 1:
         try:
@@ -1700,7 +1700,7 @@ def handle_retry(driver, url, attempt, max_retries):
                 page_ok = handle_page(driver)
         
                 # log success or failure with one ternary; no need for an else just to log
-                logging.info("Page successfully reloaded." if page_ok else "Couldn't reload page.")
+                logging.info("Page successfully reloaded.") if page_ok else logging.warning("Couldn't reload page.")
         
                 # only if it succeeded do we do the fullscreen + healthy-feed status
                 if page_ok:
@@ -1726,7 +1726,7 @@ def handle_retry(driver, url, attempt, max_retries):
     if attempt == max_retries - 1:
         driver = browser_restart_handler(url)
     elif attempt == max_retries:
-        logging.info("Max Attempts reached, restarting script...")
+        logging.warning("Max Attempts reached, restarting script...")
         api_status("Max Attempts Reached, restarting script")
         restart_handler(driver)
     return driver
@@ -1779,7 +1779,7 @@ def handle_view(driver, url):
             paused_file = pause_file.exists()
             if paused_ui or paused_file:
                 if not paused_logged:
-                    logging.info("Script paused; skipping health checks.")
+                    logging.warning("Script paused; skipping health checks.")
                     api_status("Paused")
                     paused_logged = True
                 time.sleep(5)

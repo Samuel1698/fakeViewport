@@ -330,7 +330,7 @@ export async function loadStatus(forceRefreshConfig = false) {
       lowerEntry.includes("healthy") ||
       lowerEntry.includes("resumed") ||
       lowerEntry.includes("restart") ||
-      lowerEntry.includes("fullscreen") ||
+      lowerEntry.includes("fullscreen activated") ||
       lowerEntry.includes("saved")
     ) {
       entry.classList.add("Green");
