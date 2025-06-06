@@ -44,6 +44,7 @@ export function colorLogEntry(logText, element) {
     lowerLogText.includes("=====") ||
     lowerLogText.includes("driver") ||
     lowerLogText.includes("deleted") ||
+    lowerLogText.includes("getting latest") ||
     lowerLogText.includes("^^") ||
     lowerLogText.includes("get ")
   ) {
