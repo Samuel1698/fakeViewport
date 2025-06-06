@@ -1,5 +1,6 @@
 import pytest
 from urllib3.exceptions import MaxRetryError, NameResolutionError, NewConnectionError
+from selenium.common.exceptions import InvalidArgumentException
 from unittest.mock import MagicMock, patch, call
 import viewport, logging
 
@@ -245,6 +246,51 @@ def test_browser_handler_logging_sequence_on_failures(monkeypatch, caplog):
     assert last_call[0][0] == "chromium"
     assert last_call.kwargs["action"] == "kill"
 
+@pytest.mark.parametrize("browser", ["chrome", "chromium", "firefox"])
+def test_browser_handler_invalid_binary(monkeypatch, browser):
+    # Environment
+    monkeypatch.setattr(viewport, "BROWSER", browser)
+    monkeypatch.setattr(viewport, "HEADLESS", True)
+    monkeypatch.setattr(viewport, "MAX_RETRIES", 1)
+    monkeypatch.setattr(viewport, "process_handler", lambda *a, **k: None)
+
+    # Stubs for options / services so constructor never touches the real ones
+    monkeypatch.setattr(viewport, "Options", lambda *a, **k: MagicMock())
+    monkeypatch.setattr(viewport, "Service", lambda *a, **k: MagicMock())
+    monkeypatch.setattr(viewport, "FirefoxOptions", lambda *a, **k: MagicMock())
+    monkeypatch.setattr(viewport, "FirefoxService", lambda *a, **k: MagicMock())
+
+    # Force the driver constructor to raise InvalidArgumentException
+    if browser in ("chrome", "chromium"):
+        monkeypatch.setattr(
+            viewport.webdriver,
+            "Chrome",
+            lambda *a, **k: (_ for _ in ()).throw(InvalidArgumentException("bad binary"))
+        )
+    else:
+        monkeypatch.setattr(
+            viewport.webdriver,
+            "Firefox",
+            lambda *a, **k: (_ for _ in ()).throw(InvalidArgumentException("bad binary"))
+        )
+
+    # Capture side effects
+    log_mock = MagicMock()
+    api_mock = MagicMock()
+    monkeypatch.setattr(viewport, "log_error", log_mock)
+    monkeypatch.setattr(viewport, "api_status", api_mock)
+
+    # No real sleeping
+    monkeypatch.setattr(viewport.time, "sleep", lambda s: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        viewport.browser_handler("http://example.com")
+
+    assert excinfo.value.code == 1
+    log_mock.assert_called_once_with(
+        f"Browser Binary: {viewport.BROWSER_BINARY} is not a browser executable"
+    )
+    api_mock.assert_called_once_with(f"Error Starting {browser}")
 # ----------------------------------------------------------------------------- 
 # Tests for driver-stuck behavior in browser_handler
 # ----------------------------------------------------------------------------- 

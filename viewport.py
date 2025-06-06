@@ -20,7 +20,7 @@ from selenium.webdriver.common.by        import By
 from selenium.webdriver.common.action_chains    import ActionChains
 from selenium.webdriver.support.ui       import WebDriverWait
 from selenium.webdriver.support          import expected_conditions as EC
-from selenium.common.exceptions          import TimeoutException, NoSuchElementException
+from selenium.common.exceptions          import TimeoutException, NoSuchElementException, InvalidArgumentException
 from selenium.common.exceptions          import InvalidSessionIdException, WebDriverException
 from urllib3.exceptions                  import NewConnectionError, MaxRetryError, NameResolutionError
 from css_selectors import (
@@ -1049,6 +1049,10 @@ def browser_handler(url):
                 return None
             driver.get(url)
             return driver
+        except InvalidArgumentException:
+            log_error(f"Browser Binary: {BROWSER_BINARY} is not a browser executable")
+            api_status(f"Error Starting {BROWSER}")
+            sys.exit(1)
         except DriverDownloadStuckError:
             process_handler(BROWSER, action="kill")
             log_error(f"Error downloading {BROWSER}WebDrivers; Restart machine if it persists.")
