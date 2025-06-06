@@ -214,7 +214,7 @@ def args_handler(args):
             api_status("API Stopped")
         elif API:
             # Exit with error if API failed to start
-            if not api_handler(): sys.exit(1)  
+            if not api_handler(standalone=True): sys.exit(1)  
         else:
             logging.info("API is not enabled in config.ini. Please set USE_API=True and restart script to use this feature.")
         sys.exit(0)
@@ -361,7 +361,7 @@ def api_status(msg):
     """
     with open(status_file, 'w') as f:
         f.write(msg)
-def api_handler():
+def api_handler(*, standalone: bool = False):
     """
     Ensure the Flask monitoring API is running.
 
@@ -386,33 +386,37 @@ def api_handler():
     api_status("Starting API...")
     api_script = _base / "monitoring.py"
     try:
-        # Start process with output capture
+        # Start process with output capture only with --api argument
+        capture = subprocess.PIPE if standalone else subprocess.DEVNULL
         process = subprocess.Popen(
             [sys.executable, api_script],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=capture,
+            stderr=capture,
             stdin=subprocess.DEVNULL,
             close_fds=True,
             bufsize=1,
             universal_newlines=True,
             start_new_session=True
         )
-        def filter_output(stream):
-            WERKZEUG_MESSAGES = {
-                "WARNING: This is a development server",
-                "Press CTRL+C to quit",
-                "Serving Flask app",
-                "Debug mode:",
-                "Running on"
-            }
-            for line in stream:
-                line = line.strip()
-                if not line or any(msg in line for msg in WERKZEUG_MESSAGES): continue
-                else: pass
-                logging.info(line)
-        # Start output‐filtering threads
-        threading.Thread(target=filter_output, args=(process.stdout,), daemon=True).start()
-        threading.Thread(target=filter_output, args=(process.stderr,), daemon=True).start()
+        # Only spin filter threads in stand-alone mode
+        if standalone:
+            def filter_output(stream):
+                WERKZEUG_MESSAGES = {
+                    "WARNING: This is a development server",
+                    "Press CTRL+C to quit",
+                    "Serving Flask app",
+                    "Debug mode:",
+                    "Running on"
+                }
+                for line in stream:
+                    line = line.strip()
+                    if not line or any(msg in line for msg in WERKZEUG_MESSAGES): continue
+                    else: pass
+                    logging.info(line)
+            # Start output‐filtering threads
+            threading.Thread(target=filter_output, args=(process.stdout,), daemon=True).start()
+            threading.Thread(target=filter_output, args=(process.stderr,), daemon=True).start()
+        else: pass
         # Verify process started
         time.sleep(1)
         if process.poll() is not None:
