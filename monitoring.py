@@ -327,20 +327,31 @@ def create_app():
     @app.route("/api/script_uptime")
     def api_script_uptime():
         """
-        Report script-level uptime in seconds.
+        Report script-level uptime.
 
-        Returns:
-            flask.Response: JSON ``{"script_uptime": float}`` or error.
+        Always returns 200 OK with a stable JSON schema:
+            {
+                "status": "ok",
+                "data":   { "running": true,  "uptime": 123.45 }
+            }
+            {
+                "status": "ok",
+                "data":   { "running": false, "uptime": null  }
+            }
         """
         raw = _read_api_file(sst_file)
         if raw is None:
-            return jsonify(status="error", message="SST file not found"), 404
+            return jsonify(status="ok",
+                        data={"running": False, "uptime": None})
         try:
             start = datetime.strptime(raw, "%Y-%m-%d %H:%M:%S.%f")
-            uptime = (datetime.now() - start).total_seconds()
-            return jsonify(status="ok", data={"script_uptime": uptime})
         except ValueError:
-            return jsonify(status="error", message="Malformed SST timestamp"), 400
+            # Treat malformed timestamp as "not running"
+            return jsonify(status="ok",
+                        data={"running": False, "uptime": None})
+        uptime = (datetime.now() - start).total_seconds()
+        return jsonify(status="ok",
+                    data={"running": True, "uptime": uptime})
 
     # ----------------------------------------------------------------------- #
     @app.route("/api/system_info")
@@ -484,7 +495,7 @@ def create_app():
         """
         line = _read_api_file(status_file)
         if line is None:
-            return jsonify(status="error", message="Status file not found"), 404
+            return jsonify(status="ok", data={"status": None})
         return jsonify(status="ok", data={"status": line})    
 
     # ----------------------------------------------------------------------- #

@@ -123,53 +123,70 @@ def test_api_index_links(client):
 # /api/script_uptime
 # --------------------------------------------------------------------------- #
 def test_script_uptime_missing(client):
-    resp = client.get('/api/script_uptime')
-    assert resp.status_code == 404
+    resp = client.get("/api/script_uptime")
+    assert resp.status_code == 200
+
     obj = resp.get_json()
-    assert obj['status'] == 'error'
-    assert 'SST file not found' in obj['message']
+    assert obj["status"] == "ok"
+    assert obj["data"]["running"] is False
+    assert obj["data"]["uptime"] is None
 
 def test_script_uptime_malformed(client, tmp_path, monkeypatch):
     # point monitoring.script_dir at a tmp dir
-    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+    monkeypatch.setattr(monitoring, "script_dir", tmp_path)
 
-    # compute the api_dir exactly like the app does
-    api_dir: Path = monitoring.script_dir / 'api'
+    # replicate the layout the app expects
+    api_dir: Path = monitoring.script_dir / "api"
     api_dir.mkdir(parents=True, exist_ok=True)
 
-    (api_dir / 'sst.txt').write_text('not a timestamp')
-    resp = client.get('/api/script_uptime')
-    assert resp.status_code == 400
+    # write garbage into sst.txt
+    (api_dir / "sst.txt").write_text("not a timestamp")
+
+    resp = client.get("/api/script_uptime")
+    assert resp.status_code == 200
+
     obj = resp.get_json()
-    assert obj['status'] == 'error'
-    assert 'Malformed SST timestamp' in obj['message']
+    assert obj["status"] == "ok"
+    assert obj["data"]["running"] is False
+    assert obj["data"]["uptime"] is None
 
 def test_script_uptime_ok(client, tmp_path, monkeypatch):
     # point monitoring.script_dir at a tmp dir
-    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+    monkeypatch.setattr(monitoring, "script_dir", tmp_path)
 
-    # compute the api_dir exactly like the app does
-    api_dir: Path = monitoring.script_dir / 'api'
+    api_dir: Path = monitoring.script_dir / "api"
     api_dir.mkdir(parents=True, exist_ok=True)
 
+    # freeze time so uptime is deterministic
     import datetime as real_dt
-    fixed = real_dt.datetime(2025, 4, 28, 12, 0, 10)
+
+    fixed_now = real_dt.datetime(2025, 4, 28, 12, 0, 10)
+
     class DummyDT:
         @classmethod
-        def now(cls): return fixed
+        def now(cls):
+            return fixed_now
+
         @staticmethod
-        def strptime(s, fmt): return real_dt.datetime.strptime(s, fmt)
-    monkeypatch.setattr(monitoring, 'datetime', DummyDT)
+        def strptime(s, fmt):
+            return real_dt.datetime.strptime(s, fmt)
 
-    ts = (fixed - real_dt.timedelta(seconds=10)).strftime('%Y-%m-%d %H:%M:%S.%f')
-    (api_dir / 'sst.txt').write_text(ts)
+    monkeypatch.setattr(monitoring, "datetime", DummyDT)
 
-    resp = client.get('/api/script_uptime')
+    # write a timestamp 10 s earlier than 'now'
+    ts = (fixed_now - real_dt.timedelta(seconds=10)).strftime(
+        "%Y-%m-%d %H:%M:%S.%f"
+    )
+    (api_dir / "sst.txt").write_text(ts)
+
+    resp = client.get("/api/script_uptime")
     assert resp.status_code == 200
-    obj = resp.get_json()
-    assert obj['status'] == 'ok'
-    assert pytest.approx(obj['data']['script_uptime'], rel=1e-3) == 10
 
+    obj = resp.get_json()
+    assert obj["status"] == "ok"
+    assert obj["data"]["running"] is True
+    # numeric comparison with small relative tolerance
+    assert pytest.approx(obj["data"]["uptime"], rel=1e-3) == 10
 # --------------------------------------------------------------------------- #
 # /api/system_info
 # --------------------------------------------------------------------------- #
@@ -546,11 +563,12 @@ def test_missing_file_returns_500(client, tmp_path, monkeypatch):
 # /api/status
 # --------------------------------------------------------------------------- #
 def test_status_missing(client):
-    resp = client.get('/api/status')
-    assert resp.status_code == 404
+    resp = client.get("/api/status")
+    assert resp.status_code == 200
+
     obj = resp.get_json()
-    assert obj['status'] == 'error'
-    assert 'Status file not found' in obj['message']
+    assert obj["status"] == "ok"
+    assert obj["data"]["status"] is None
 
 def test_status_ok(client, tmp_path, monkeypatch):
     # point monitoring.script_dir at a tmp dir
