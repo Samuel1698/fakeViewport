@@ -440,20 +440,16 @@ def signal_handler(signum, frame, driver=None):
         driver (selenium.webdriver.Remote | None, optional): Active
             WebDriver instance to close before shutdown.
     """  
-    try:
-        if driver is not None:
-            logging.info(f'Gracefully shutting down {BROWSER}.')
-            try:
-                driver.quit()
-            except:
-                pass
-    except Exception as e:
-        logging.error(f"Error during shutdown: {str(e)}")
-    finally:
-        api_status("Stopped ")
-        logging.info("Gracefully shutting down script instance.")
-        clear_sst()
-        os._exit(0)
+    if driver is not None:
+        logging.info(f'Gracefully shutting down {BROWSER}.')
+        try:
+            driver.quit()
+        except:
+            pass
+    api_status("Stopped ")
+    logging.info("Gracefully shutting down script instance.")
+    clear_sst()
+    os._exit(0)
 signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, driver))
 signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, driver))
 # ----------------------------------------------------------------------------- 
@@ -1532,6 +1528,7 @@ def handle_fullscreen_button(driver):
                 log_error(f"Window restoration failed: {str(e)}", driver=driver)
                 api_status("Window restoration failed")
                 return False
+            else: pass
         # Now handle fullscreen button
         try:
             # Wait for the parent container which holds the button to be present
@@ -1547,7 +1544,11 @@ def handle_fullscreen_button(driver):
             button = WebDriverWait(parent, WAIT_TIME).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_FULLSCREEN_BUTTON))
             )
-            actions.move_to_element(button).click().perform()   
+            if not callable(getattr(button, "click", None)):
+                raise Exception("Fullscreen button not clickable")
+            actions.move_to_element(button)
+            actions.click(button)
+            actions.perform()
             logging.info("Fullscreen activated")
             api_status("Fullscreen restored")
             return True
@@ -1559,7 +1560,6 @@ def handle_fullscreen_button(driver):
         log_error("Critical error in fullscreen handling", e, driver)
         api_status("Fullscreen Error")
         return False
-
 def handle_login(driver):
     """
     Complete the UniFi OS login flow.

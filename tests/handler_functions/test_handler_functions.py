@@ -12,9 +12,10 @@ def isolate_sst(tmp_path, monkeypatch):
     fake = tmp_path / "sst.txt"
     fake.write_text("2025-01-01 00:00:00.000000")  # or leave empty
     monkeypatch.setattr(viewport, "sst_file", fake)
-# ----------------------------------------------------------------------------- 
+    monkeypatch.setattr(viewport, "BROWSER", "chrome")
+# --------------------------------------------------------------------------- # 
 # Test for Signal Handler
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 @patch("viewport.logging")
 @patch("viewport.api_status")
 @patch("viewport.os._exit")
@@ -26,13 +27,29 @@ def test_signal_handler_calls_exit(mock__exit, mock_api_status, mock_logging):
 
     # Assertions
     mock_driver.quit.assert_called_once()
+    mock_logging.info.assert_any_call(f"Gracefully shutting down chrome.")
+    mock_logging.info.assert_any_call("Gracefully shutting down script instance.")
+    mock_api_status.assert_called_once_with("Stopped ")
+    mock__exit.assert_called_once_with(0)
+
+@patch("viewport.logging")
+@patch("viewport.api_status")
+@patch("viewport.os._exit")
+def test_signal_handler_quit_exception(mock__exit, mock_api_status, mock_logging):
+    mock_driver = MagicMock()
+    mock_driver.quit.side_effect = RuntimeError("cannot quit")
+
+    viewport.signal_handler(signum=2, frame=None, driver=mock_driver)
+
+    mock_driver.quit.assert_called_once()
     mock_logging.info.assert_any_call(f"Gracefully shutting down {viewport.BROWSER}.")
     mock_logging.info.assert_any_call("Gracefully shutting down script instance.")
     mock_api_status.assert_called_once_with("Stopped ")
     mock__exit.assert_called_once_with(0)
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- # 
 # Tests for screenshot handler
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 @pytest.mark.parametrize("file_ages_days, expected_deleted", [
     ([10, 5, 1], ["screenshot_0.png", "screenshot_1.png"]),  # 10 and 5 days old, delete if cutoff is 2
     ([1, 0.5], []),  # recent files, none deleted
@@ -101,9 +118,9 @@ def test_screenshot_handler_unlink_raises(tmp_path, monkeypatch):
     mock_api_status.assert_not_called()
     mock_log_error.assert_called_once()
     assert "unlink failed" in str(mock_log_error.call_args[0][1])
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Tests for browser_restart_handler
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 @pytest.mark.parametrize(
     "chrome_exc,    check_exc,     handle_page_ret, "
     "should_sleep,  should_feed_ok, should_return, "
@@ -114,28 +131,28 @@ def test_screenshot_handler_unlink_raises(tmp_path, monkeypatch):
             None, None, True,
             True, True, True,
             False, False,
-            [call(f"Restarting {viewport.BROWSER}"), call("Feed Healthy")],
+            [call(f"Restarting chrome"), call("Feed Healthy")],
         ),
         # Success, handle_page=False
         (
             None, None, False,
             False, False, True,
             False, False,
-            [call(f"Restarting {viewport.BROWSER}")],
+            [call(f"Restarting chrome")],
         ),
         # browser_handler throws
         (
             Exception("boom"), None, None,
             False, False, False,
             True, True,
-            [call(f"Restarting {viewport.BROWSER}"), call(f"Error Killing {viewport.BROWSER}")],
+            [call(f"Restarting chrome"), call(f"Error Killing chrome")],
         ),
         # check_for_title throws
         (
             None, Exception("oops"), None,
             False, False, False,
             True, True,
-            [call(f"Restarting {viewport.BROWSER}"), call(f"Error Killing {viewport.BROWSER}")],
+            [call(f"Restarting chrome"), call(f"Error Killing chrome")],
         ),
     ]
 )
@@ -188,8 +205,8 @@ def test_browser_restart_handler(
         result = viewport.browser_restart_handler(url)
 
     # Always start by logging & api_status "Restarting BROWSER"
-    mock_log_info.assert_any_call(f"Restarting {viewport.BROWSER}...")
-    mock_api_status.assert_any_call(f"Restarting {viewport.BROWSER}")
+    mock_log_info.assert_any_call(f"Restarting chrome...")
+    mock_api_status.assert_any_call(f"Restarting chrome")
 
     # Check the full sequence of api_status calls
     assert mock_api_status.call_args_list == expected_api_calls

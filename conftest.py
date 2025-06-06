@@ -3,27 +3,27 @@ from pathlib import Path
 import viewport, monitoring
 from validate_config import AppConfig
 
-
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- # 
 # Guard against rogue deletes – session scope, uses tmp_path_factory
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- # 
 @pytest.fixture(autouse=True, scope="session")
 def hard_delete_guard(tmp_path_factory):
     safe_root = tmp_path_factory.getbasetemp().parents[0].resolve()
     real_rmtree = shutil.rmtree
     def guarded(path, *a, **kw):
         path = Path(path).resolve()
-        if not str(path).startswith(str(safe_root)):
+        if not str(path).startswith(str(safe_root)): 
             raise RuntimeError(f"Refusing to delete outside {safe_root}: {path}")
+        else: pass
         return real_rmtree(path, *a, **kw)
     mp = pytest.MonkeyPatch()
     mp.setattr("viewport.shutil.rmtree", guarded, raising=True)
     yield
     mp.undo()
 
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- # 
 # Redirect logging
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- # 
 @pytest.fixture(autouse=True, scope="session")
 def isolate_logging(tmp_path_factory):
     log_dir = tmp_path_factory.mktemp("logs")
@@ -45,9 +45,7 @@ def isolate_logging(tmp_path_factory):
 
     mp = pytest.MonkeyPatch()
     mp.setattr(logging.handlers, "TimedRotatingFileHandler", _PatchedTRFH)
-    if hasattr(viewport, "logs_dir"):
-        mp.setattr(viewport, "logs_dir", log_dir, raising=False)
-
+    if hasattr(viewport, "logs_dir"): mp.setattr(viewport, "logs_dir", log_dir, raising=False)
     root = logging.getLogger()
     for h in list(root.handlers):
         root.removeHandler(h)
@@ -60,9 +58,9 @@ def isolate_logging(tmp_path_factory):
     yield
     mp.undo()
 
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- # 
 # Dummy AppConfig – session scope, use tmp_path_factory
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- # 
 @pytest.fixture(autouse=True, scope="session")
 def provide_dummy_config(tmp_path_factory):
     data_dir = tmp_path_factory.mktemp("data")
@@ -74,9 +72,9 @@ def provide_dummy_config(tmp_path_factory):
         RESTART_TIMES=[],
         # browser config
         BROWSER_PROFILE_PATH="",
-        BROWSER_BINARY="chromium",
+        BROWSER_BINARY="",
         HEADLESS=False,
-        BROWSER="chrome", # safe default for some tests that dont monkeypatch "browser"
+        BROWSER="",
         # logging config
         LOG_FILE_FLAG=False,
         LOG_CONSOLE=False,
