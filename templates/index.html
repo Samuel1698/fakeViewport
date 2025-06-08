@@ -14,8 +14,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='main-min.css') }}">
 </head>
 <body>
-  <h1>
-    <span>Viewport Control</span>
+  <header>
+    <h1>Viewport Control</h1>
     <button id="themeToggle" aria-label="Toggle theme">
       <svg class="dark-icon" width="24" height="24" viewBox="0 0 24 24">
         <path fill="currentColor" d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1-8.313-12.454z" />
@@ -25,7 +25,21 @@
           d="M12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.515 4.929l1.414-1.414L7.05 5.636 5.636 7.05 3.515 4.93zM16.95 18.364l1.414-1.414 2.121 2.121-1.414 1.414-2.121-2.121zm2.121-14.85l1.414 1.415-2.121 2.121-1.414-1.414 2.121-2.121zM5.636 16.95l1.414 1.414-2.121 2.121-1.414-1.414 2.121-2.121z" />
       </svg>
     </button>
-  </h1>
+    <form action="/logout" method="post">
+      <button id="logOut" type="submit" aria-label="Log Out">
+        <svg width="24px" height="24px" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M8.00171 7C8.01382 4.82497 8.11027 3.64706 8.87865 2.87868C9.75733 2 11.1715 2 14 2H15C17.8284 2 19.2426 2 20.1213 2.87868C21 3.75736 21 5.17157 21 8V16C21 18.8284 21 20.2426 20.1213 21.1213C19.2426 22 17.8284 22 15 22H14C11.1715 22 9.75733 22 8.87865 21.1213C8.11027 20.3529 8.01382 19.175 8.00171 17"
+            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          <path opacity="0.5"
+            d="M8 19.5C5.64298 19.5 4.46447 19.5 3.73223 18.7678C3 18.0355 3 16.857 3 14.5V9.5C3 7.14298 3 5.96447 3.73223 5.23223C4.46447 4.5 5.64298 4.5 8 4.5"
+            stroke="currentColor" stroke-width="1.5" />
+          <path d="M15 12L6 12M6 12L8 14M6 12L8 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+      </button>
+    </form>
+  </header>
   <section id="navigation">
     <div class="button-group">
       <button id="statusBtn" aria-selected="true">
@@ -121,7 +135,7 @@
           </svg>
         </button>
       </div>
-      <input type="number" id="logLimit" class="logLimit" min="10" max="1000" value="20" step="10">
+      <input type="number" id="logLimit" class="logLimit" min="10" max="1000" value="50" step="10">
       <button id="searchLogs" class="searchLogs">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -131,59 +145,73 @@
       </button>
       </div>
   </section>
-  <section id="status" class="display">
-    <div class="wrapper">
-      <ul>
-        <li><span>Script Uptime:</span><span id="scriptUptime" class="Green">-</span></li>
-        <li><span>System Uptime:</span><span id="systemUptime">-</span></li>
-        <li>
-          <span>Throughput:</span>
-          <span class="network">
-            <svg viewBox="0 0 20 20" class="down" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" stroke="currentColor" stroke-width="0">
-            <path fill-rule="evenodd" clip-rule="evenodd"
-            d="M13.883 12.904a.5.5 0 0 1 .707.707l-4.243 4.243a.5.5 0 0 1-.707 0L5.396 13.61a.5.5 0 0 1 .707-.707l3.39 3.39V2.5a.5.5 0 0 1 1 0v13.793l3.39-3.389Z"
-            fill="currentColor" class=""></path>
-            </svg>
-            <span id="down" class="down"></span>
-            <svg viewBox="0 0 21 20" class="up" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" stroke="currentColor" stroke-width="0">
-              <path fill-rule="evenodd" clip-rule="evenodd"
-                d="M13.893 7.096a.5.5 0 0 0 .707-.707l-4.243-4.243a.5.5 0 0 0-.707 0L5.406 6.39a.5.5 0 0 0 .707.707l3.39-3.39V17.5a.5.5 0 0 0 1 0V3.707l3.39 3.389Z"
+  <div class="group">
+    <div class="status-device">
+      <section id="status">
+        <div class="wrapper">
+          <ul>
+            <li><span>Script Uptime:</span><span id="scriptUptime" class="Green">-</span></li>
+            <li><span>System Uptime:</span><span id="systemUptime">-</span></li>
+            <li>
+              <span>Throughput:</span>
+              <span class="network">
+                <svg viewBox="0 0 20 20" class="down" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" stroke="currentColor" stroke-width="0">
+                <path fill-rule="evenodd" clip-rule="evenodd"
+                d="M13.883 12.904a.5.5 0 0 1 .707.707l-4.243 4.243a.5.5 0 0 1-.707 0L5.396 13.61a.5.5 0 0 1 .707-.707l3.39 3.39V2.5a.5.5 0 0 1 1 0v13.793l3.39-3.389Z"
                 fill="currentColor" class=""></path>
+                </svg>
+                <span id="down" class="down"></span>
+                <svg viewBox="0 0 21 20" class="up" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" stroke="currentColor" stroke-width="0">
+                  <path fill-rule="evenodd" clip-rule="evenodd"
+                    d="M13.893 7.096a.5.5 0 0 0 .707-.707l-4.243-4.243a.5.5 0 0 0-.707 0L5.406 6.39a.5.5 0 0 0 .707.707l3.39-3.39V17.5a.5.5 0 0 0 1 0V3.707l3.39 3.389Z"
+                    fill="currentColor" class=""></path>
+                </svg>
+                <span id="up" class="up"></span>
+              </span>
+            </li>
+            <li><span>Scheduled Restart:</span><span id="scheduledRestart">-</span></li>
+            <li><span>Last Status Message: </span><span id="statusMsg">-</span></li>
+            <li><span>Last Log Entry: </span><span id="logEntry">-</span></li>
+          </ul>
+        </div>
+      </section>
+      <section id="device" hidden>
+        <div class="wrapper">
+          <ul>
+            <li><span>Script Version:</span><span id="version">-</span></li>
+            <li><span>Operating System:</span><span id="osInfo">-</span></li>
+            <li><span>Device:</span><span id="hardwareInfo">-</span></li>
+            <li><span>CPU Usage:</span><span id="cpuInfo">-</span></li>
+            <li><span>RAM Used / Total:</span><span id="ramInfo">-</span></li>
+            <li><span>Space Available:</span><span id="diskInfo">-</span></li>
+          </ul>
+        </div>
+      </section>
+      <section id="controls" data-tooltip="Please wait before sending another command">
+        <button data-action="start">Start</button>
+        <button data-action="restart">Restart</button>
+        <button data-action="quit">Quit</button>
+      </section>
+      <div class="statusMessage"><span></span></div>
+    </div>
+    <section id="logs" hidden>
+      <div class="wrapper">
+        <div class="container">
+          <h2>Last <span id="logCount">50</span> Log Entries</h2>
+          <button id="expandLogs" class="expand-button" aria-label="Expand logs">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12H19"/>
+              <path d="M8 15L5 12L8 9"/>
+              <path d="M16 15L19 12L16 9"/>
             </svg>
-            <span id="up" class="up"></span>
-          </span>
-        </li>
-        <li><span>Scheduled Restart:</span><span id="scheduledRestart">-</span></li>
-        <li><span>Last Status Message: </span><span id="statusMsg">-</span></li>
-        <li><span>Last Log Entry: </span><span id="logEntry">-</span></li>
-      </ul>
-    </div>
-    <div class="controls" data-tooltip="Please wait before sending another command">
-      <button data-action="start">Start</button>
-      <button data-action="restart">Restart</button>
-      <button data-action="quit">Quit</button>
-    </div>
-    <div class="statusMessage"><span></span></div>
-  </section>
-  <section id="device" class="display" hidden>
-    <div class="wrapper">
-      <ul>
-        <li><span>Script Version:</span><span id="version">-</span></li>
-        <li><span>Operating System:</span><span id="osInfo">-</span></li>
-        <li><span>Device:</span><span id="hardwareInfo">-</span></li>
-        <li><span>CPU Usage:</span><span id="cpuInfo">-</span></li>
-        <li><span>RAM Used / Total:</span><span id="ramInfo">-</span></li>
-        <li><span>Space Available:</span><span id="diskInfo">-</span></li>
-      </ul>
-    </div>
-    <div class="controls" data-tooltip="Please wait before sending another command">
-      <button data-action="start">Start</button>
-      <button data-action="restart">Restart</button>
-      <button data-action="quit">Quit</button>
-    </div>
-    <div class="statusMessage"><span></span></div>
-  </section>
-  <section id="config" class="display" hidden>
+          </button>
+        </div>
+        <div id="logOutput"></div>
+        <span id="logsPaused" hidden>⏸ auto-refresh paused</span>
+      </div>
+    </section>
+  </div>
+  <section id="config" hidden>
     <div class="wrapper">
       <ul>
         <li><span>Health Check Interval:</span><span id="healthInterval" data-tooltip="SLEEP_TIME | Time in between health checks | Minimum 1 minute" data-api-key="general.health_interval_sec">-</span></li>
@@ -211,28 +239,11 @@
       </ul>
     </div>
   </section>
-  <section id="logs" hidden>
-    <div class="wrapper">
-      <div class="container">
-        <h2>Last <span id="logCount">50</span> Log Entries</h2>
-        <button id="expandLogs" class="expand-button" aria-label="Expand logs">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 12H19"/>
-            <path d="M8 15L5 12L8 9"/>
-            <path d="M16 15L19 12L16 9"/>
-          </svg>
-        </button>
-      </div>
-      <div id="logOutput"></div>
-    </div>
-  </section>
   <section id="update" hidden>
     <div class="wrapper">
-      <div class="container">
-        <h2>Update</h2>
-      </div>
+      <h2>Update</h2>
       <div id="changelog-body" class="changelog"></div>
-      <div class="flex">
+      <div class="changelog-actions">
         <a id="changelog-link" href="#" target="_blank">View on GitHub</a>
         <button type="submit"><span>Update</span></button>
       </div>

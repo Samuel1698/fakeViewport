@@ -11,9 +11,11 @@ $base-palette: (
   down:       #5baed1,
   up:         #8e63b0,
   search:     #737c82,
-  border:     #34383d,
-  diminished: #34383d,
+  border:     #282b2f,
+  diminished: #282b2f,
   box:        #1c1e21,
+  gitCode:    #2e363e,
+  gitText:    #d1d7e0,
 );
 $light-palette: (
   background: #ffffff,
@@ -30,8 +32,10 @@ $light-palette: (
   search:     #737c82,
   border:     #eff1f2,
   diminished: #f4f5f6,
-  bDiminished:#34383d,
+  bDiminished:#282b2f,
   box:        #ffffff,
+  gitCode:    #f0f1f2,
+  gitText:    #1f2328,
 );
 @mixin define-color($name, $color) {
   --#{$name}-h: #{hue($color)};

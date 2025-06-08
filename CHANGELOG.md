@@ -5,7 +5,7 @@ and "🔥" indicates a non-breaking change.
 
 ---
 
-## ✨💥🐛 v2.3.1: Edgecase Bug Fix & Login Page
+## ✨💥🐛 v2.4.0: Edgecase Bug Fix & Login Page
 
 💥 `/api/script_uptime` and `/api/status` return "null" instead of throwing a 500 Error if the file from which we read those values is invalid or does not exist.
 

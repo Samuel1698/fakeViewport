@@ -17,12 +17,67 @@ export const buttons = {
   logInput: document.querySelector("#navigation .log-controls"),
 };
 
-// Import dependencies (adjust paths as needed)
+export const controls = document.getElementById("controls");
+const groupDiv = document.querySelector(".group");
+
 import { fetchAndDisplayLogs } from "./_logs.js";
-import { loadInfo, setActiveTab } from "./_device.js"; // Add setActiveTab import
+import { activeTab, loadInfo, setActiveTab } from "./_device.js";
 import { showChangelog } from "./_update.js";
+import { scheduleRefresh } from "./_autoRefresh.js";
+
+// Check if screen is in "desktop" mode (combined status/device/logs view)
+export function isDesktopView() {
+  return window.matchMedia("(min-width: 58.75rem)").matches;
+}
+
+// Handle responsive changes
+function handleResponsiveChange() {
+  const currentSection = Object.entries(buttons).find(
+    ([_, btn]) => btn.getAttribute("aria-selected") === "true"
+  )?.[0];
+
+  if (isDesktopView()) {
+    // Desktop view logic
+    if (currentSection === "config" || currentSection === "updateBanner") {
+      // Hide group div when config/update is selected in desktop view
+      groupDiv.setAttribute("hidden", "true");
+    } else {
+      // On first load:
+      // Show group div and ensure status is selected with all relevant elements visible
+      groupDiv.removeAttribute("hidden");
+      // Force toggle status so that the scheduledRefresh can start for all relevant sections
+      toggleSection("status");
+      // Ensure device and logs sections are visible in desktop view
+      sections.device.removeAttribute("hidden");
+      sections.logs.removeAttribute("hidden");
+      buttons.logInput.removeAttribute("hidden");
+    }
+  } else {
+    // Mobile view logic
+    groupDiv.removeAttribute("hidden");
+    
+    // Only auto-select status if we're coming from desktop view with status selected
+    // and not if config/update was selected
+    if (currentSection === "status") {
+      toggleSection("status");
+    }
+  }
+}
+
+// Initialize media query listener
+function initResponsiveListener() {
+  const mediaQuery = window.matchMedia("(min-width: 58.75rem)");
+  mediaQuery.addEventListener("change", handleResponsiveChange);
+  handleResponsiveChange(); // Run once on init
+}
 
 export function toggleSection(buttonId) {
+  // Handle responsive behavior - if desktop view and trying to select a merged section,
+  // ensure status is selected instead
+  if (isDesktopView() && (buttonId === "device" || buttonId === "logs")) {
+    buttonId = "status";
+  }
+
   // Hide all sections first
   Object.values(sections).forEach((section) => {
     section.setAttribute("hidden", "");
@@ -42,12 +97,40 @@ export function toggleSection(buttonId) {
   } else {
     buttons.refreshButton.setAttribute("hidden", "true");
   }
+
+  // Hide the control buttons
+  if (!(buttonId === "status" || buttonId === "device")) {
+    controls.setAttribute("hidden", "true");
+  } else {
+    controls.removeAttribute("hidden");
+  }
+
   // Hide the log input button
   if (buttonId === "logs") {
     buttons.logInput.removeAttribute("hidden");
   } else {
     buttons.logInput.setAttribute("hidden", "true");
   }
+
+  // Handle group div visibility for desktop view
+  if (isDesktopView()) {
+    if (buttonId === "config" || buttonId === "updateBanner") {
+      groupDiv.setAttribute("hidden", "true");
+    } else {
+      // On button clicks
+      groupDiv.removeAttribute("hidden");
+      sections.status.removeAttribute("hidden");
+      sections.device.removeAttribute("hidden");
+      sections.logs.removeAttribute("hidden");
+      buttons.logInput.removeAttribute("hidden");
+    }
+  } else {
+    groupDiv.removeAttribute("hidden");
+  }
+  const refreshKey = isDesktopView()
+      ? (["status","device","logs"].includes(buttonId) ? "desktop" : buttonId)
+      : buttonId;
+  scheduleRefresh(refreshKey, { immediate: false });
 }
 
 // Initialize section functionality
@@ -60,9 +143,9 @@ export function initSections() {
 
   // Set initial aria-selected
   buttons.status.setAttribute("aria-selected", "true");
-  buttons.device.removeAttribute("aria-selected");
-  buttons.logs.removeAttribute("aria-selected");
-  buttons.updateBanner.removeAttribute("aria-selected");
+  buttons.device.setAttribute("aria-selected", "false");
+  buttons.logs.setAttribute("aria-selected", "false");
+  buttons.updateBanner.setAttribute("aria-selected", "false");
 
   // Show refresh button initially since status is default
   buttons.refreshButton.removeAttribute("hidden");
@@ -73,7 +156,7 @@ export function initSections() {
     setActiveTab("status");
   });
   buttons.device.addEventListener("click", () => {
-    toggleSection("device");
+    toggleSection(isDesktopView() ? "status" : "device");
     setActiveTab("device");
   });
   buttons.config.addEventListener("click", () => {
@@ -81,7 +164,7 @@ export function initSections() {
     setActiveTab("config");
   });
   buttons.logs.addEventListener("click", async () => {
-    toggleSection("logs");
+    toggleSection(isDesktopView() ? "status" : "logs");
     await fetchAndDisplayLogs();
   });
 
@@ -92,9 +175,13 @@ export function initSections() {
 
   buttons.refreshButton.addEventListener("click", () => {
     loadInfo({ forceRefreshConfig: true });
+    if (isDesktopView() && activeTab === "status") fetchAndDisplayLogs(); 
     buttons.refreshButton.classList.add("refreshing");
     setTimeout(() => {
       buttons.refreshButton.classList.remove("refreshing");
     }, 1000);
   });
+
+  // Initialize responsive behavior
+  initResponsiveListener();
 }

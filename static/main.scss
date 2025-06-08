@@ -40,9 +40,9 @@ img:focus-visible {
   outline: 5px auto color("red");
 }
 /* prettier-ignore */
-a:focus-visible, button:focus-visible,div:focus-visible,
-section:focus-visible, li:focus-visible, input:focus-visible {
+a:focus-visible, div:focus-visible, section:focus-visible, li:focus-visible, input:focus-visible, [type="button"]:focus-visible, [type="reset"]:focus-visible, [type="submit"]:focus-visible, button:focus-visible {
   position: relative;
+  outline: none;
   &::after {
     content: "";
     position: absolute;
@@ -79,28 +79,61 @@ button {
   color: color("down");
   fill: color("down");
 }
-h1 {
+header {
+  display: flex;
+  align-items: center;
   font-size: 1.5rem;
   color: color("text");
-  margin-bottom: 1rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  margin-bottom: 2rem;
+  width: 100%;
+  height: 50px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  h1 {
+    flex: 1;
+    text-align: left;
+    font-size: inherit;
+    margin: 0;
+    @include respond-above(400px){
+      text-align: center;
+    }
+  }
+  button {
+    padding: 8px;
+    border: none;
+    line-height: 0;
+    background-color: transparent;
+    margin: 0;
+  }
+  button#themeToggle {
+    margin-left: -80px;
+  }
+  button#logOut {
+    margin-left: auto;
+    cursor: pointer;
+    color: color("text");
+    @include hover {
+      color: color("blue");
+    }
+  }
 }
 // --------------------------------------------------
 // Theme Swapping
 // --------------------------------------------------
 #themeToggle {
-  background-color: color("background");
+  background-color: transparent;
   border: none;
   border-radius: $border-radius;
   padding: 8px;
   cursor: pointer;
   transition: background-color $transition-speed;
+  color: color("text");
+  @include hover {
+    color: color("blue");
+  }
   svg {
     width: 24px;
     height: 24px;
-    fill: color("text");
     transition: fill $transition-speed;
   }
   .light-icon {
@@ -109,10 +142,6 @@ h1 {
   .dark-icon {
     display: block;
   }
-  color: color("diminished");
-  @include hover {
-    color: color("diminished", $lightness: 25%);
-  }
   [data-theme="light"] & {
     .light-icon {
       display: block;
@@ -120,16 +149,18 @@ h1 {
     .dark-icon {
       display: none;
     }
-    color: color("text");
-    @include hover {
-      color: color("text", $lightness: -25%);
-    }
   }
 }
 // Light theme overrides
 html[data-theme="light"]{
   #login .wrapper {
     border: none;
+  }
+  #login section {
+    background-color: color("box");
+    input[type="password"]{
+      background-color: color("diminished");
+    }
   }
   #login button[type="submit"] {
     color: color("bText");
@@ -142,6 +173,10 @@ html[data-theme="light"]{
   button {
     border: 2px solid color("border");
     margin-bottom: -2px;
+  }
+  header button {
+    border: none;
+    margin-bottom: 0;
   }
   .wrapper {
     border: 2px solid color("border");
@@ -170,7 +205,7 @@ html[data-theme="light"]{
       }
     }
   }
-  section.display .controls button{
+  section.display #controls button{
     background-color: color("diminished");
     @include hover {
       &:not([disabled]) {
@@ -188,6 +223,20 @@ html[data-theme="light"]{
     section#logs .container button.expand-button {
       border: none;
       margin-bottom: 0;
+    }
+  }
+  @include respond-above($medium){
+    section#navigation {
+      border: none;
+      border-right: 2px solid color("border");
+      .log-controls {
+        margin-bottom: 0;
+        border: none;
+      }
+      .button-group, .refresh {
+        margin-bottom: 0;
+        border: none;
+      }
     }
   }
   .tooltip .tooltip-text {
@@ -216,6 +265,14 @@ html[data-theme="light"]{
   top: 0px;
   display: flex;
   align-items: center;
+  h1 {
+    font-size: 1.5rem;
+    color: color("text");
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
   section {
     //mobile
     width: 100%;
@@ -223,6 +280,7 @@ html[data-theme="light"]{
     padding: 32px 32px 64px;
     height: 100%;
     // Shared
+    background-color: color("diminished");
     max-height: 90%;
     display: flex;
     flex-direction: column;
@@ -246,7 +304,7 @@ html[data-theme="light"]{
         font-weight: bold;
       }
       input[type="password"] {
-        background-color: color("diminished");
+        background-color: color("diminished", $lightness: 10%);
         color: color("text");
         width: 100%;
         padding: 0.75rem;
@@ -293,13 +351,6 @@ html[data-theme="light"]{
     border-bottom-right-radius: $border-radius;
     &::after{
       right: 68%;
-    }
-  }
-  button#themeToggle {
-    background: transparent;
-    transition: background-color $transition-speed;
-    svg {
-      transition: fill $transition-speed;
     }
   }
   @include respond-above($small){
@@ -381,10 +432,11 @@ section#navigation {
     border-top-right-radius: $border-radius;
     // Prevents background from buttons from overriding
     // the border radius of this element
-    overflow: hidden; 
+    overflow: hidden;
   }
   button {
     display: flex;
+    &[hidden]{display: none;}
     align-items: center;
     justify-content: center;
     cursor: pointer;
@@ -463,6 +515,7 @@ section#navigation {
   }
   .log-controls {
     display: flex;
+    &[hidden]{display: none;}
     flex-direction: row;
     margin-left: auto;
     background-color: color("box");
@@ -477,6 +530,7 @@ section#navigation {
       .custom-spinner-btn {
         background: color("box");
         color: color("search");
+        overflow: hidden;
         border: none;
         width: 32px;
         height: 24px;
@@ -515,7 +569,7 @@ section#navigation {
       width: 40px;
     }
     button.searchLogs {
-      background: color("box");
+      background: transparent;
       color: color("text");
       height: 100%;
       min-width: unset;
@@ -590,7 +644,7 @@ section#navigation {
     }
   }
 }
-section#status, section#device {
+div.status-device {
   // Reset tooltip for Control buttons
   .tooltip {
     display: block;
@@ -630,7 +684,7 @@ section#status, section#device {
 // --------------------------------------------------
 // Sections
 // --------------------------------------------------
-section.display {
+div.status-device, section#config {
   ul {
     list-style: none;
     padding: 0;
@@ -648,11 +702,12 @@ section.display {
       }
     }
   }
-  .controls {
+  #controls {
     display: flex;
+    &[hidden]{display:none;}
     flex-direction: row;
     justify-content: space-around;
-    margin: 1rem 0;
+    margin: 1rem auto;
     .statusMessage {
       text-align: center;
       margin-top: 1rem;
@@ -673,10 +728,11 @@ section.display {
       }
       &[disabled] {
         cursor: not-allowed;
+        background-color: color("box", $lightness: 10%);
       }
     }
   }
-  .controls.disabled {
+  #controls.disabled {
     button {
       background-color: color("diminished");
       cursor: not-allowed;
@@ -738,6 +794,7 @@ section#logs {
 // --------------------------------------------------
 section#update {
   padding-bottom: 2rem;
+  color: color("gitText");
   .wrapper {
     h3, h4 {
       border-top: 1px solid color("diminished");
@@ -749,9 +806,12 @@ section#update {
     }
     code {
       font-style: italic;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 3px;
-      padding: 0 4px;
+      padding: .2em .4em;
+      margin: 0;
+      font-size: 85%;
+      white-space: break-spaces;
+      border-radius: 6px;
+      background-color: color("gitCode");
     }
     a {
       display: inline-block;
@@ -774,7 +834,7 @@ section#update {
     p {
       display: none;
     }
-    div.flex {
+    div.changelog-actions {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
@@ -876,13 +936,180 @@ section#update {
       }
     }
   }
-  h1 {
-    font-size: 2rem;
-  }
 }
 @include respond-above($medium) {
-  h1 {
-    font-size: 2.5rem;
+  header {
+    font-size: 18px;
+    margin-bottom: 0;
+    background-color: color("diminished");
+    h1 {
+      color: color("search", $lightness: 5%);
+    }
+  }
+  section {
+    vertical-align: top;
+    margin: 0;
+    .wrapper {
+      border: 1px solid color("border");
+      background-color: color("background");
+      border-radius: $border-radius;
+    }
+  }
+  section#navigation {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: unset;
+    box-sizing: border-box;
+    // 100vh -header -1px for overflow prevention
+    height: calc(100vh - 50px - 1px);
+    width: 50px;
+    justify-content: space-between;
+    max-width: unset;
+    border: none;
+    border-right: 1px solid color("border"); 
+    padding-top: 16px;
+    .button-group {
+      flex-direction: column;
+      align-items: stretch;
+      border-radius: 0;
+      background-color: color("background");
+    }
+    button {
+      justify-content: flex-start;
+      min-width: unset;
+      span {
+        display: none;
+      }
+      &[aria-selected=true] {
+        background-color: transparent;
+      }
+      @include hover {
+        &:not([disabled]) {
+          background-color: transparent;
+        }
+        svg {
+          color: color("blue");
+        }  
+      }
+    }
+
+    button#deviceBtn, button#logsBtn {
+      display: none;
+    }
+    button.refresh {
+      padding: 0.75rem;
+      margin-left: unset;
+      border-radius: unset;
+      background-color: transparent;
+    }
+    .log-controls {
+      position: absolute;
+      right: calc(16px + 1rem);
+      top: calc(50px + 16px + 1rem);
+      height: 2.5rem;
+      border-radius: 6px;
+    }
+  }
+  div.group {
+    display: inline-flex;
+    &[hidden]{display:none;}
+    vertical-align: top;
+    width: calc(100% - 50px);
+    box-sizing: border-box;
+    gap: 16px;
+    padding: 16px;
+    section {
+      box-sizing: border-box;
+      max-height: 40vh;
+      // 320px
+      width: 20rem;
+    }
+    .status-device {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      section {
+        margin-bottom: 16px;
+      }
+      .tooltip {
+        margin-top: auto;
+      }
+      #controls {
+        margin: 0;
+        button {
+          margin-bottom: 0;
+        }
+      }
+      .statusMessage {
+        position: absolute;
+        bottom: 60px;
+        left: 0;
+        right: 0;
+      }
+    }
+    section#status {
+      ul li:last-child{
+        display: none;
+      }
+    }
+    section#logs {
+      max-height: unset;
+      max-width: unset;
+      // 100% - Header - Padding
+      height: calc(100vh - 50px - 32px);
+      width: 100%;
+      .wrapper {
+        height: 100%;
+        box-sizing: border-box;
+        h2 {
+          margin-top: 0.5rem;
+          font-size: 1.3rem;
+        }
+        button.expand-button {
+          display: none;
+        }
+        div#logOutput {
+          max-height: unset;
+          height: calc(100% - 60px);
+        }
+      }
+    }
+  }
+  section#config {
+    display: inline-flex;
+    &[hidden]{display:none;}
+    border-radius: unset;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    width: calc(100% - 50px);
+    height: calc(100vh - 50px);
+    max-width: unset;
+    gap: 16px;
+    padding: 16px;
+    box-sizing: border-box;
+    .wrapper {
+      width: 400px;
+      margin: 0;
+      box-sizing: border-box;
+      border-radius: $border-radius;
+    }
+  }
+  section#update {
+    display: inline-flex;
+    &[hidden]{display:none;}
+    padding: 16px;
+    vertical-align: top;
+    height: calc(100vh - 50px);
+    width: calc(100% - 50px);
+    max-width: unset;
+    box-sizing: border-box;
+    font-size: 14px;
+    overflow: hidden;
+    .wrapper {
+      overflow-y: auto;
+    }
   }
   .tooltip .tooltip-text {
     left: 50%;
@@ -892,5 +1119,11 @@ section#update {
     &::after{
       right: 50%;
     }
+  }
+}
+@include respond-above($big){
+  div.group section {
+    // 450px
+    width: 28.125rem;
   }
 }

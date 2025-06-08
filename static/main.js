@@ -1,13 +1,9 @@
-import { initLogs } from "./_logs.js";
-import { loadInfo, loadStatus, loadDeviceData, setActiveTab } from "./_device.js";
+import { initLogs, startLogsAutoRefresh } from "./_logs.js";
+import { scheduleRefresh } from "./_autoRefresh.js";
+import { loadStatus, loadDeviceData, configCache } from "./_device.js";
 import { checkForUpdate, CACHE_TTL, initUpdateButton } from "./_update.js";
 import { control } from "./_control.js";
-import { initSections } from "./_sections.js";
-
-// Track refresh intervals so we can clear them
-let statusRefreshInterval;
-let deviceRefreshInterval;
-let configRefreshInterval;
+import { initSections, isDesktopView } from "./_sections.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   // Light Theme toggle
@@ -102,7 +98,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
   initTooltips();
-  
+
   const isLoginPage =
     window.location.pathname.includes("login.html") ||
     window.location.pathname === "/login" ||
@@ -110,38 +106,21 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (isLoginPage) return;
   // Initialize all components
-  setActiveTab("status"); // Set initial tab to status
   initSections();
-
-  // Load data for both tabs on initial load
-  await Promise.all([loadStatus(), loadDeviceData()]);
+  await Promise.all([
+    loadStatus(),
+    loadDeviceData(),
+    configCache.get(true),
+  ]);
   initLogs();
-
   // Check for update last
   checkForUpdate();
   initUpdateButton();
-  // Set up intervals with different refresh rates
-  statusRefreshInterval = setInterval(() => {
-    if (document.getElementById("status").hasAttribute("hidden") === false) {
-      loadInfo(); // Will only refresh status data
-    }
-  }, 5_000); // 5 second for status tab
-
-  deviceRefreshInterval = setInterval(() => {
-    if (document.getElementById("device").hasAttribute("hidden") === false) {
-      loadInfo(); // Will only refresh device data
-    }
-  }, 5_000);
-
-  configRefreshInterval = setInterval(() => {
-    if (document.getElementById("config").hasAttribute("hidden") === false) {
-      loadInfo(); // Will only refresh config data
-    }
-  }, CACHE_TTL);
-
+  startLogsAutoRefresh();
   setInterval(checkForUpdate, CACHE_TTL);
-
-  const controls = document.querySelector(".controls");
+  scheduleRefresh(isDesktopView() ? "desktop" : "status", { immediate: false });
+  // Control buttons
+  const controls = document.getElementById("controls");
   const parentTooltip = controls.parentElement;
   const buttons = controls.querySelectorAll("button");
   const COOLDOWN_TIME = 15_000;

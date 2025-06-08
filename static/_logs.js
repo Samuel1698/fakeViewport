@@ -1,7 +1,45 @@
 import { fetchJSON } from "./_device.js";
 
 // Store the last used limit value
-let lastLogLimit = 10;
+let logRefreshInterval;
+let lastLogControlsInteraction = 0;
+let lastLogLimit = 50;
+const MAX_AUTO_SCROLL_LOGS = 100;
+const INTERACTION_PAUSE_MS = 2_500; 
+
+// Helper function for logs
+export function startLogsAutoRefresh(interval=5_000) {
+  if (logRefreshInterval) return; // already running
+
+  logRefreshInterval = setInterval(() => {
+    if (shouldRefreshLogs()) fetchAndDisplayLogs(lastLogLimit);
+  }, interval);
+}
+export function stopLogsAutoRefresh() {
+  clearInterval(logRefreshInterval);
+  logRefreshInterval = null;
+}
+function togglePauseIndicator(paused) {
+  const badge = document.getElementById("logsPaused");
+  if (!badge) return;
+  badge.hidden = !paused;
+}
+function shouldRefreshLogs() {
+  const logsSection = document.getElementById("logs");
+  const logOutput = document.getElementById("logOutput");
+  const visible = !!logsSection && !logsSection.hasAttribute("hidden");
+
+  const atBottom =
+    logOutput.scrollHeight - logOutput.scrollTop - logOutput.clientHeight < 40;
+
+  const interactedRecently =
+    Date.now() - lastLogControlsInteraction < INTERACTION_PAUSE_MS;
+
+  // Show ⏸ badge whenever *either* condition blocks auto-refresh
+  togglePauseIndicator(!atBottom || interactedRecently);
+
+  return visible && atBottom && !interactedRecently;
+}
 
 export function colorLogEntry(logText, element) {
   const entry = element || document.createElement("div");
@@ -59,16 +97,16 @@ export function colorLogEntry(logText, element) {
   return entry;
 }
 // Main logs functionality
-export async function fetchAndDisplayLogs(limit) {
+export async function fetchAndDisplayLogs(limit, scroll=true) {
   const logCountSpan = document.getElementById("logCount");
   const logLimitInput = document.getElementById("logLimit");
   const logOutput = document.getElementById("logOutput");
 
-  // Use provided limit, last used limit, or default 10
+  // Use provided limit, last used limit, or default 50
   const newLimit = limit !== undefined ? limit : lastLogLimit;
 
   // Sanitize the input
-  const sanitizedLimit = Math.max(10, Math.min(1000, parseInt(newLimit) || 10));
+  const sanitizedLimit = Math.max(10, Math.min(1000, parseInt(newLimit) || 50));
 
   // Update the stored value
   lastLogLimit = sanitizedLimit;
@@ -89,12 +127,17 @@ export async function fetchAndDisplayLogs(limit) {
       logOutput.appendChild(logEntry);
     });
   }
+  // Auto-scroll to bottom if logs are below threshold
+  if (scroll && (logOutput.children.length <= MAX_AUTO_SCROLL_LOGS)) {
+    logOutput.scrollTop = logOutput.scrollHeight;
+  }
 }
 
 // Initialize logs functionality
 export function initLogs() {
   const searchLogsButton = document.getElementById("searchLogs");
   const logLimitInput = document.getElementById("logLimit");
+  const logControls = document.querySelector(".log-controls");
 
   // Set up event listeners
   document.querySelectorAll(".custom-spinner-btn").forEach((btn) => {
@@ -136,6 +179,19 @@ export function initLogs() {
     document.getElementById("logCount").textContent = Math.min(1000, value);
   });
 
+  if (logControls) {
+    // Any keypress, mouse click, or touch counts as “interaction”
+    ['input','keydown','mousedown','touchstart'].forEach(evt =>
+      logControls.addEventListener(evt, () => {
+        lastLogControlsInteraction = Date.now();     // reset the timer
+        togglePauseIndicator(true);                  // show ⏸ immediately
+      })
+    );
+  }
+  // Pause on scroll
+    document.getElementById("logOutput").addEventListener("scroll", () =>
+        togglePauseIndicator(!shouldRefreshLogs())
+    );
   // Add expand button functionality
   const expandButton = document.getElementById("expandLogs");
   const logsSection = document.getElementById("logs");

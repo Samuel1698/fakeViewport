@@ -58,7 +58,7 @@ export function showChangelog() {
   }
   const { latest, changelog, releaseUrl } = info;
 
-  const title = document.querySelector("#update .container h2");
+  const title = document.querySelector("#update h2");
   if (latest.includes("failed-to-fetch")) {
     title.textContent = "Failed to Fetch Changelog";
   } else {

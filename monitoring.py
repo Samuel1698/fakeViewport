@@ -160,7 +160,7 @@ def create_app():
         return render_template("login.html", error=error)
 
     # ----------------------------------------------------------------------- #
-    @app.route("/logout")
+    @app.route("/logout", methods=["POST"])
     def logout():
         """
         Clear the session and redirect to the login page.

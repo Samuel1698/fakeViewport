@@ -1,5 +1,5 @@
 let lastScriptUptime = null;
-let activeTab = "status";
+export let activeTab = "status";
 import { loadUpdateData } from "./_update.js";
 import { colorLogEntry } from "./_logs.js";
 // -----------------------------------------------------------------------------
@@ -16,7 +16,7 @@ export async function fetchJSON(path) {
 }
 
 // Config cache with refresh capability
-let configCache = {
+export let configCache = {
   data: null,
   lastUpdated: 0,
   ttl: 360_0000, // 1 hour
@@ -292,13 +292,21 @@ function formatSpeed(bytesPerSec) {
 // -----------------------------------------------------------------------------
 // Status-related updates (frequent updates)
 // -----------------------------------------------------------------------------
-export async function loadStatus(forceRefreshConfig = false) {
-  const [sud, st, sysInfo, le] = await Promise.all([
+export async function loadStatus() {
+  const entry = document.getElementById("logEntry");
+  const fetchPromises = [
     fetchJSON("/api/script_uptime"),
     fetchJSON("/api/status"),
     fetchJSON("/api/system_info"),
-    fetchJSON("/api/logs?limit=1"),
-  ]);
+  ];
+
+  // Only fetch logs if element is visible (not display: none)
+  if (entry.offsetParent !== null) {
+    fetchPromises.push(fetchJSON("/api/logs?limit=1"));
+  }
+
+  const [sud, st, sysInfo, ...rest] = await Promise.all(fetchPromises);
+  const le = rest[0]; // Will be undefined if logs weren't fetched
 
   // Script uptime
   const el = document.getElementById("scriptUptime");
@@ -319,59 +327,60 @@ export async function loadStatus(forceRefreshConfig = false) {
     lastScriptUptime = null;
   }
 
-  const entry = document.getElementById("statusMsg");
+  const status = document.getElementById("statusMsg");
   // Status message
-  if (st?.data && entry) {
+  if (st?.data && status) {
     let displayText = st.data.status.trim();
-    const lowerEntry = displayText.toLowerCase();
-    entry.classList.remove("Green", "Yellow", "Blue", "Red");
+    const lowerStatus = displayText.toLowerCase();
+    status.classList.remove("Green", "Yellow", "Blue", "Red");
     if (
       // Success
-      lowerEntry.includes("healthy") ||
-      lowerEntry.includes("resumed") ||
-      lowerEntry.includes("restart") ||
-      lowerEntry.includes("fullscreen activated") ||
-      lowerEntry.includes("saved")
+      lowerStatus.includes("healthy") ||
+      lowerStatus.includes("resumed") ||
+      lowerStatus.includes("restart") ||
+      lowerStatus.includes("fullscreen restored") ||
+      lowerStatus.includes("fullscreen activated") ||
+      lowerStatus.includes("saved")
     ) {
-      entry.classList.add("Green");
+      status.classList.add("Green");
     } else if (
       // Normal actions
-      lowerEntry.includes("killed process") ||
-      lowerEntry.includes("stopped") ||
-      lowerEntry.includes("loaded") ||
-      lowerEntry.includes("deleted old") ||
-      lowerEntry.includes("starting")
+      lowerStatus.includes("killed process") ||
+      lowerStatus.includes("stopped") ||
+      lowerStatus.includes("loaded") ||
+      lowerStatus.includes("deleted old") ||
+      lowerStatus.includes("starting")
     ) {
-      entry.classList.add("Blue");
+      status.classList.add("Blue");
     } else if (
       // Actions that raise an eyebrow
-      lowerEntry.includes("paused") ||
-      lowerEntry.includes("issue") ||
-      lowerEntry.includes("restarting") ||
-      lowerEntry.includes("retrying") ||
-      lowerEntry.includes("couldn't") ||
-      lowerEntry.includes("download slow") ||
-      lowerEntry.includes("restoration failed")
+      lowerStatus.includes("paused") ||
+      lowerStatus.includes("issue") ||
+      lowerStatus.includes("restarting") ||
+      lowerStatus.includes("retrying") ||
+      lowerStatus.includes("couldn't") ||
+      lowerStatus.includes("download slow") ||
+      lowerStatus.includes("restoration failed")
     ) {
-      entry.classList.add("Yellow");
+      status.classList.add("Yellow");
     } else if (
       // ERRORS
-      lowerEntry.includes("crashed") ||
-      lowerEntry.includes("unsupported browser") ||
-      lowerEntry.includes("error") ||
-      lowerEntry.includes("download stuck") ||
-      lowerEntry.includes("page timed") ||
-      lowerEntry.includes("failed to start") ||
-      lowerEntry.includes("restoration failed") ||
-      lowerEntry.includes("click failed") ||
-      lowerEntry.includes("offline") ||
-      lowerEntry.includes("to display") ||
-      lowerEntry.includes("unresponsive") ||
-      lowerEntry.includes("not found")
+      lowerStatus.includes("crashed") ||
+      lowerStatus.includes("unsupported browser") ||
+      lowerStatus.includes("error") ||
+      lowerStatus.includes("download stuck") ||
+      lowerStatus.includes("page timed") ||
+      lowerStatus.includes("failed to start") ||
+      lowerStatus.includes("restoration failed") ||
+      lowerStatus.includes("click failed") ||
+      lowerStatus.includes("offline") ||
+      lowerStatus.includes("to display") ||
+      lowerStatus.includes("unresponsive") ||
+      lowerStatus.includes("not found")
     ) {
-      entry.classList.add("Red");
+      status.classList.add("Red");
     }
-    entry.textContent = displayText;
+    status.textContent = displayText;
   }
 
   // System info
@@ -393,12 +402,8 @@ export async function loadStatus(forceRefreshConfig = false) {
 
   // Log entry
   if (le?.data?.logs && le.data.logs.length > 0) {
-    const entry = document.getElementById("logEntry");
     colorLogEntry(le.data.logs[0], entry);
   }
-
-  // Get config with optional force refresh
-  await configCache.get(forceRefreshConfig);
 }
 // -----------------------------------------------------------------------------
 // Device-related updates (less frequent updates)
@@ -491,7 +496,7 @@ export async function loadDeviceData() {
 export async function loadInfo(options = {}) {
   const { forceRefreshConfig = false } = options;
   if (activeTab === "status") {
-    await loadStatus(forceRefreshConfig);
+    await loadStatus();
   } else if (activeTab === "device") {
     await loadDeviceData();
   } else if (activeTab === "config") {
