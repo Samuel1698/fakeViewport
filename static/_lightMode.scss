@@ -1,0 +1,129 @@
+@use '_variables' as *;
+@use "sass:map";
+@use 'sass:color';
+
+// Light theme overrides
+html[data-theme="light"]{
+  #login {
+    background-color: color("box");
+  }
+  #login .wrapper {
+    border: none;
+  }
+  #login section {
+    background-color: transparent;
+    input[type="password"]{
+      background-color: color("search");
+    }
+  }
+  #login button[type="submit"] {
+    color: color("bText");
+    background-color: color("blue");
+    @include hover {
+      color: color("bText", $lightness: 10%);
+      background-color: color("blue", $lightness: 10%);
+    }
+  }
+  button {
+    border: 2px solid color("border");
+    margin-bottom: -2px;
+  }
+  header button {
+    border: none;
+    margin-bottom: 0;
+  }
+  .wrapper {
+    border: 2px solid color("border");
+  }
+  section#navigation {
+    .log-controls {
+      border: 2px solid color("border");
+      border-bottom: 2px solid color("background");
+      margin-bottom: -2px;
+      @include hover {
+        background-color: color("search", $lightness: -2%);
+      }
+    }
+    .button-group, .refresh {
+      border: 2px solid color("border");
+      border-bottom: 2px solid color("background");
+      margin-bottom: -2px;
+      z-index: 1;
+      button {
+        border: 0;
+        margin-bottom: unset;
+        @include hover {
+          color: color("text", $lightness: 10%);
+        }
+      }
+      button[aria-selected="true"] {
+        @include hover {
+          color: color("blue");
+        }
+      }
+    }
+  }
+  section.display #controls button{
+    background-color: color("diminished");
+    @include hover {
+      &:not([disabled]) {
+        color: color("text", $lightness: 10%);
+        background-color: color("background");
+      }
+    }
+  }
+  section#update .wrapper .headingGroup {
+    border-width: 2px;
+  }
+  div.group section#logs button.hide-panel svg {
+    border-width: 2px;
+  }
+  .tooltip .tooltip-text {
+    .Blue {
+      color: color("bBlue");
+    }
+    .Yellow {
+      color: color("bYellow");
+    }
+    background-color: color("bDiminished", $lightness: -5%);
+    color: color("bText");
+    &::after {
+      border-color: color("bDiminished", $lightness: -5%) transparent transparent transparent;
+    }
+  }
+}
+
+// Light theme media queries
+html[data-theme="light"]{
+  @include respond-above($small) {
+    #login section {
+      background-color: color("box");
+    }
+    #login .wrapper {
+      border: 2px solid color("border");
+      border-radius: $border-radius;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    section#logs .container button.expand-button {
+      border: none;
+      margin-bottom: 0;
+    }
+  }
+  @include respond-above($medium){
+    section#navigation {
+      border: none;
+      border-right: 2px solid color("border");
+      .log-controls {
+        margin-bottom: 0;
+        border: none;
+      }
+      .button-group, .refresh {
+        margin-bottom: 0;
+        border: none;
+      }
+    }
+    button.hide-panel{
+      border: none;
+    }
+  }
+}

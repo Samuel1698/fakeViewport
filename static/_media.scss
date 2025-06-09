@@ -1,0 +1,361 @@
+@use '_variables' as *;
+@use "sass:map";
+@use 'sass:color';
+
+// --------------------------------------------------
+// Responsive Adjustments
+// --------------------------------------------------
+@include respond-above($small) {
+  // Slightly larger form and controls layout for tablets
+  section {
+    margin-right: auto;
+    margin-left: auto;
+    max-width: 600px;
+    .wrapper {
+      margin-right: auto;
+      margin-left: auto;
+      border-radius: $border-radius;
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+    }
+  }
+  section#navigation {
+    button {
+      min-width: 75px;
+      span {
+        margin-left: 4px;
+        display: inline-block;
+      }
+    }
+  }
+  section.display .wrapper {
+    border-top-right-radius: 0;
+  }
+  // Allow resize
+  section#logs {
+    transition: all 0.3s ease;
+    overflow: hidden;
+    &.expanded {
+      max-width: 900px;
+      border-top-left-radius: $border-radius;
+      border-top-right-radius: $border-radius;
+      .wrapper button.expand-button {
+        svg {
+          transform: rotate(90deg);
+        }
+      }
+    }
+    // Contains title and button
+    .container {
+      display: flex;
+      align-items: center;
+      button.expand-button {
+        display: inline-block;
+        background: none;
+        color: color("text");
+        cursor: pointer;
+        padding: 8px;
+        line-height: 0; // Forces svg to be centered on button
+        margin-left: auto; // Push to right 
+        @include hover {
+          color: color("blue");
+        }
+        svg {
+          width: 32px;
+          height: 32px;
+          transition: transform 0.6s ease;
+        }
+      }
+    }
+  }
+}
+@include respond-above($medium) {
+  $gap: 16px;
+  $width: 20rem;
+  header {
+    font-size: 18px;
+    margin-bottom: 0;
+    background-color: color("diminished");
+    h1 {
+      color: color("text", $lightness: -25%);
+    }
+  }
+  section {
+    vertical-align: top;
+    margin: 0;
+    .wrapper {
+      border: 1px solid color("border");
+      background-color: color("background");
+      border-radius: $border-radius;
+    }
+  }
+  section#navigation {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: unset;
+    box-sizing: border-box;
+    // 100vh -header -1px for overflow prevention
+    height: calc(100vh - $header - 1px);
+    width: $header;
+    justify-content: space-between;
+    max-width: unset;
+    border: none;
+    border-right: 1px solid color("border"); 
+    padding-top: $gap;
+    .button-group {
+      flex-direction: column;
+      align-items: stretch;
+      border-radius: 0;
+      background-color: color("background");
+    }
+    button {
+      justify-content: flex-start;
+      min-width: unset;
+      span {
+        display: none;
+      }
+      &[aria-selected=true] {
+        background-color: transparent;
+      }
+      @include hover {
+        &:not([disabled]) {
+          background-color: transparent;
+        }
+        svg {
+          color: color("blue");
+        }  
+      }
+    }
+
+    button#deviceBtn, button#logsBtn {
+      display: none;
+    }
+    button.refresh {
+      padding: 0.75rem;
+      margin-left: unset;
+      border-radius: unset;
+      background-color: transparent;
+    }
+    .log-controls {
+      position: absolute;
+      right: calc($gap + 1rem);
+      top: calc($header + $gap + 1rem);
+      height: 2.5rem;
+      border-radius: $border-radius;
+    }
+  }
+  div.group {
+    display: inline-flex;
+    &[hidden]{display:none;}
+    vertical-align: top;
+    width: calc(100% - $header);
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: $gap;
+    gap: $gap;
+    &.expanded {
+      overflow: initial;
+      gap: unset;
+    }
+    section {
+      box-sizing: border-box;
+      max-height: 40vh;
+      width: $width;
+    }
+    .status-device {
+      transition: transform 250ms ease-in-out;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      section {
+        margin-bottom: $gap;
+      }
+      .tooltip {
+        margin-top: auto;
+      }
+      #controls {
+        margin: 0;
+        button {
+          margin-bottom: 0;
+        }
+      }
+      .statusMessage {
+        position: absolute;
+        bottom: 60px;
+        left: 0;
+        right: 0;
+      }
+      &.contracted {
+        width: 0;
+        max-width: 0;
+        opacity: 0;
+        transform: translateX(-100%);
+      }
+    }
+    section#status {
+      ul li:last-child{
+        display: none;
+      }
+    }
+    section#logs {
+      position: relative;
+      max-height: unset;
+      max-width: unset;
+      // 100% - Header - Padding
+      height: calc(100vh - $header - (2 * $gap));
+      width: 100%;
+      overflow: initial;
+      .tooltip.hide-panel {
+        position: absolute;
+        left: 0;
+        transform: translate(-50%, -50%);
+        top: 25%;
+      }
+      button.hide-panel {
+        display: inline-block; // Overrides [hidden]
+        background-color: transparent;
+        padding: 8px;
+        line-height: 0;
+        cursor: pointer;
+        color: color("text");
+        svg {
+          transition: all 0.3s ease-in-out;
+          width: 24px;
+          height: 24px;
+          background-color: color("background");
+          border-radius: $border-radius;
+          border: 1px solid color("border");
+          &.rotated {
+            transform: rotate(180deg);
+          }
+        }
+        @include hover {
+          color: color("blue");
+          .tooltip .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+          }
+        }
+      }
+      // Undo cascading effect of disabling tooltip for control buttons
+      .tooltip:not([disabled]) {
+        @include hover {
+          .tooltip-text{
+            visibility: visible;
+            opacity: 1;
+          }
+        }
+      }
+      .wrapper {
+        height: 100%;
+        box-sizing: border-box;
+        h2 {
+          margin-top: 0.5rem;
+          font-size: 1.3rem;
+        }
+        button.expand-button {
+          display: none;
+        }
+        div#logOutput {
+          max-height: unset;
+          height: calc(100% - 60px);
+        }
+      }
+    }
+  }
+  section#config {
+    display: inline-flex;
+    padding: $gap;
+    gap: $gap;
+    max-width: unset;
+    width: calc(100% - $header);
+    box-sizing: border-box;
+    &[hidden]{display:none;}
+    .flex-group {
+      display: inline-flex;
+      border-radius: unset;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      height: calc(100vh - $header - (2 * $gap));
+      gap: $gap;
+      box-sizing: border-box;
+      .wrapper {
+        width: 22rem;
+        margin: 0;
+        box-sizing: border-box;
+        border-radius: $border-radius;
+      }
+      &[hidden] {
+        width: 100%;
+        max-width: 700px;
+        .wrapper {
+          width: unset;
+        }
+      }
+    }
+    .tooltip {
+      @include hover {
+        .tooltip-text {
+          span, br {
+            display: none;
+          }
+          span.Blue {
+            display: inline-block;
+          }
+        }
+      }
+    }
+  }
+  section#update {
+    display: inline-flex;
+    &[hidden]{display:none;}
+    padding: $gap;
+    vertical-align: top;
+    height: calc(100vh - $header);
+    width: calc(100% - $header);
+    max-width: unset;
+    box-sizing: border-box;
+    font-size: 14px;
+    overflow: hidden;
+    .wrapper {
+      overflow-y: auto;
+      .headingGroup ul {
+        margin-bottom: 0;
+      }
+    }
+    div.changelog {
+      div.headingWrapper {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        div.headingGroup {
+          display: flex;
+          flex-direction: column;
+        }
+        div.headingGroup:last-child:nth-child(odd) {
+          grid-column: span 2;
+        }
+      }
+    }
+  }
+  .tooltip .tooltip-text {
+    left: 50%;
+    right: unset;
+    transform: translateX(-50%);
+    border-bottom-right-radius: $border-radius;
+    &::after{
+      right: 50%;
+    }
+  }
+}
+@include respond-above($big){
+  $width: 28.125rem;
+  div.group section {
+    // 450px
+    width: $width;
+  }
+  section#config .flex-group .wrapper {
+    width: $width;
+  }
+}

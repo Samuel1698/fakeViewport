@@ -1,0 +1,37 @@
+@use '_variables' as *;
+@use "sass:map";
+@use 'sass:color';
+// --------------------------------------------------
+// Theme Swapping
+// --------------------------------------------------
+#themeToggle {
+  background-color: transparent;
+  border: none;
+  border-radius: $border-radius;
+  padding: 8px;
+  cursor: pointer;
+  transition: background-color $transition-speed;
+  color: color("text");
+  @include hover {
+    color: color("blue");
+  }
+  svg {
+    width: 24px;
+    height: 24px;
+    transition: fill $transition-speed;
+  }
+  .light-icon {
+    display: none;
+  }
+  .dark-icon {
+    display: block;
+  }
+  [data-theme="light"] & {
+    .light-icon {
+      display: block;
+    }
+    .dark-icon {
+      display: none;
+    }
+  }
+}
