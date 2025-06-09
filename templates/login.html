@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <title>Login</title>
@@ -12,12 +12,49 @@
   <link rel="preload" href="{{ url_for('static', filename='UI_Sans.woff2') }}" as="font" type="font/woff2">
   <link rel="stylesheet" href="{{ url_for('static', filename='main-min.css') }}">
 </head>
-<body>
-  <h1>Viewport Login</h1>
-  <form id="login" method="post">
-    <label for="key">API Secret:</label>
-    <input id="key" name="key" type="password" required>
-    <button type="submit">Login</button>
-  </form>
+<body id="login">
+  <div class="hero-bg">
+    <svg class="blob blob-tl" viewBox="0 0 200 200" aria-hidden="true">
+      <path fill="currentColor"
+        d="M35.6,-51.5C43.7,-43,46.4,-29.5,53.6,-15.5C60.9,-1.5,72.7,13,70.3,23.7C68,34.3,51.4,41.2,37.3,52.7C23.3,64.3,11.6,80.5,-1.4,82.5C-14.4,84.4,-28.9,72,-41.9,60.1C-55,48.2,-66.7,36.9,-70.2,23.4C-73.7,10,-69,-5.5,-63.8,-20.6C-58.7,-35.7,-53,-50.5,-42.3,-58.1C-31.6,-65.8,-15.8,-66.3,-1,-64.9C13.7,-63.4,27.4,-60,35.6,-51.5Z"
+        transform="translate(100 100)" />
+      </svg>
+    <svg class="blob blob-br" viewBox="0 0 200 200" aria-hidden="true">
+      <path fill="currentColor"
+        d="M56,-50.8C66.3,-31.8,63.9,-8.9,58.6,12.9C53.2,34.7,44.9,55.3,31.1,60.3C17.3,65.2,-1.9,54.5,-23.4,45.4C-45,36.3,-68.9,28.7,-71.6,16.4C-74.4,4.1,-56.1,-13,-40.6,-33.1C-25.2,-53.3,-12.6,-76.5,5.1,-80.6C22.9,-84.7,45.8,-69.7,56,-50.8Z"
+        transform="translate(100 100)" />
+      </svg>
+    </svg>
+  </div>
+  <section class="wrapper">
+    <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" width="108px" height="108px"
+        prefixid="86ec2b48-41c9-41ce-b94d-8543b4a01315">
+        <path fill-rule="evenodd" clip-rule="evenodd"
+          d="M128 59c-12.15 0-22 9.85-22 22s9.85 22 22 22 22-9.85 22-22-9.85-22-22-22Zm9 22a9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9 9 9 0 0 1 9 9Z"
+          fill="currentColor" role="flat"></path>
+        <path fill-rule="evenodd" clip-rule="evenodd"
+          d="M171.94 79.47c0-24.008-19.462-43.47-43.47-43.47S85 55.462 85 79.47V206.1l.013.001c-.009.1-.013.2-.013.301 0 3.464 5.263 7.077 13.69 9.747l.987.304c.5.15 1.01.296 1.53.439l1.054.281.536.137 1.092.267a91.12 91.12 0 0 0 5.811 1.172l1.228.2c5.365.839 11.3 1.326 17.542 1.326 6.242 0 12.177-.487 17.542-1.326l1.228-.2a91.12 91.12 0 0 0 5.811-1.172l1.092-.267.536-.137 1.054-.281a68.97 68.97 0 0 0 1.53-.439l.987-.304c8.427-2.67 13.69-6.283 13.69-9.747a3.35 3.35 0 0 0-.013-.301l.013-.001V79.47ZM128.5 121c17.894 0 32.511-14.002 33.452-31.626H162V78.53h-.012C161.508 60.483 146.699 46 128.5 46c-18.199 0-33.008 14.483-33.488 32.53H95v10.844h.048C95.988 106.998 110.606 121 128.5 121Zm-.5 29a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"
+          fill="currentColor" role="flat"></path>
+      </svg>
+    <h1>
+      <span>Viewport Control</span>
+      <button id="themeToggle" aria-label="Toggle theme">
+        <svg class="dark-icon" width="24" height="24" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1-8.313-12.454z" />
+        </svg>
+        <svg class="light-icon" width="24" height="24" viewBox="0 0 24 24">
+          <path fill="currentColor"
+            d="M12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.515 4.929l1.414-1.414L7.05 5.636 5.636 7.05 3.515 4.93zM16.95 18.364l1.414-1.414 2.121 2.121-1.414 1.414-2.121-2.121zm2.121-14.85l1.414 1.415-2.121 2.121-1.414-1.414 2.121-2.121zM5.636 16.95l1.414 1.414-2.121 2.121-1.414-1.414 2.121-2.121z" />
+        </svg>
+      </button>
+    </h1>
+    <form method="post">
+      <label for="key">Dashboard Password:</label>
+      <input id="key" name="key" type="password" required>
+      <span data-tooltip="Find Secret | The Dashboard Password is stored in the '.env' file in directory where the script lives | SECRET=<YourDashboardPassword>">Forgot Password?</span>
+      <button type="submit">Sign In</button>
+    </form>
+  </section>
+  <script src="{{ url_for('static', filename='main-min.js') }}" defer></script>
 </body>
 </html>

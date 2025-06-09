@@ -3,10 +3,11 @@ import signal
 import logging
 import logging.handlers
 import builtins
+import shutil
 from pathlib import Path
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch, mock_open, ANY
+from unittest.mock import MagicMock, patch, mock_open
 
 import pytest
 import viewport
@@ -18,9 +19,9 @@ def disable_external_side_effects(monkeypatch):
     monkeypatch.setattr(viewport.time, "sleep", lambda *args, **kwargs: None)
     # never actually fork a process
     monkeypatch.setattr(viewport.subprocess, "Popen", lambda *args, **kwargs: None)
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Test conftest file handler isolation
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def test_timed_rotating_file_handler_isolated(tmp_path, monkeypatch, isolate_logging):
     # Make sure that our isolate_logging fixture’s patched_factory
     # actually gets invoked when someone instantiates a TimedRotatingFileHandler.
@@ -33,9 +34,31 @@ def test_timed_rotating_file_handler_isolated(tmp_path, monkeypatch, isolate_log
     # ensure it has the rotating attributes we expect
     assert hasattr(handler, 'rotation_filename')
     assert callable(handler.doRollover)
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
+# Test conftest shutil guard
+# --------------------------------------------------------------------------- # 
+def test_guard_allows_delete_inside_safe(tmp_path):
+    target = tmp_path / "safe_dir"
+    target.mkdir()
+    (target / "file.txt").write_text("ok")
+
+    viewport.shutil.rmtree(target)          # should succeed
+    assert not target.exists()
+
+def test_guard_blocks_deletes_outside_safe():
+    # Create a directory next to the project (definitely outside safe_root)
+    outside_dir = Path.cwd() / "outside_dir"
+    outside_dir.mkdir(exist_ok=True)
+
+    # Guarded rmtree must raise
+    with pytest.raises(RuntimeError, match="Refusing to delete outside"):
+        viewport.shutil.rmtree(outside_dir)
+
+    # Use the real (unpatched) shutil to clean up
+    outside_dir.rmdir()
+# --------------------------------------------------------------------------- # 
 # Test main function
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 @pytest.mark.parametrize(
     "sst_exists,sst_size,other_running,restart_flag_exists,expected_kill,expected_write",
     [
@@ -155,9 +178,10 @@ def test_main_skip_when_not_continue(
     mock_process.assert_not_called()
     mock_chrome.assert_not_called()
     mock_thread.assert_not_called()
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- # 
 # Test log_error function
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 @patch("viewport.logging")
 @patch("viewport.screenshot_handler")
 @patch("viewport.check_driver")
@@ -204,7 +228,7 @@ def test_log_error_with_driver_success(mock_api, mock_check, mock_sh, mock_log, 
 
         # Screenshot path should match expected format
         mock_driver.save_screenshot.assert_called_once_with("/mock/logs/screenshot_2025-05-10_12-00-00.png")
-        mock_log.info.assert_called_once()
+        mock_log.warning.assert_called_once()
         mock_api.assert_called_once_with("Saved error screenshot.")
 
 @patch("viewport.logging")
@@ -238,9 +262,9 @@ def test_log_error_screenshot_unexpected_error(mock_warning, mock_check, mock_sc
     mock_warning.assert_any_call(
         f"Unexpected error taking screenshot: uh oh"
     )
-# --------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 # Cover clear_sst() exception branch
-# --------------------------------------------------------------------------
+# --------------------------------------------------------------------------- # 
 def test_clear_sst_exception(monkeypatch):
     # Make sst_file.exists() return True
     fake_sst = MagicMock()
@@ -264,109 +288,18 @@ def test_clear_sst_exception(monkeypatch):
     assert "Error clearing SST file:" in called.get('msg', '')
     assert isinstance(called.get('exc'), Exception)
     assert str(called['exc']) == "disk full"
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Test api_status function
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def test_api_status_writes(tmp_path, monkeypatch):
     status_file = tmp_path / "status.txt"
     monkeypatch.setattr(viewport, "status_file", status_file)
     viewport.api_status("OKAY")
     assert status_file.read_text() == "OKAY"
-# ----------------------------------------------------------------------------- 
-# Test api_handler function
-# ----------------------------------------------------------------------------- 
-class _FakeProcess:
-    # Mimics the handful of attributes/behaviors api_handler relies on
-    def __init__(self, *, exit_code=None, stdout_lines=None, stderr_lines=None):
-        self._exit_code = exit_code                   # value returned by poll()
-        self.returncode = exit_code                   # surfaced in the error msg
-        self.stdout     = stdout_lines or []          # iterable for Thread‑target
-        self.stderr     = stderr_lines or []
 
-    def poll(self):
-        return self._exit_code
-
-
-class _DummyThread:
-    # Replaces threading.Thread – runs the target *synchronously*
-    started = 0
-
-    def __init__(self, *, target=None, args=(), daemon=None):
-        self._target = target
-        self._args   = args
-
-    def start(self):
-        _DummyThread.started += 1
-        if self._target: self._target(*self._args)
-
-def _common_patches(monkeypatch):
-    monkeypatch.setattr(viewport, "api_status", lambda *a, **k: None)
-
-    import threading as _t
-    monkeypatch.setattr(_t,             "Thread", _DummyThread)
-    monkeypatch.setattr(viewport.threading, "Thread", _DummyThread)
-
-    _DummyThread.started = 0          
-def test_api_handler_already_running(monkeypatch):
-    _common_patches(monkeypatch)
-    # process_handler reports “monitoring.py” is alive
-    monkeypatch.setattr(viewport, "process_handler", lambda *a, **k: True)
-
-    # fail fast if api_handler ever tried to spawn a process
-    monkeypatch.setattr(
-        viewport.subprocess,
-        "Popen",
-        lambda *a, **k: pytest.fail("Popen must not be invoked when API is up"),
-    )
-
-    assert viewport.api_handler() is True
-    assert _DummyThread.started == 0
-    
-def test_api_handler_starts_successfully(monkeypatch):
-    _common_patches(monkeypatch)
-    monkeypatch.setattr(viewport, "process_handler", lambda *a, **k: False)
-
-    fake_proc = _FakeProcess(
-        exit_code=None,                     # .poll() → None ⇒ still running
-        stdout_lines=[
-            "Serving Flask app\n",          # skipped by filter_output
-            "Press CTRL+C to quit\n",       # skipped
-            "Custom log line\n",            # logged
-        ],
-        stderr_lines=["Some warning\n"],
-    )
-    monkeypatch.setattr(viewport.subprocess, "Popen", lambda *a, **k: fake_proc)
-
-    assert viewport.api_handler() is True
-    # two filter threads (stdout + stderr) should have executed
-    assert _DummyThread.started == 2
-    
-def test_api_handler_process_exits_early(monkeypatch):
-    _common_patches(monkeypatch)
-    monkeypatch.setattr(viewport, "process_handler", lambda *a, **k: False)
-
-    fake_proc = _FakeProcess(exit_code=1)   # .poll() → 1 triggers RuntimeError
-    monkeypatch.setattr(viewport.subprocess, "Popen", lambda *a, **k: fake_proc)
-
-    assert viewport.api_handler() is False
-    assert _DummyThread.started == 2        # threads still started
-    
-def test_api_handler_popen_raises(monkeypatch):
-    _common_patches(monkeypatch)
-    monkeypatch.setattr(viewport, "process_handler", lambda *a, **k: False)
-
-    def _boom(*_a, **_kw):
-        raise OSError("simulated failure")
-
-    monkeypatch.setattr(viewport.subprocess, "Popen", _boom)
-
-    assert viewport.api_handler() is False
-    # Nothing spawned ⇒ no threads
-    assert _DummyThread.started == 0
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Test Script Start Time File
-# ----------------------------------------------------------------------------- 
-
+# --------------------------------------------------------------------------- # 
 # args_handler: background/restart should leave SST alone; quit must clear it
 @pytest.mark.parametrize(
     "flag, pre, should_clear",

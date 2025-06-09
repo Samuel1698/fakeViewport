@@ -1,13 +1,9 @@
-import { initLogs } from "./_logs.js";
-import { loadInfo, loadStatus, loadInfoData, setActiveTab } from "./_info.js";
+import { initLogs, startLogsAutoRefresh } from "./_logs.js";
+import { scheduleRefresh } from "./_autoRefresh.js";
+import { loadStatus, loadDeviceData, configCache } from "./_device.js";
 import { checkForUpdate, CACHE_TTL, initUpdateButton } from "./_update.js";
 import { control } from "./_control.js";
-import { initSections } from "./_sections.js";
-
-// Track refresh intervals so we can clear them
-let statusRefreshInterval;
-let infoRefreshInterval;
-let configRefreshInterval;
+import { initSections, isDesktopView } from "./_sections.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   // Light Theme toggle
@@ -19,7 +15,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     html.setAttribute("data-theme", newTheme);
     localStorage.setItem("theme", newTheme);
   });
-
   // Check for saved theme preference
   if (typeof window !== "undefined") {
     const savedTheme = localStorage.getItem("theme");
@@ -27,40 +22,114 @@ document.addEventListener("DOMContentLoaded", async () => {
       document.documentElement.setAttribute("data-theme", savedTheme);
     }
   }
-  // Initialize all components
-  setActiveTab("status"); // Set initial tab to status
-  initSections();
+  function initTooltips() {
+      const tooltipElements = document.querySelectorAll("[data-tooltip]");
+      tooltipElements.forEach((element) => {
+        const tooltipText = element.getAttribute("data-tooltip");
+        const elementClasses = element.className.split(' ').filter(c => c); // Get all classes from child element
 
-  // Load data for both tabs on initial load
-  await Promise.all([loadStatus(), loadInfoData()]);
-  initLogs();
+        // Split and handle multiple | characters
+        const parts = tooltipText
+          .split("|")
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        // Create tooltip container
+        const tooltipDiv = document.createElement("div");
+        tooltipDiv.className = "tooltip-text";
+        tooltipDiv.setAttribute("role", "tooltip"); // Accessibility
+
+        // Process first part (always shown in Blue)
+        if (parts.length > 0) {
+          const line1 = document.createElement("span");
+          line1.className = "Blue";
+          line1.textContent = parts[0];
+          tooltipDiv.appendChild(line1);
+        }
+
+        // Process remaining parts
+        for (let i = 1; i < parts.length; i++) {
+          // Add line break before each additional part
+          tooltipDiv.appendChild(document.createElement("br"));
+          const line = document.createElement("span");
+          line.textContent = parts[i];
+          if (i == parts.length - 1 && parts.length > 2) {
+            line.className = "Yellow";
+          }
+          tooltipDiv.appendChild(line);
+        }
+
+        // Handle case where there was no | character
+        if (parts.length === 1) {
+          tooltipDiv.querySelector(".Blue").style.display = "block";
+        }
+
+        // Create wrapper and insert into DOM
+        const wrapper = document.createElement("span");
+        wrapper.className = "tooltip";
+
+        // Add all classes from the child element to the wrapper
+        elementClasses.forEach(className => {
+          if (className !== 'tooltip-trigger') { // Skip if it's the class we're about to add
+            wrapper.classList.add(className);
+          }
+        });
+
+        element.parentNode.insertBefore(wrapper, element);
+
+        // Prepare the trigger element
+        element.classList.add("tooltip-trigger");
+        element.setAttribute("tabindex", "-1"); // Prevent focus outline
+        element.setAttribute("aria-describedby", `tooltip-${Date.now()}`);
+        tooltipDiv.id = element.getAttribute("aria-describedby");
+
+        wrapper.appendChild(element);
+        wrapper.appendChild(tooltipDiv);
+
+        // Mobile touch handling
+        element.addEventListener("touchstart", (e) => {
+          e.preventDefault();
+          document.querySelectorAll(".tooltip-trigger").forEach((t) => {
+            if (t !== element) t.classList.remove("active");
+          });
+          element.classList.toggle("active");
+        });
+      });
+
+      // Close tooltips when tapping elsewhere
+      document.addEventListener("touchstart", (e) => {
+        if (!e.target.closest(".tooltip-trigger")) {
+          document.querySelectorAll(".tooltip-trigger").forEach((el) => {
+            el.classList.remove("active");
+          });
+        }
+      });
+  }
+
   initTooltips();
 
+  const isLoginPage =
+    window.location.pathname.includes("login.html") ||
+    window.location.pathname === "/login" ||
+    document.getElementById("login");
+
+  if (isLoginPage) return;
+  // Initialize all components
+  initSections();
+  await Promise.all([
+    loadStatus(),
+    loadDeviceData(),
+    configCache.get(true),
+  ]);
+  initLogs();
   // Check for update last
   checkForUpdate();
   initUpdateButton();
-  // Set up intervals with different refresh rates
-  statusRefreshInterval = setInterval(() => {
-    if (document.getElementById("status").hasAttribute("hidden") === false) {
-      loadInfo(); // Will only refresh status data
-    }
-  }, 5_000); // 5 second for status tab
-
-  infoRefreshInterval = setInterval(() => {
-    if (document.getElementById("info").hasAttribute("hidden") === false) {
-      loadInfo(); // Will only refresh info data
-    }
-  }, 5_000);
-
-  configRefreshInterval = setInterval(() => {
-    if (document.getElementById("config").hasAttribute("hidden") === false) {
-      loadInfo(); // Will only refresh config data
-    }
-  }, CACHE_TTL);
-
+  startLogsAutoRefresh();
   setInterval(checkForUpdate, CACHE_TTL);
-
-  const controls = document.querySelector(".controls");
+  scheduleRefresh(isDesktopView() ? "desktop" : "status", { immediate: false });
+  // Control buttons
+  const controls = document.getElementById("controls");
   const parentTooltip = controls.parentElement;
   const buttons = controls.querySelectorAll("button");
   const COOLDOWN_TIME = 15_000;
@@ -102,78 +171,35 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
-  function initTooltips() {
-    const tooltipElements = document.querySelectorAll("[data-tooltip]");
+  const hidePanelButton = document.querySelector("button.hide-panel");
+  const statusDevice = document.querySelector(".status-device");
+  const logsSection = document.getElementById("logs");
 
-    tooltipElements.forEach((element) => {
-      const tooltipText = element.getAttribute("data-tooltip");
+  if (hidePanelButton && statusDevice) {
+    hidePanelButton.addEventListener("click", () => {
+      statusDevice.classList.toggle("contracted");
+      logsSection.classList.toggle("expanded");
+      logsSection.parentElement.classList.toggle("expanded");
+      // Update aria-expanded attribute for accessibility
+      const isContracted = statusDevice.classList.contains("contracted");
+      hidePanelButton.setAttribute("aria-expanded", isContracted);
 
-      // Split and handle multiple | characters
-      const parts = tooltipText
-        .split("|")
-        .map((s) => s.trim())
-        .filter(Boolean);
+      // Update tooltip text based on state
+      hidePanelButton.parentElement.querySelector(".tooltip-text span").textContent = isContracted
+        ? "Show Panel"
+        : "Hide Panel";
 
-      // Create tooltip container
-      const tooltipDiv = document.createElement("div");
-      tooltipDiv.className = "tooltip-text";
-      tooltipDiv.setAttribute("role", "tooltip"); // Accessibility
-
-      // Process first part (always shown in Blue)
-      if (parts.length > 0) {
-        const line1 = document.createElement("span");
-        line1.className = "Blue";
-        line1.textContent = parts[0];
-        tooltipDiv.appendChild(line1);
+      const svg = hidePanelButton.parentElement.querySelector("svg");
+      if (svg) {
+        svg.classList = isContracted ? "rotated" : "";
       }
-
-      // Process remaining parts
-      for (let i = 1; i < parts.length; i++) {
-        // Add line break before each additional part
-        tooltipDiv.appendChild(document.createElement("br"));
-        const line = document.createElement("span");
-        line.textContent = parts[i];
-        if (i == parts.length - 1 && parts.length > 2) {
-          line.className = "Yellow";
-        }
-        tooltipDiv.appendChild(line);
-      }
-
-      // Handle case where there was no | character
-      if (parts.length === 1) {
-        tooltipDiv.querySelector(".Blue").style.display = "block";
-      }
-
-      // Create wrapper and insert into DOM
-      const wrapper = document.createElement("span");
-      wrapper.className = "tooltip";
-      element.parentNode.insertBefore(wrapper, element);
-
-      // Prepare the trigger element
-      element.classList.add("tooltip-trigger");
-      element.setAttribute("tabindex", "-1"); // Prevent focus outline
-      element.setAttribute("aria-describedby", `tooltip-${Date.now()}`);
-      tooltipDiv.id = element.getAttribute("aria-describedby");
-
-      wrapper.appendChild(element);
-      wrapper.appendChild(tooltipDiv);
-
-      // Mobile touch handling
-      element.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        document.querySelectorAll(".tooltip-trigger").forEach((t) => {
-          if (t !== element) t.classList.remove("active");
-        });
-        element.classList.toggle("active");
-      });
     });
 
-    // Close tooltips when tapping elsewhere
-    document.addEventListener("touchstart", (e) => {
-      if (!e.target.closest(".tooltip-trigger")) {
-        document.querySelectorAll(".tooltip-trigger").forEach((el) => {
-          el.classList.remove("active");
-        });
+    // Add keyboard support
+    hidePanelButton.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        hidePanelButton.click();
       }
     });
   }

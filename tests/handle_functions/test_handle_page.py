@@ -1,8 +1,9 @@
 import viewport
 from unittest.mock import MagicMock, patch, call
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- # 
 # Tests for handle_page function
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 @patch("viewport.handle_elements")
 @patch("viewport.check_for_title")
 @patch("viewport.time.sleep", return_value=None)
@@ -41,7 +42,10 @@ def test_handle_page_timeout_logs_and_returns_false(
 
     mock_api_status.assert_called_with("Error Loading Page Something Else")
     assert ret is False
+
+# --------------------------------------------------------------------------- # 
 # Covers the "Ubiquiti Account" / "UniFi OS" login‐page branch when login fails
+# --------------------------------------------------------------------------- # 
 @patch("viewport.handle_login", return_value=False)
 @patch("viewport.logging.info")
 @patch("viewport.check_for_title")
@@ -68,7 +72,9 @@ def test_handle_page_login_page_fails(
     # Since handle_login returned False, handle_page should return False
     assert result is False
 
+# --------------------------------------------------------------------------- # 
 # Covers looping until title becomes Dashboard, then hits the final sleep(3)
+# --------------------------------------------------------------------------- # 
 @patch("viewport.handle_elements")
 @patch("viewport.handle_pause_banner")
 @patch("viewport.check_for_title")

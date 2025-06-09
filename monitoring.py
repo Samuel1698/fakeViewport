@@ -2,6 +2,7 @@
 import sys, os, time, configparser, psutil, subprocess, logging, socket
 from functools import wraps
 from pathlib import Path
+from collections import deque
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from flask import (
@@ -20,6 +21,7 @@ from viewport import process_handler
 _mon = sys.modules[__name__]
 dotenv_file = find_dotenv()
 load_dotenv(dotenv_file, override=True)
+LOG_HARD_CAP = 1000
 unwanted = None
 last_net_io = None
 last_check_time = time.time()
@@ -30,16 +32,17 @@ env_file    = _base / '.env'
 logs_dir    = _base / 'logs'
 api_dir     = _base / 'api'
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Load and validate everything via our shared validator
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 cfg = validate_config(strict=False, print=False)
 # pull everything out into locals/globals
 for name, val in vars(cfg).items():
     setattr(_mon, name, val)
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- # 
 # Setup Logging
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 configure_logging(
     log_file_path=str(mon_file),
     log_file=LOG_FILE_FLAG,
@@ -47,10 +50,26 @@ configure_logging(
     log_days=LOG_DAYS,
     Debug_logging=DEBUG_LOGGING
 )
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- # 
 # Application for the monitoring API
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def create_app():
+    """
+    Build and configure the Flask Monitoring API application.
+
+    The factory:
+
+    * Reloads configuration (with relaxed validation when under pytest).
+    * Injects helpers and authentication wrappers.
+    * Registers all API and HTML routes, including update actions and
+        system-information endpoints.
+    * Enables CORS for cross-origin browser access.
+
+    Returns:
+        flask.Flask: A fully configured Flask application instance,
+        ready to be served or unit-tested.
+    """
     app = Flask(__name__) 
     # This is only needed to inject the different configs we test with
     if "pytest" in sys.modules:
@@ -58,13 +77,13 @@ def create_app():
         for name, val in vars(cfg).items():
             setattr(_mon, name, val)
     app.secret_key  = CONTROL_TOKEN or os.urandom(24)
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     # Enable CORS
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     CORS(app)
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     # Helper: read and strip text files
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     def _read_api_file(path):
         if not path.exists():
             return None
@@ -74,9 +93,9 @@ def create_app():
             app.logger.error(f"Error reading {path}: {e}")
             return None
     app._read_api_file = _read_api_file
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     # Protect routes if SECRET is set
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
     def login_required(f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -87,11 +106,21 @@ def create_app():
                     return redirect(url_for("login", next=request.path))
             return f(*args, **kwargs)
         return decorated
-    # ----------------------------------------------------------------------------- 
-    # Routes
-    # ----------------------------------------------------------------------------- 
+    # ----------------------------------------------------------------------- #
+    # Dashboard Routes
+    # ----------------------------------------------------------------------- #
     @app.route("/login", methods=["GET", "POST"])
     def login():
+        """
+        Display the login form and authenticate API users.
+
+        On **GET** - renders the HTML form.  
+        On **POST** - validates the submitted *key*; a correct value sets
+        ``session["authenticated"]`` and redirects the user.
+
+        Returns:
+            flask.Response: HTML page or redirect response.
+        """
         # If no SECRET is configured, skip login entirely
         if not CONTROL_TOKEN:
             session["authenticated"] = CONTROL_TOKEN
@@ -107,10 +136,21 @@ def create_app():
                 # Successful login: set auth flag and go to dashboard (or next)
                 session["authenticated"] = CONTROL_TOKEN
                 next_url = request.args.get("next", "").replace("\\", "")
-                if not urlparse(next_url).netloc and not urlparse(next_url).scheme:
-                    # Safe relative path, redirect to it
+
+                # If next is provided and safe, use it
+                if next_url and not urlparse(next_url).netloc and not urlparse(next_url).scheme:
                     return redirect(next_url)
-                # Unsafe or invalid path, redirect to dashboard
+
+                # If no next, check referrer (if safe)
+                referrer = request.referrer
+                if referrer:
+                    parsed_referrer = urlparse(referrer)
+                    # Extract the path from the referrer and validate it
+                    referrer_path = parsed_referrer.path
+                    if referrer_path and referrer_path.startswith("/") and referrer_path in [url_for("dashboard"), url_for("logout"), url_for("api_index")]: 
+                        return redirect(referrer_path)
+                    else: pass
+                # Default to dashboard if no safe next/referrer
                 return redirect(url_for("dashboard"))
 
             # Failed login: flash error, but session stays cleared
@@ -120,22 +160,49 @@ def create_app():
         # Render login form (with any flashed message)
         return render_template("login.html", error=error)
 
-    @app.route("/logout")
+    # ----------------------------------------------------------------------- #
+    @app.route("/logout", methods=["POST"])
     def logout():
+        """
+        Clear the session and redirect to the login page.
+
+        Returns:
+            flask.Response: Redirect to ``/login``.
+        """
         session.clear()
         return redirect(url_for("login"))
 
+    # ----------------------------------------------------------------------- #
     @app.route("/")
+    @app.route("/dashboard")
     @login_required
     def dashboard():
+        """
+        Render the main dashboard (index.html).
+
+        Returns:
+            flask.Response: HTML dashboard.
+        """
         return render_template("index.html")
 
+    # ----------------------------------------------------------------------- #
+    # POSTS Routes
+    # ----------------------------------------------------------------------- #
     @app.route("/api/control/<action>", methods=["POST"])
     @login_required
     def api_control(action):
+        """
+        Dispatch start/restart/quit commands to *viewport.py*.
+
+        Args:
+            action: One of ``"start"``, ``"restart"``, or ``"quit"``.
+
+        Returns:
+            flask.Response: JSON containing status and message.
+        """
         if action not in ("start", "restart", "quit"):
             return jsonify(status="error",
-                           message=f'Unknown action "{action}"'), 400
+                            message=f'Unknown action "{action}"'), 400
 
         flag = {"start":"--background", "restart":"--restart", "quit":"--quit"}[action]
         try:
@@ -150,52 +217,34 @@ def create_app():
                 start_new_session=True,
             )
             return jsonify(status="ok",
-                           message=f"{action.title()} command issued"), 202
+                            message=f"{action.title()} command issued"), 202
         except Exception as e:
             app.logger.exception("Failed to dispatch control command")
             return jsonify(status="error", message="Failed to dispatch control command"), 500
-    # ----------------------------------------------------------------------------- 
-    # Update
-    # ----------------------------------------------------------------------------- 
-    @app.route("/api/update")
-    def api_update_info():
-        try:
-            return jsonify(status="ok", data={
-                "current": update.current_version(),
-                "latest":  update.latest_version(),
-            })
-        except Exception as e:
-            app.logger.exception("version check failed")
-            return jsonify(status="error", message="An internal error has occurred."), 500
-    @app.route("/api/update/changelog")
-    def api_update_changelog():
-        # Fetch and return the latest release changelog (up to the '---' delimiter),
-        # plus a link to the GitHub release page.
-        try:
-            changelog = update.latest_changelog()
-            # You can point directly at the “latest” redirect, or use a tag-specific URL:
-            release_url = f"https://github.com/{update.REPO}/releases/latest"
-            return jsonify(
-                status="ok",
-                data={
-                    "changelog": changelog,
-                    "release_url": release_url,
-                }
-            )
-        except Exception as e:
-            app.logger.exception("changelog fetch failed")
-            return jsonify(status="error", message="An internal error has occurred."), 500
+    
+    # ----------------------------------------------------------------------- #
     @app.route("/api/update/apply", methods=["POST"])
     @login_required
     def api_update_apply():
-        # ignore any prefer_git flag—perform_update now always
-        # tries git first (if clean) then falls back to tar
+        """
+        Trigger a software update (git first, tar fallback).
+
+        Returns:
+            flask.Response: JSON indicating the update outcome.
+        """
         outcome = update.perform_update()
         return jsonify(status="ok", data={"outcome": outcome}), 202
-    # ----------------------------------------------------------------------------- 
+
+    # ----------------------------------------------------------------------- #
     @app.route("/api/self/restart", methods=["POST"])
     @login_required
     def api_restart():
+        """
+        Spawn a fresh *monitoring.py* process and return 202 Accepted.
+
+        Returns:
+            flask.Response: JSON confirmation of restart initiation.
+        """
         try:
             # Launch a new monitoring.py in the background
             monitoring_dir = str(script_dir / "monitoring.py")
@@ -213,11 +262,21 @@ def create_app():
         except Exception as e:
             app.logger.exception("Failed to restart API")
             return jsonify(status="error", message="An internal error has occurred."), 500
-    # ----------------------------------------------------------------------------- 
+
+    # ----------------------------------------------------------------------- #
+    # GET Routes
+    # ----------------------------------------------------------------------- #
     @app.route("/api")
     @app.route("/api/")
     def api_index():
+        """
+        List all available API endpoints with absolute URLs.
+
+        Returns:
+            flask.Response: JSON index of endpoint URIs.
+        """
         return jsonify({
+            "dashboard":       url_for("dashboard",           _external=True),
             "update":          url_for("api_update_info",     _external=True),
             "update/changelog":url_for("api_update_changelog",_external=True),
             "script_uptime":   url_for("api_script_uptime",   _external=True),
@@ -226,19 +285,88 @@ def create_app():
             "status":          url_for("api_status",          _external=True),
             "config":          url_for("api_config",          _external=True),
         })
+
+    # ----------------------------------------------------------------------- #
+    @app.route("/api/update")
+    def api_update_info():
+        """
+        Return the current and latest available Fake Viewport versions.
+
+        Returns:
+            flask.Response: ``{"current": "...", "latest": "..."}`` or error.
+        """
+        try:
+            return jsonify(status="ok", data={
+                "current": update.current_version(),
+                "latest":  update.latest_version(),
+            })
+        except Exception as e:
+            app.logger.exception("version check failed")
+            return jsonify(status="error", message="An internal error has occurred."), 500
+
+    # ----------------------------------------------------------------------- #
+    @app.route("/api/update/changelog")
+    def api_update_changelog():
+        """
+        Fetch the latest release notes and GitHub release URL.
+
+        Returns:
+            flask.Response: JSON with ``changelog`` and ``release_url`` keys.
+        """
+        try:
+            changelog = update.latest_changelog()
+            # You can point directly at the “latest” redirect, or use a tag-specific URL:
+            release_url = f"https://github.com/{update.REPO}/releases/latest"
+            return jsonify(
+                status="ok",
+                data={
+                    "changelog": changelog,
+                    "release_url": release_url,
+                }
+            )
+        except Exception as e:
+            app.logger.exception("changelog fetch failed")
+            return jsonify(status="error", message="An internal error has occurred."), 500
+
+    # ----------------------------------------------------------------------- #
     @app.route("/api/script_uptime")
     def api_script_uptime():
+        """
+        Report script-level uptime.
+
+        Always returns 200 OK with a stable JSON schema:
+            {
+                "status": "ok",
+                "data":   { "running": true,  "uptime": 123.45 }
+            }
+            {
+                "status": "ok",
+                "data":   { "running": false, "uptime": null  }
+            }
+        """
         raw = _read_api_file(sst_file)
         if raw is None:
-            return jsonify(status="error", message="SST file not found"), 404
+            return jsonify(status="ok",
+                        data={"running": False, "uptime": None})
         try:
             start = datetime.strptime(raw, "%Y-%m-%d %H:%M:%S.%f")
-            uptime = (datetime.now() - start).total_seconds()
-            return jsonify(status="ok", data={"script_uptime": uptime})
         except ValueError:
-            return jsonify(status="error", message="Malformed SST timestamp"), 400
+            # Treat malformed timestamp as "not running"
+            return jsonify(status="ok",
+                        data={"running": False, "uptime": None})
+        uptime = (datetime.now() - start).total_seconds()
+        return jsonify(status="ok",
+                    data={"running": True, "uptime": uptime})
+
+    # ----------------------------------------------------------------------- #
     @app.route("/api/system_info")
     def api_system_info():
+        """
+        Return system metrics - OS, CPU, RAM, disk, and network stats.
+
+        Returns:
+            flask.Response: JSON payload on success or error message.
+        """
         global last_net_io, last_check_time, unwanted
         try:
             # Get OS info
@@ -333,31 +461,87 @@ def create_app():
                 status="error",
                 message="An internal error occurred while fetching system information."
             ), 500
+
+    # ----------------------------------------------------------------------- #
     @app.route("/api/log")
     @app.route("/api/logs")
-    def api_logs():
-        # grab optional ?limit=... (default 100)
+    def api_logs() -> "flask.Response":
+        """
+        Tail the most recent log lines, spanning rotated files if needed.
+        ?limit=N   Number of lines to return (1-1000). Default 100.
+
+        Response schema
+        ---------------
+            {
+                "status": "ok",
+                "data": { "logs": [ "<line>", ... ] }
+            }
+        """
         try:
             limit = int(request.args.get("limit", 100))
         except ValueError:
             limit = 100
-        try:
-            # tail the file
-            with open(log_file, 'r') as f:
-                last_lines = deque(f, maxlen=limit)
-            # return as an array of strings
-            return jsonify(status="ok", data={"logs": list(last_lines)})
-        except Exception as e:
-            app.logger.exception("Failed reading logs")
-            return jsonify(status="error", message="An internal error occurred while reading logs"), 500
+        limit = max(1, min(limit, LOG_HARD_CAP))
+
+        log_path  = Path(log_file).resolve()        # e.g. viewport.log
+        log_dir   = log_path.parent
+        base_name = log_path.name                   #   "viewport.log"
+
+        # TimedRotatingFileHandler names rotated files like
+        #   viewport.log.2025-06-05
+        rotated = sorted(
+            (p for p in log_dir.glob(f"{base_name}.*") if p.is_file()),
+            key=lambda p: p.stat().st_mtime,        # newest first
+            reverse=True
+        )
+
+        # Always examine current log first, then yesterday, then older …
+        candidates = [log_path] + rotated
+
+        remaining = limit
+        tail = deque(maxlen=limit)                  # keeps newest lines in order
+
+        for path in candidates:
+            try:
+                # Read only what we still need from *this* file
+                chunk = deque(maxlen=remaining)
+                with path.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        chunk.append(line.rstrip("\n"))
+                # Prepend so chronology is preserved when we move to older logs
+                tail.extendleft(reversed(chunk))
+                remaining = limit - len(tail)
+                if remaining == 0:                  # got everything we asked for
+                    break
+            except Exception:
+                app.logger.warning("Could not read %s", path, exc_info=True)
+
+        return jsonify(status="ok", data={"logs": list(tail)})
+
+    # ----------------------------------------------------------------------- #
     @app.route("/api/status")
     def api_status():
+        """
+        Return the one-line status message written by *viewport.py*.
+
+        Returns:
+            flask.Response: JSON ``{"status": "..."}`` or error.
+        """
         line = _read_api_file(status_file)
         if line is None:
-            return jsonify(status="error", message="Status file not found"), 404
+            return jsonify(status="ok", data={"status": None})
         return jsonify(status="ok", data={"status": line})    
+
+    # ----------------------------------------------------------------------- #
     @app.route("/api/config")
     def api_config():
+        """
+        Return the merged configuration currently in effect.
+
+        Returns:
+            flask.Response: JSON grouping general, browser, and logging
+            settings, plus restart scheduling details.
+        """
         try:
             # Re-parse config on each call
             cfg = validate_config(strict=False, print=False)
@@ -414,10 +598,18 @@ def create_app():
             
     return app
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Run server when invoked directly
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 def main():
+    """
+    Entry point for launching the monitoring API.
+
+    * Re-validates configuration when running under pytest.
+    * Ensures no duplicate ``monitoring.py`` process is active
+        (gracefully terminates one if found).
+    * Logs the bind address and starts the Flask development server.
+    """
     if "pytest" in sys.modules:
         cfg = validate_config()
         for name, val in vars(cfg).items():

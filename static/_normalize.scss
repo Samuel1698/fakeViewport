@@ -6,6 +6,10 @@ html {
 }
 body {
   margin: 0;
+  font-size: 0;
+  & > * {
+    font-size: initial;
+  }
 }
 main {
   display: block;
@@ -152,7 +156,7 @@ template {
   display: none;
 }
 [hidden] {
-  display: none !important;
+  display: none;
 }
 input::-webkit-inner-spin-button,
 input::-webkit-outer-spin-button {

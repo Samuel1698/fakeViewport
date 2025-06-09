@@ -1,0 +1,79 @@
+@use '_variables' as *;
+@use "sass:map";
+@use 'sass:color';
+// --------------------------------------------------
+// Base Styles
+// --------------------------------------------------
+html {
+  transition: background-color $transition-speed, color $transition-speed;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+body {
+  min-width: 320px;
+  margin-top: 5rem;
+  background-color: color("background");
+  color: color("text");
+  transition: background-color $transition-speed, color $transition-speed;
+}
+@font-face {
+  font-family: "UI Sans";
+  src: url("../static/UI_Sans.woff2") format("woff2");
+  font-weight: normal;
+  font-display: fallback;
+}
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: "UI Sans", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+img:focus-visible {
+  margin: -2px;
+  padding: 2px;
+  outline: 5px auto -webkit-focus-ring-color;
+  outline: 5px auto Highlight;
+  outline: 5px auto color("red");
+}
+/* prettier-ignore */
+a:focus-visible, div:focus-visible, section:focus-visible, li:focus-visible, input:focus-visible, [type="button"]:focus-visible, [type="reset"]:focus-visible, [type="submit"]:focus-visible, button:focus-visible {
+  position: relative;
+  outline: none;
+  &::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    outline: 5px auto -webkit-focus-ring-color;
+    outline: 5px auto Highlight;
+    outline: 5px auto color("red");
+    z-index: 9999;
+  }
+}
+button {
+  border: none;
+}
+.Green {
+  color: color("green");
+}
+.Red {
+  color: color("red");
+}
+.Blue {
+  color: color("blue");
+}
+.Yellow {
+  color: color("yellow");
+}
+.up {
+  color: color("up");
+  fill: color("up");
+}
+.down {
+  color: color("down");
+  fill: color("down");
+}

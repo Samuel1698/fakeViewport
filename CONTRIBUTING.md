@@ -14,7 +14,7 @@ Thank you for considering contributing to this project! All contributions (bug r
 ## Code Style
 
 - Follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) style guidelines
-- Document new functions with comments (I tend to avoid Docstrings, but you may use them if it's your preference)
+- Use DOCSTRINGS on any new tests/functions
 
 ## Commit Messages
 
@@ -41,4 +41,9 @@ Thank you for considering contributing to this project! All contributions (bug r
    ```
 
 3. Run `pytest` locally before submitting a pull request
-4. Check the code coverage with: `pytest --cov --cov-branch --cov-report=term-missing`
+
+4. Check the code coverage
+
+```shell
+pytest --cov --cov-branch --cov-report=term-missing
+```

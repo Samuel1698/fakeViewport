@@ -6,9 +6,10 @@ from datetime import time as timecls
 import pytest
 import monitoring
 from monitoring import create_app
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Helper to build an app/client
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.fixture(autouse=True)
 def patch_validate_config(monkeypatch, tmp_path):
     # Replace monitoring.validate_config(...) with one
@@ -82,9 +83,10 @@ def client(tmp_path, monkeypatch):
     client = app.test_client()
     client._read_api_file = app._read_api_file
     return client
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Helper to build an app/client with SECRET in the environment
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def _make_auth_client(tmp_path, monkeypatch):
     monkeypatch.setenv("SECRET", "shh")
     monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
@@ -102,9 +104,10 @@ def _make_auth_client(tmp_path, monkeypatch):
     app = create_app()
     app.testing = True
     return app.test_client()
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Helper to build an app/client with NO SECRET in the environment
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def no_secret_client(tmp_path, monkeypatch):
     monkeypatch.delenv("SECRET", raising=False)
     monkeypatch.setattr(monitoring, "configure_logging", lambda *a, **k: None)
@@ -115,9 +118,10 @@ def no_secret_client(tmp_path, monkeypatch):
     app = create_app()
     app.testing = True
     return app.test_client()
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Control endpoint (/api/control/<action>)
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(
     "action, expected_message",
     [
@@ -154,7 +158,7 @@ def test_control_requires_login_for_all_actions(tmp_path, monkeypatch, action):
     resp = client_app.post(f"/api/control/{action}", follow_redirects=False)
     assert resp.status_code == 302
     assert f"/login?next=/api/control/{action}" in resp.headers["Location"]
-    
+
 @pytest.mark.parametrize("exc_msg", ["boom", "kaboom"])
 def test_api_control_dispatch_failure(client, monkeypatch, exc_msg):
     client_app = client
@@ -167,16 +171,17 @@ def test_api_control_dispatch_failure(client, monkeypatch, exc_msg):
     data = resp.get_json()
     assert data["status"] == "error"
     assert exc_msg not in data["message"]
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # /api/self/restart
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_api_restart_success(monkeypatch, client):
     recorded = {}
 
     # Patch subprocess.Popen so it does not spawn a real process
     class DummyPopen:
         def __init__(self, args, cwd=None, stdin=None, stdout=None, stderr=None,
-                     close_fds=None, start_new_session=None):
+                    close_fds=None, start_new_session=None):
             recorded["popen_args"] = args
             recorded["popen_cwd"] = cwd
             recorded["popen_kwargs"] = {
@@ -219,9 +224,10 @@ def test_api_restart_fails_when_popen_raises(monkeypatch, client):
     payload = resp.get_json()
     assert payload["status"] == "error"
     assert "An internal error has occurred." in payload["message"]
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # CORS headers & Read API File
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("route", [
     # Base API endpoint
     "/api",
@@ -233,7 +239,7 @@ def test_cors_headers_for_api_routes(client, route):
     resp = client_app.get(route)
     # Flask-CORS should inject this header
     assert resp.headers.get("Access-Control-Allow-Origin") == "*"
-    
+
 def test_read_api_file_success(client, tmp_path):
     test_file = tmp_path / "api" / "test.txt"  # Using the api subdir
     test_file.write_text("success content")
@@ -258,9 +264,10 @@ def test_read_api_file_read_error(client, tmp_path):
             assert result is None
             mock_logger.assert_called_once()
             assert "Simulated read error" in mock_logger.call_args[0][0]
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Trailing-slash alias for /api index
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("path", [
     # Without trailing slash
     "/api",
@@ -275,17 +282,17 @@ def test_api_index_trailing_slash_alias(client, path):
     assert resp_alias.status_code == resp_base.status_code
     assert resp_alias.get_json()    == resp_base.get_json()
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Generic 404 for unknown API path
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_unknown_api_path_returns_404(client):
     client_app = client
     resp = client_app.get("/api/nonexistent")
     assert resp.status_code == 404
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # API directory is created by the fixture
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_api_directory_created_by_fixture(client, tmp_path, monkeypatch):
     # point monitoring.script_dir at a tmp dir
     monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
@@ -296,9 +303,9 @@ def test_api_directory_created_by_fixture(client, tmp_path, monkeypatch):
 
     assert api_dir.exists() and api_dir.is_dir()
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Authentication flows when SECRET is set
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_dashboard_requires_login(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
     # Unauthenticated GET "/" → redirect to login
@@ -324,6 +331,7 @@ def test_login_post_wrong_key_flashes_error(tmp_path, monkeypatch):
         flashes = sess.get("_flashes", [])
     # flashes is a list of (category, message) tuples
     assert ("danger", "Invalid API key") in flashes
+
 def test_login_post_with_secret_and_unsafe_next_redirects_dashboard(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
     
@@ -333,7 +341,8 @@ def test_login_post_with_secret_and_unsafe_next_redirects_dashboard(tmp_path, mo
         follow_redirects=False
     )
     assert resp.status_code == 302
-    assert resp.headers["Location"] == "/"
+    assert resp.headers["Location"] == "/dashboard"
+
 def test_login_post_correct_key_redirects(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
     # POST good key → redirect to next ("/")
@@ -344,18 +353,63 @@ def test_login_post_correct_key_redirects(tmp_path, monkeypatch):
 def test_logout_clears_session_and_redirects(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
     # /logout should always 302 → /login
-    resp = client_app.get("/logout", follow_redirects=False)
+    resp = client_app.post("/logout", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["Location"].endswith("/login")
-# ----------------------------------------------------------------------------- 
+
+def test_login_redirects_to_safe_referrer(tmp_path, monkeypatch):
+    client_app = _make_auth_client(tmp_path, monkeypatch)
+    # Test with a safe referrer that matches allowed paths
+    safe_paths = [
+        "/dashboard",
+        "/logout",
+        "/api/"
+    ]
+    for path in safe_paths:
+        referrer = f"//localhost{path}"
+        resp = client_app.post(
+            "/login",
+            data={"key": "shh"},
+            headers={"Referer": referrer},
+            follow_redirects=False
+        )
+        assert resp.status_code == 302
+        assert resp.headers["Location"] == path  # Should redirect to exact safe path
+
+def test_login_ignores_unsafe_referrer(tmp_path, monkeypatch):
+    client_app = _make_auth_client(tmp_path, monkeypatch)
+
+    # Case 1: External domain
+    headers = {"Referer": "http://evil.com/steal"}
+    resp = client_app.post(
+        "/login",
+        data={"key": "shh"},
+        headers=headers,
+        follow_redirects=False
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/dashboard"
+    
+    # Case 2: Same domain but invalid path
+    headers = {"Referer": "//localhost/invalid_path"}
+    resp = client_app.post(
+        "/login",
+        data={"key": "shh"},
+        headers=headers,
+        follow_redirects=False
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/dashboard"
+
+# --------------------------------------------------------------------------- #
 # LOGIN SKIP WHEN NO SECRET
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_login_redirects_to_dashboard_if_no_secret(tmp_path, monkeypatch):
     # When SECRET is not set, /login should skip auth and redirect straight to dashboard (/).
     client_app = no_secret_client(tmp_path, monkeypatch)
     resp = client_app.get("/login", follow_redirects=False)
     assert resp.status_code == 302
-    assert resp.headers["Location"].endswith("/")
+    assert resp.headers["Location"].endswith("/dashboard")
 
 @pytest.mark.parametrize("action,expected_msg", [
     ("start",   "Start command issued"),
@@ -372,9 +426,10 @@ def test_control_endpoints_allowed_without_login(tmp_path, monkeypatch, action, 
     data = resp.get_json()
     assert data["status"]  == "ok"
     assert data["message"] == expected_msg
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Index
-# -----------------------------------------------------------------------------   
+# --------------------------------------------------------------------------- #
 def test_dashboard_renders_index(tmp_path, monkeypatch):
     # No SECRET means login is skipped and dashboard is public
     monkeypatch.delenv("SECRET", raising=False)

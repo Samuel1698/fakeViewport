@@ -4,9 +4,9 @@ from selenium.common.exceptions import TimeoutException
 import viewport
 from unittest.mock import MagicMock, patch
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 # Tests for handle_loading_issue function
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- # 
 @patch("viewport.WebDriverWait")
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.log_error")
@@ -81,8 +81,10 @@ def test_handle_loading_issue_inspection_error_raises(mock_sleep, mock_log_error
     # And the original exception should bubble out
     assert "boom" in str(excinfo.value)
 
+# --------------------------------------------------------------------------- # 
 # Case: loading persists → refresh → handle_page returns False
 # Should hit the "Unexpected page loaded after refresh..." branch
+# --------------------------------------------------------------------------- # 
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.api_status")
 @patch("viewport.log_error")
@@ -128,8 +130,10 @@ def test_handle_loading_issue_refresh_then_handle_page_fails(
     # And we waited SLEEP_TIME afterward
     mock_sleep.assert_any_call(viewport.SLEEP_TIME)
 
+# --------------------------------------------------------------------------- # 
 # Case: loading appears then clears immediately → reset timer branch
 # Should never refresh or log anything
+# --------------------------------------------------------------------------- # 
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.log_error")
 @patch("viewport.api_status")

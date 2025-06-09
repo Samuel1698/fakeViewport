@@ -6,6 +6,9 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import viewport
 
+# --------------------------------------------------------------------------- #
+# Helpers and Fixtures
+# --------------------------------------------------------------------------- #
 class DummyDriver:
     def __init__(self):
         self.quit = MagicMock()
@@ -32,9 +35,10 @@ def patch_args_and_api(monkeypatch):
     monkeypatch.setattr(viewport, "args_child_handler", lambda args, drop_flags: ["--child"])
     # Spy on api_status
     monkeypatch.setattr(viewport, "api_status", MagicMock())
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Tests for restart_handler
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("initial_argv, driver_present, expected_flags", [
     # No flags          ⇒ no extra flags
     (["viewport.py"],                         False, []),
@@ -93,9 +97,10 @@ def test_restart_handler(
 
     # Assert: parent exits with code 0
     mock_exit.assert_called_once_with(0)
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Error‐flow: make subprocess.Popen throw ⇒ log_error, api_status, clear_sst, sys.exit(1)
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @patch("viewport.api_status")
 @patch("viewport.time.sleep", return_value=None)
 @patch("viewport.args_child_handler", side_effect=RuntimeError("boom"))
@@ -138,8 +143,8 @@ def test_restart_handler_exception(
     mock_popen.assert_not_called()
 
 def test_restart_handler_exec_replace_failure(monkeypatch,
-                                              patch_time_and_paths,
-                                              patch_args_and_api):
+                                            patch_time_and_paths,
+                                            patch_args_and_api):
     # Simulate interactive terminal
     monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
 

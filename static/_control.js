@@ -1,4 +1,5 @@
-import { loadInfo } from "./_info.js";
+import { stopLogsAutoRefresh, startLogsAutoRefresh } from "./_logs.js";
+import { isDesktopView } from "./_sections.js";
 
 // send control and update inline message
 export async function control(action) {
@@ -22,15 +23,21 @@ export async function control(action) {
         el.classList.add("Red");
       });
     }
-    await loadInfo();
-    // reset the message after 15 seconds
+    if (isDesktopView() && action != "quit"){
+      stopLogsAutoRefresh();
+      startLogsAutoRefresh(1_000);
+    }
+    // reset the message after 5 seconds
     setTimeout(() => {
       msgEls.forEach((el) => {
         el.textContent = "";
         el.classList.remove("Green", "Red");
+        if (isDesktopView() && action != "quit") {
+          stopLogsAutoRefresh();
+          startLogsAutoRefresh();
+        }
       });
-    }, 5_000);
-    setTimeout(loadInfo, 5_000);
+    }, 15_000);
   } catch (e) {
     msgEls.forEach((el) => {
       el.textContent = "✗ " + e;

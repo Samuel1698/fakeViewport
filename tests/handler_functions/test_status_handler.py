@@ -3,9 +3,10 @@ import viewport
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Helper function and fixture
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.fixture(autouse=True)
 def isolate_all_files(tmp_path, monkeypatch):
     fake_sst    = tmp_path / "sst.txt"
@@ -30,9 +31,10 @@ def default_status_env(monkeypatch):
     monkeypatch.setattr(viewport, "LOG_INTERVAL",    5,               raising=False)
     monkeypatch.setattr(viewport, "RESTART_TIMES",   [],              raising=False)
     yield
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Test for Status Handler
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(
     "sst_exists, status_exists, log_content, process_names, expected_error, expected_output_snippets",
     [
@@ -215,9 +217,10 @@ def test_status_handler_param(
     # we look for the pattern: <COLOR><stripped_status><NC>
     stripped = status_text.strip()
     assert f"{expected_status_color}{stripped}{viewport.NC}" in out
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Errors
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @patch("viewport.time.time", return_value=0)
 @patch("viewport.get_next_interval", return_value=5)
 @patch("viewport.psutil.virtual_memory", return_value=MagicMock(total=1024**3))
@@ -284,9 +287,10 @@ def test_status_handler_catches_generic_exception(
     assert msg == "Error while checking status: "
     assert isinstance(exc, RuntimeError)
     assert str(exc) == "boom"
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Label colors
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @patch("viewport.time.time", return_value=0)
 @patch("viewport.get_next_interval", return_value=10)
 @patch("viewport.psutil.virtual_memory", return_value=MagicMock(total=1024**3))

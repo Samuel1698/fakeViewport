@@ -1,12 +1,12 @@
 import pytest
 from datetime import datetime as real_datetime, time as timecls, timedelta
 from pathlib import Path
-import psutil, builtins, subprocess, io
+import psutil, builtins, subprocess, io, os, time
 import monitoring
 from types import SimpleNamespace
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # Fake out datetime.now() for determinism
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 class DummyDateTime:
     _fixed_now = real_datetime(2023, 1, 1, 12, 0, 0)
     
@@ -46,9 +46,10 @@ def test_dummy_datetime_now():
     
     import monitoring
     assert monitoring.datetime.now() == test_time
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # Helper to build a client with a given RESTART_TIMES string
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 @pytest.fixture
 def client(tmp_path, monkeypatch, restart_times):
     # stub out the shared validate_config(...) to return exactly what we need
@@ -97,14 +98,16 @@ def client(tmp_path, monkeypatch, restart_times):
     app = monitoring.create_app()
     app.testing = True
     return app.test_client()
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # /api index
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_api_index_links(client):
     resp = client.get('/api')
     assert resp.status_code == 200
     data = resp.get_json()
     expected = {
+        'dashboard',
         'update',
         'update/changelog',
         'script_uptime',
@@ -115,61 +118,82 @@ def test_api_index_links(client):
     }
     assert set(data.keys()) == expected
     for key, url in data.items():
-        assert url.endswith(f'/api/{key}')
+        if key == 'dashboard':
+            assert url.endswith('/dashboard')
+        else:
+            assert url.endswith(f'/api/{key}')
 
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # /api/script_uptime
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_script_uptime_missing(client):
-    resp = client.get('/api/script_uptime')
-    assert resp.status_code == 404
+    resp = client.get("/api/script_uptime")
+    assert resp.status_code == 200
+
     obj = resp.get_json()
-    assert obj['status'] == 'error'
-    assert 'SST file not found' in obj['message']
+    assert obj["status"] == "ok"
+    assert obj["data"]["running"] is False
+    assert obj["data"]["uptime"] is None
 
 def test_script_uptime_malformed(client, tmp_path, monkeypatch):
     # point monitoring.script_dir at a tmp dir
-    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+    monkeypatch.setattr(monitoring, "script_dir", tmp_path)
 
-    # compute the api_dir exactly like the app does
-    api_dir: Path = monitoring.script_dir / 'api'
+    # replicate the layout the app expects
+    api_dir: Path = monitoring.script_dir / "api"
     api_dir.mkdir(parents=True, exist_ok=True)
 
-    (api_dir / 'sst.txt').write_text('not a timestamp')
-    resp = client.get('/api/script_uptime')
-    assert resp.status_code == 400
+    # write garbage into sst.txt
+    (api_dir / "sst.txt").write_text("not a timestamp")
+
+    resp = client.get("/api/script_uptime")
+    assert resp.status_code == 200
+
     obj = resp.get_json()
-    assert obj['status'] == 'error'
-    assert 'Malformed SST timestamp' in obj['message']
+    assert obj["status"] == "ok"
+    assert obj["data"]["running"] is False
+    assert obj["data"]["uptime"] is None
 
 def test_script_uptime_ok(client, tmp_path, monkeypatch):
     # point monitoring.script_dir at a tmp dir
-    monkeypatch.setattr(monitoring, 'script_dir', tmp_path)
+    monkeypatch.setattr(monitoring, "script_dir", tmp_path)
 
-    # compute the api_dir exactly like the app does
-    api_dir: Path = monitoring.script_dir / 'api'
+    api_dir: Path = monitoring.script_dir / "api"
     api_dir.mkdir(parents=True, exist_ok=True)
 
+    # freeze time so uptime is deterministic
     import datetime as real_dt
-    fixed = real_dt.datetime(2025, 4, 28, 12, 0, 10)
+
+    fixed_now = real_dt.datetime(2025, 4, 28, 12, 0, 10)
+
     class DummyDT:
         @classmethod
-        def now(cls): return fixed
+        def now(cls):
+            return fixed_now
+
         @staticmethod
-        def strptime(s, fmt): return real_dt.datetime.strptime(s, fmt)
-    monkeypatch.setattr(monitoring, 'datetime', DummyDT)
+        def strptime(s, fmt):
+            return real_dt.datetime.strptime(s, fmt)
 
-    ts = (fixed - real_dt.timedelta(seconds=10)).strftime('%Y-%m-%d %H:%M:%S.%f')
-    (api_dir / 'sst.txt').write_text(ts)
+    monkeypatch.setattr(monitoring, "datetime", DummyDT)
 
-    resp = client.get('/api/script_uptime')
+    # write a timestamp 10 s earlier than 'now'
+    ts = (fixed_now - real_dt.timedelta(seconds=10)).strftime(
+        "%Y-%m-%d %H:%M:%S.%f"
+    )
+    (api_dir / "sst.txt").write_text(ts)
+
+    resp = client.get("/api/script_uptime")
     assert resp.status_code == 200
+
     obj = resp.get_json()
-    assert obj['status'] == 'ok'
-    assert pytest.approx(obj['data']['script_uptime'], rel=1e-3) == 10
-# ----------------------------------------------------------------------------- 
+    assert obj["status"] == "ok"
+    assert obj["data"]["running"] is True
+    # numeric comparison with small relative tolerance
+    assert pytest.approx(obj["data"]["uptime"], rel=1e-3) == 10
+# --------------------------------------------------------------------------- #
 # /api/system_info
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_api_system_info_ok(client, monkeypatch):
     # Mock the network statistics
     class LastNetIO:
@@ -446,9 +470,10 @@ def test_api_system_info_error(client, monkeypatch):
     payload = resp.get_json()
     assert payload["status"] == "error"
     assert "An internal error occurred while fetching system information." in payload["message"]
-# ----------------------------------------------------------------------------- 
+
+# --------------------------------------------------------------------------- #
 # /api/logs?limit
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_default_limit_returns_100_lines(client, tmp_path, monkeypatch):
     client_app = client
     # point script_dir at tmp
@@ -473,8 +498,8 @@ def test_default_limit_returns_100_lines(client, tmp_path, monkeypatch):
     assert isinstance(logs, list)
     # last 100 of the 150
     assert len(logs) == 100
-    assert logs[0] == "entry 50\n"
-    assert logs[-1] == "entry 149\n"
+    assert logs[0] == "entry 50"
+    assert logs[-1] == "entry 149"
 
 @pytest.mark.parametrize("limit,expected_start", [
     (10, 140),
@@ -498,8 +523,8 @@ def test_custom_limit(client, limit, expected_start, tmp_path, monkeypatch):
 
     count = min(limit, 150)
     assert len(logs) == count
-    assert logs[0] == f"row {150 - count}\n"
-    assert logs[-1] == "row 149\n"
+    assert logs[0] == f"row {150 - count}"
+    assert logs[-1] == "row 149"
 
 def test_invalid_limit_falls_back_to_default(client, tmp_path, monkeypatch):
     client_app = client
@@ -519,8 +544,8 @@ def test_invalid_limit_falls_back_to_default(client, tmp_path, monkeypatch):
     logs = resp.get_json()["data"]["logs"]
 
     assert len(logs) == 100
-    assert logs[0] == "x20\n"   # 120 - 100 = 20
-    assert logs[-1] == "x119\n"
+    assert logs[0] == "x20"   # 120 - 100 = 20
+    assert logs[-1] == "x119"
 
 def test_missing_file_returns_500(client, tmp_path, monkeypatch):
     client_app = client
@@ -531,22 +556,70 @@ def test_missing_file_returns_500(client, tmp_path, monkeypatch):
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     resp = client_app.get("/api/logs")
-    assert resp.status_code == 500
-
+    assert resp.status_code == 200
     body = resp.get_json()
-    assert body["status"] == "error"
-    # should mention the missing file
-    assert "An internal error occurred while reading logs" in body["message"]
+    assert body["status"] == "ok"
+    assert body["data"]["logs"] == []          # no log files available
 
-# ----------------------------------------------------------------------------- 
+def test_logs_limit_clamped_to_available(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(monitoring, "script_dir", tmp_path)
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    (logs_dir / "viewport.log").write_text("\n".join(f"L{i}" for i in range(240)))
+
+    resp = client.get("/api/logs?limit=1000")
+    assert resp.status_code == 200
+    logs = resp.get_json()["data"]["logs"]
+    assert len(logs) == 240
+    assert logs[0] == "L0"
+    assert logs[-1] == "L239"
+
+def test_logs_merge_two_files(client, tmp_path, monkeypatch):
+    """
+    The endpoint should:
+        • read today's viewport.log first,
+        • then pull additional lines from the newest rotated file,
+        • return the last <limit> lines in correct chronological order.
+    """
+    monkeypatch.setattr(monitoring, "script_dir", tmp_path)
+
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    current = logs_dir / "viewport.log"       # today
+    rotated = logs_dir / "viewport.log.1"     # yesterday (or any suffix)
+
+    # 100 'old' lines in the rotated file
+    old_lines = [f"old {i}" for i in range(100)]
+    rotated.write_text("\n".join(old_lines) + "\n")
+    # ensure its mtime is older than the current log’s
+    os.utime(rotated, (time.time() - 86_400,)*2)
+
+    # 50 'new' lines in the current log
+    new_lines = [f"new {i}" for i in range(50)]
+    current.write_text("\n".join(new_lines) + "\n")
+
+    resp = client.get("/api/logs?limit=120")     # want more than 100 but < 150
+    assert resp.status_code == 200
+    logs = resp.get_json()["data"]["logs"]
+
+    assert len(logs) == 120                      # got as many as requested
+    # First 70 come from old file (100-30 ... 99)
+    assert logs[0]  == "old 30"
+    assert logs[69] == "old 99"
+    # Remaining 50 come from new file (0 ... 49)
+    assert logs[70] == "new 0"
+    assert logs[-1] == "new 49"
+# --------------------------------------------------------------------------- #
 # /api/status
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_status_missing(client):
-    resp = client.get('/api/status')
-    assert resp.status_code == 404
+    resp = client.get("/api/status")
+    assert resp.status_code == 200
+
     obj = resp.get_json()
-    assert obj['status'] == 'error'
-    assert 'Status file not found' in obj['message']
+    assert obj["status"] == "ok"
+    assert obj["data"]["status"] is None
 
 def test_status_ok(client, tmp_path, monkeypatch):
     # point monitoring.script_dir at a tmp dir
@@ -563,9 +636,9 @@ def test_status_ok(client, tmp_path, monkeypatch):
     assert obj['status'] == 'ok'
     assert obj['data']['status'] == 'All Good'
     
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 # /api/config
-# ----------------------------------------------------------------------------- 
+# --------------------------------------------------------------------------- #
 def test_api_config_no_restart(client, monkeypatch):
     # When RESTART_TIMES is an empty list, /api/config should return
     # restart_times = None and next_restart = None.

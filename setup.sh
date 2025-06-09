@@ -18,7 +18,7 @@ ss_mv_if_not_exists() {
     command test ! -e "$2" && command mv "$1" "$2"
 }
 # ----------------------------------------------------------------------------- 
-# 1. Verify Python 3 is installed
+# Verify Python 3 is installed
 # ----------------------------------------------------------------------------- 
 if ! command -v python3 &> /dev/null; then
     echo -e "${RED}Python 3 not found! Installing...${NC}"
@@ -28,7 +28,7 @@ else
 fi
 
 # ----------------------------------------------------------------------------- 
-# 2. Verify python3-venv is available
+# Verify python3-venv is available
 # ----------------------------------------------------------------------------- 
 sleep 0.25
 if ! python3 -c "import ensurepip; import venv" &> /dev/null; then
@@ -39,7 +39,7 @@ else
 fi
 
 # ----------------------------------------------------------------------------- 
-# 3. Create virtual environment (if doesn't exist)
+# Create virtual environment (if doesn't exist)
 # ----------------------------------------------------------------------------- 
 sleep 0.25
 VENV_DIR="venv"
@@ -51,7 +51,7 @@ else
     echo -e "${GREEN}✓ Virtual environment already exists${NC}"
 fi
 # ----------------------------------------------------------------------------- 
-# 4. Install requirements
+# Install requirements
 # ----------------------------------------------------------------------------- 
 if [ "$1" == "dev" ]; then
     echo -e "\n${YELLOW}Development mode enabled. Using dev_requirements.txt.${NC}"
@@ -100,7 +100,7 @@ else
     exit 1
 fi
 # ----------------------------------------------------------------------------- 
-# 5. Verify Google Chrome, Chromium, or Firefox
+# Verify Google Chrome, Chromium, or Firefox
 # ----------------------------------------------------------------------------- 
 any_browser_installed=false
 if command -v google-chrome-stable &> /dev/null; then
@@ -125,7 +125,7 @@ if [ "$any_browser_installed" = false ]; then
     echo -e "${CYAN}    sudo apt install -y firefox${NC}"
 fi
 # ----------------------------------------------------------------------------- 
-# 6: Rename .env.example to .env
+# Rename .env.example to .env
 # ----------------------------------------------------------------------------- 
 sleep 0.5
 if [ -f ".env.example" ]; then
@@ -148,7 +148,7 @@ elif [ ! -f ".env" ]; then
     exit 1
 fi
 # ----------------------------------------------------------------------------- 
-# 7: Rename config.ini.example to config.ini
+# Rename config.ini.example to config.ini
 # ----------------------------------------------------------------------------- 
 sleep 0.5
 if [ -f "config.ini.example" ]; then
@@ -168,27 +168,27 @@ elif [ ! -f "config.ini" ]; then
     exit 1
 fi
 # ----------------------------------------------------------------------------- 
-# 8: Create Desktop Shortcut
+# Create Desktop Shortcut
 # ----------------------------------------------------------------------------- 
 sleep 0.5
 if [[ -d "$HOME/Desktop" ]]; then
-  SHORTCUT_DIR="$HOME/Desktop"
-  SHORTCUT_PATH="$SHORTCUT_DIR/Viewport.desktop"
+    SHORTCUT_DIR="$HOME/Desktop"
+    SHORTCUT_PATH="$SHORTCUT_DIR/Viewport.desktop"
 else
 echo -e "${RED}No desktop directory found; skipping shortcut creation.${NC}"
 fi
 OVERRIDE_SHORTCUT=false
 for arg in "$@"; do
-  case "$arg" in
+    case "$arg" in
     -s|--shortcut)
-      OVERRIDE_SHORTCUT=true
-      shift
-      ;;
-  esac
+        OVERRIDE_SHORTCUT=true
+        shift
+        ;;
+    esac
 done
 # helper to create the file
 _create_shortcut() {
-  cat > "$SHORTCUT_PATH" <<EOL
+    cat > "$SHORTCUT_PATH" <<EOL
 [Desktop Entry]
 Version=1.0
 Name=Viewport
@@ -199,33 +199,33 @@ Terminal=false
 Type=Application
 Categories=Utility;
 EOL
-  chmod +x "$SHORTCUT_PATH"
-  echo -e "${GREEN}✓ Desktop shortcut created at $SHORTCUT_PATH${NC}"
+    chmod +x "$SHORTCUT_PATH"
+    echo -e "${GREEN}✓ Desktop shortcut created at $SHORTCUT_PATH${NC}"
 }
 if [[ -e "$SHORTCUT_PATH" ]]; then
-  if $OVERRIDE_SHORTCUT; then
-    echo -e "\n${YELLOW}Shortcut already exists at $SHORTCUT_PATH, overwriting...${NC}"
-    _create_shortcut
-  else
-    echo -e "${GREEN}✓ Desktop Shortcut already exists. Skipping...${NC}"
-    echo -e "${GREEN}✓ To override it, run:${NC}${CYAN} ./setup.sh -s${NC}"
-  fi
-elif [[ -e "$SHORTCUT_DIR" ]]; then
-  if $OVERRIDE_SHORTCUT; then
-    echo -e "\n${YELLOW}Creating shortcut without prompt (override flag given)${NC}"
-    _create_shortcut
-  else
-    echo -ne "\n${YELLOW}Would you like to create a desktop shortcut for FakeViewport (y/n)? ${NC}"
-    read -r reply
-    if [[ "$reply" =~ ^[Yy]([Ee][Ss])?$ ]]; then
-      _create_shortcut
+    if $OVERRIDE_SHORTCUT; then
+        echo -e "\n${YELLOW}Shortcut already exists at $SHORTCUT_PATH, overwriting...${NC}"
+        _create_shortcut
     else
-      echo -e "${GREEN}✓ Skipping desktop shortcut creation.${NC}"
+        echo -e "${GREEN}✓ Desktop Shortcut already exists. Skipping...${NC}"
+        echo -e "${GREEN}✓ To override it, run:${NC}${CYAN} ./setup.sh -s${NC}"
     fi
-  fi
+elif [[ -e "$SHORTCUT_DIR" ]]; then
+    if $OVERRIDE_SHORTCUT; then
+        echo -e "\n${YELLOW}Creating shortcut without prompt (override flag given)${NC}"
+        _create_shortcut
+    else
+        echo -ne "\n${YELLOW}Would you like to create a desktop shortcut for FakeViewport (y/n)? ${NC}"
+        read -r reply
+        if [[ "$reply" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+            _create_shortcut
+        else
+            echo -e "${GREEN}✓ Skipping desktop shortcut creation.${NC}"
+        fi
+    fi
 fi
 # ----------------------------------------------------------------------------- 
-# 9: Create an alias for running the script
+# Create an alias for running the script
 # ----------------------------------------------------------------------------- 
 sleep 0.5
 ALIAS_NAME="viewport"
@@ -249,7 +249,7 @@ else
     fi
 fi
 # ----------------------------------------------------------------------------- 
-# 10: Set up a cron job
+# Set up a cron job
 # ----------------------------------------------------------------------------- 
 sleep 0.5
 cron_entry="@reboot sleep 60 && $VENV_PYTHON $SCRIPT_PATH"

@@ -1,7 +1,7 @@
 let lastScriptUptime = null;
-let activeTab = "status";
+export let activeTab = "status";
 import { loadUpdateData } from "./_update.js";
-
+import { colorLogEntry } from "./_logs.js";
 // -----------------------------------------------------------------------------
 // Helper functions
 // -----------------------------------------------------------------------------
@@ -16,7 +16,7 @@ export async function fetchJSON(path) {
 }
 
 // Config cache with refresh capability
-let configCache = {
+export let configCache = {
   data: null,
   lastUpdated: 0,
   ttl: 360_0000, // 1 hour
@@ -292,18 +292,26 @@ function formatSpeed(bytesPerSec) {
 // -----------------------------------------------------------------------------
 // Status-related updates (frequent updates)
 // -----------------------------------------------------------------------------
-export async function loadStatus(forceRefreshConfig = false) {
-  const [sud, st, sysInfo, le] = await Promise.all([
+export async function loadStatus() {
+  const entry = document.getElementById("logEntry");
+  const fetchPromises = [
     fetchJSON("/api/script_uptime"),
     fetchJSON("/api/status"),
     fetchJSON("/api/system_info"),
-    fetchJSON("/api/logs?limit=1"),
-  ]);
+  ];
+
+  // Only fetch logs if element is visible (not display: none)
+  if (entry.offsetParent !== null) {
+    fetchPromises.push(fetchJSON("/api/logs?limit=1"));
+  }
+
+  const [sud, st, sysInfo, ...rest] = await Promise.all(fetchPromises);
+  const le = rest[0]; // Will be undefined if logs weren't fetched
 
   // Script uptime
   const el = document.getElementById("scriptUptime");
-  if (sud?.data && typeof sud.data.script_uptime === "number") {
-    const current = sud.data.script_uptime;
+  if (sud?.data?.running === true) {
+    const current = sud.data.uptime;
     el.classList.remove("Green", "Red");
     if (lastScriptUptime !== null && current === lastScriptUptime) {
       el.textContent = "Not Running";
@@ -319,45 +327,60 @@ export async function loadStatus(forceRefreshConfig = false) {
     lastScriptUptime = null;
   }
 
-  const entry = document.getElementById("statusMsg");
+  const status = document.getElementById("statusMsg");
   // Status message
-  if (st?.data && entry) {
-    entry.textContent = st.data.status;
-    entry.classList.remove("Green", "Blue", "Red");
-
+  if (st?.data && status) {
+    let displayText = st.data.status.trim();
+    const lowerStatus = displayText.toLowerCase();
+    status.classList.remove("Green", "Yellow", "Blue", "Red");
     if (
-      entry.textContent.includes("Healthy") ||
-      entry.textContent.includes("Resumed") ||
-      entry.textContent.includes("restart") ||
-      entry.textContent.includes("Fullscreen") ||
-      entry.textContent.includes("Saved")
+      // Success
+      lowerStatus.includes("healthy") ||
+      lowerStatus.includes("resumed") ||
+      lowerStatus.includes("restart") ||
+      lowerStatus.includes("fullscreen restored") ||
+      lowerStatus.includes("fullscreen activated") ||
+      lowerStatus.includes("saved")
     ) {
-      entry.classList.add("Green");
+      status.classList.add("Green");
     } else if (
-      entry.textContent.includes("Stopped") ||
-      entry.textContent.includes("Killed") ||
-      entry.textContent.includes("Restarting") ||
-      entry.textContent.includes("Loaded") ||
-      entry.textContent.includes("Crashed") ||
-      entry.textContent.includes("Retrying") ||
-      entry.textContent.includes("Starting")
+      // Normal actions
+      lowerStatus.includes("killed process") ||
+      lowerStatus.includes("stopped") ||
+      lowerStatus.includes("loaded") ||
+      lowerStatus.includes("deleted old") ||
+      lowerStatus.includes("starting")
     ) {
-      entry.classList.add("Blue");
+      status.classList.add("Blue");
     } else if (
-      entry.textContent.includes("Error") ||
-      entry.textContent.includes("stuck") ||
-      entry.textContent.includes("Unsupported") ||
-      entry.textContent.includes("Timed") ||
-      entry.textContent.includes("Issue") ||
-      entry.textContent.includes("Couldn't") ||
-      entry.textContent.includes("Paused") ||
-      entry.textContent.includes("Offline") ||
-      entry.textContent.includes("unresponsive") ||
-      entry.textContent.includes("Not Found") ||
-      entry.textContent.includes("Error")
+      // Actions that raise an eyebrow
+      lowerStatus.includes("paused") ||
+      lowerStatus.includes("issue") ||
+      lowerStatus.includes("restarting") ||
+      lowerStatus.includes("retrying") ||
+      lowerStatus.includes("couldn't") ||
+      lowerStatus.includes("download slow") ||
+      lowerStatus.includes("restoration failed")
     ) {
-      entry.classList.add("Red");
+      status.classList.add("Yellow");
+    } else if (
+      // ERRORS
+      lowerStatus.includes("crashed") ||
+      lowerStatus.includes("unsupported browser") ||
+      lowerStatus.includes("error") ||
+      lowerStatus.includes("download stuck") ||
+      lowerStatus.includes("page timed") ||
+      lowerStatus.includes("failed to start") ||
+      lowerStatus.includes("restoration failed") ||
+      lowerStatus.includes("click failed") ||
+      lowerStatus.includes("offline") ||
+      lowerStatus.includes("to display") ||
+      lowerStatus.includes("unresponsive") ||
+      lowerStatus.includes("not found")
+    ) {
+      status.classList.add("Red");
     }
+    status.textContent = displayText;
   }
 
   // System info
@@ -367,7 +390,7 @@ export async function loadStatus(forceRefreshConfig = false) {
 
     const upEl = document.getElementById("up");
     const dnEl = document.getElementById("down");
-    if (upEl) {
+    if (sysInfo?.data?.network?.primary_interface) {
       const network = sysInfo.data.network;
       const primary = network.primary_interface;
       const sent = formatSpeed(primary.upload);
@@ -379,31 +402,13 @@ export async function loadStatus(forceRefreshConfig = false) {
 
   // Log entry
   if (le?.data?.logs && le.data.logs.length > 0) {
-    const entry = document.getElementById("logEntry");
-    const logText = le.data.logs[0].trim();
-    entry.textContent = logText;
-    entry.classList.remove("Green", "Blue", "Red");
-
-    if (logText.includes("[ERROR]")) {
-      entry.classList.add("Red");
-    } else if (logText.includes("[WARN]")) {
-      entry.classList.add("Yellow");
-    } else if (logText.includes("[DEBUG]")) {
-      entry.classList.add("Blue");
-    } else if (logText.includes("[INFO]")) {
-      entry.classList.add("Green");
-    } else {
-      entry.classList.add("Green");
-    }
+    colorLogEntry(le.data.logs[0], entry);
   }
-
-  // Get config with optional force refresh
-  await configCache.get(forceRefreshConfig);
 }
 // -----------------------------------------------------------------------------
-// Info-related updates (less frequent updates)
+// Device-related updates (less frequent updates)
 // -----------------------------------------------------------------------------
-export async function loadInfoData() {
+export async function loadDeviceData() {
   // Version
   try {
     const { current, latest } = await loadUpdateData();
@@ -444,7 +449,7 @@ export async function loadInfoData() {
     if (osEl) osEl.textContent = sysInfo.data.os_name;
     if (hwEl) hwEl.textContent = sysInfo.data.hardware_model;
     // Disk Usage
-    if (diskEl) {
+    if (sysInfo?.data?.disk_available) {
       diskEl.textContent = sysInfo.data.disk_available;
       diskEl.classList.remove("Green", "Yellow", "Red");
       if (sysInfo.data.disk_bytes < 200 * 1024 * 1024) {
@@ -456,7 +461,7 @@ export async function loadInfoData() {
       }
     }
     // CPU
-    if (cpuEl) {
+    if (sysInfo?.data?.cpu?.percent) {
       const cpuPct = sysInfo.data.cpu.percent;
       cpuEl.textContent = `${cpuPct}%`;
       cpuEl.classList.remove("Green", "Yellow", "Red");
@@ -469,7 +474,7 @@ export async function loadInfoData() {
       }
     }
     // RAM
-    if (ramEl) {
+    if (sysInfo?.data?.memory?.percent) {
       const used = (sysInfo.data.memory.used / 1024 ** 3).toFixed(1);
       const tot = (sysInfo.data.memory.total / 1024 ** 3).toFixed(1);
       const pctUsed = sysInfo.data.memory.percent;
@@ -491,9 +496,9 @@ export async function loadInfoData() {
 export async function loadInfo(options = {}) {
   const { forceRefreshConfig = false } = options;
   if (activeTab === "status") {
-    await loadStatus(forceRefreshConfig);
-  } else if (activeTab === "info") {
-    await loadInfoData();
+    await loadStatus();
+  } else if (activeTab === "device") {
+    await loadDeviceData();
   } else if (activeTab === "config") {
     await configCache.get(forceRefreshConfig);
   }

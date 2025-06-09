@@ -1,7 +1,8 @@
 import pytest
 from urllib3.exceptions import MaxRetryError, NameResolutionError, NewConnectionError
+from selenium.common.exceptions import InvalidArgumentException
 from unittest.mock import MagicMock, patch, call
-import viewport
+import viewport, logging
 
 @pytest.fixture(autouse=True)
 def stub_get_driver_path(monkeypatch):
@@ -17,19 +18,19 @@ def stub_get_driver_path(monkeypatch):
         ("chrome",   [MagicMock()],                                                    1, 1, False),
         ("chrome",   [Exception("boom"), MagicMock()],                                 1, 1, False),
         # Chrome permanent-failure → 2 kills, restart
-        ("chrome",   [Exception("fail")] * 3,                                          0, 2, True),
+        ("chrome",   [Exception("fail")] * 4,                                          0, 2, True),
         
         # Chromium success & retry-then-success
         ("chromium",[MagicMock()],                                                     1, 1, False),
         ("chromium",[Exception("boom"), MagicMock()],                                  1, 1, False),
         # Chromium permanent-failure → 2 kills, restart
-        ("chromium",[Exception("fail")] * 3,                                           0, 2, True),
+        ("chromium",[Exception("fail")] * 4,                                           0, 2, True),
         
         # Firefox success & retry-then-success
         ("firefox", [MagicMock()],                                                     1, 1, False),
         ("firefox", [Exception("boom"), MagicMock()],                                  1, 1, False),
         # Firefox permanent-failure → 2 kills, restart
-        ("firefox", [Exception("fail")] * 3,                                           0, 2, True),
+        ("firefox", [Exception("fail")] * 4,                                           0, 2, True),
     ]
 )
 @patch("viewport.restart_handler")
@@ -126,13 +127,13 @@ def test_browser_handler(
 
 @pytest.mark.parametrize("exc, expected_msg", [
     (NewConnectionError("conn refused", None),
-     "Connection refused while starting chrome; retrying in 2s"),
+    "Connection refused while starting chrome; retrying in 2s"),
     (MaxRetryError("network down", None),
-     "Network issue while starting chrome; retrying in 2s"),
+    "Network issue while starting chrome; retrying in 2s"),
     (NameResolutionError("dns fail", None, None),
-     "DNS resolution failed while starting chrome; retrying in 2s"),
+    "DNS resolution failed while starting chrome; retrying in 2s"),
     (Exception("oops"),
-     "Error starting chrome: "),
+    "Error starting chrome: "),
 ])
 def test_browser_handler_logs_expected_error(monkeypatch, exc, expected_msg):
     # Arrange: minimal environment
@@ -156,11 +157,10 @@ def test_browser_handler_logs_expected_error(monkeypatch, exc, expected_msg):
     # Prevent real sleeping and long loops
     monkeypatch.setattr(viewport.time, "sleep", lambda s: None)
     # Stop after error handling by intercepting restart_handler
-    monkeypatch.setattr(
-        viewport,
-        "restart_handler",
-        lambda driver: (_ for _ in ()).throw(StopIteration)
-    )
+    def raise_stop_iteration(driver):
+        raise StopIteration
+
+    monkeypatch.setattr(viewport, "restart_handler", raise_stop_iteration)
 
     # Act & Assert: StopIteration from our fake restart_handler
     with pytest.raises(StopIteration):
@@ -197,6 +197,100 @@ def test_browser_handler_unsupported(monkeypatch):
     fake_log.assert_called_once_with("Unsupported browser: safari")
     fake_api.assert_called_once_with("Unsupported browser: safari")
     
+def test_browser_handler_logging_sequence_on_failures(monkeypatch, caplog):
+    """
+    Verify that browser_handler logs the correct retry sequence,
+    kills existing processes before the final attempt, and gives up
+    after MAX_RETRIES
+    """
+    monkeypatch.setattr(viewport, "BROWSER", "chromium")
+    monkeypatch.setattr(viewport, "MAX_RETRIES", 3)     # 3 + final attempt
+    monkeypatch.setattr(viewport, "SLEEP_TIME", 60)     # drives the last log line
+    process_mock = MagicMock()
+    monkeypatch.setattr(viewport, "process_handler", process_mock)
+    monkeypatch.setattr(viewport, "restart_handler", MagicMock())
+    monkeypatch.setattr(viewport.time, "sleep", lambda s: None)
+    monkeypatch.setattr(
+        viewport.webdriver,
+        "Chrome",
+        lambda *a, **k: (_ for _ in ()).throw(Exception("Failed to start browser"))
+    )
+    url = "http://example.com"
+    with caplog.at_level(logging.INFO):
+        viewport.browser_handler(url)
+    log_messages = [rec.message for rec in caplog.records]
+    expected_sequence = [
+        "Error starting chromium: ",
+        "Retrying... (Attempt 1 of 3)",
+        "Error starting chromium: ",
+        "Retrying... (Attempt 2 of 3)",
+        "Error starting chromium: ",
+        "Retrying... (Attempt 3 of 3)",
+        "Killing existing chromium processes before final attempt...",
+        "Error starting chromium: ",
+        "Failed to start chromium after maximum retries.",
+        "Starting Script again in 30 seconds.",
+    ]
+    # Ensure every expected fragment appears in the same order
+    for expected, actual in zip(expected_sequence, log_messages):
+        assert expected in actual, f"Expected '{expected}' in '{actual}'"
+    # Quick sanity counts
+    assert log_messages.count("Retrying... (Attempt 1 of 3)") == 1
+    assert log_messages.count("Retrying... (Attempt 2 of 3)") == 1
+    assert log_messages.count("Retrying... (Attempt 3 of 3)") == 1
+    assert "Killing existing chromium processes before final attempt..." in log_messages
+    assert "Failed to start chromium after maximum retries." in log_messages
+    # process_handler: once at the very start (check) + once to kill
+    assert process_mock.call_count == 2
+    last_call = process_mock.call_args  # (args, kwargs)
+    assert last_call[0][0] == "chromium"
+    assert last_call.kwargs["action"] == "kill"
+
+@pytest.mark.parametrize("browser", ["chrome", "chromium", "firefox"])
+def test_browser_handler_invalid_binary(monkeypatch, browser):
+    # Environment
+    monkeypatch.setattr(viewport, "BROWSER", browser)
+    monkeypatch.setattr(viewport, "HEADLESS", True)
+    monkeypatch.setattr(viewport, "MAX_RETRIES", 1)
+    monkeypatch.setattr(viewport, "process_handler", lambda *a, **k: None)
+
+    # Stubs for options / services so constructor never touches the real ones
+    monkeypatch.setattr(viewport, "Options", lambda *a, **k: MagicMock())
+    monkeypatch.setattr(viewport, "Service", lambda *a, **k: MagicMock())
+    monkeypatch.setattr(viewport, "FirefoxOptions", lambda *a, **k: MagicMock())
+    monkeypatch.setattr(viewport, "FirefoxService", lambda *a, **k: MagicMock())
+
+    # Force the driver constructor to raise InvalidArgumentException
+    if browser in ("chrome", "chromium"):
+        monkeypatch.setattr(
+            viewport.webdriver,
+            "Chrome",
+            lambda *a, **k: (_ for _ in ()).throw(InvalidArgumentException("bad binary"))
+        )
+    else:
+        monkeypatch.setattr(
+            viewport.webdriver,
+            "Firefox",
+            lambda *a, **k: (_ for _ in ()).throw(InvalidArgumentException("bad binary"))
+        )
+
+    # Capture side effects
+    log_mock = MagicMock()
+    api_mock = MagicMock()
+    monkeypatch.setattr(viewport, "log_error", log_mock)
+    monkeypatch.setattr(viewport, "api_status", api_mock)
+
+    # No real sleeping
+    monkeypatch.setattr(viewport.time, "sleep", lambda s: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        viewport.browser_handler("http://example.com")
+
+    assert excinfo.value.code == 1
+    log_mock.assert_called_once_with(
+        f"Browser Binary: {viewport.BROWSER_BINARY} is not a browser executable"
+    )
+    api_mock.assert_called_once_with(f"Error Starting {browser}")
 # ----------------------------------------------------------------------------- 
 # Tests for driver-stuck behavior in browser_handler
 # ----------------------------------------------------------------------------- 
@@ -238,9 +332,9 @@ def test_driver_download_stuck_logs_and_kills(monkeypatch, browser):
     with pytest.raises(Breakout):
         viewport.browser_handler("http://example.com")
 
-    # Assert: expecting 3 kills with the same signature
-    assert spy_kill.call_count == 3
-    spy_kill.assert_has_calls([call(browser, action="kill")] * 3)
+    # Assert: expecting 4 kills with the same signature
+    assert spy_kill.call_count == 4
+    spy_kill.assert_has_calls([call(browser, action="kill")] * 4)
     # Assert log has the appropriate line
     spy_log.assert_any_call(
         f"Error downloading {browser}WebDrivers; Restart machine if it persists."
