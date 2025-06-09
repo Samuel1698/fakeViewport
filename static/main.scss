@@ -238,6 +238,9 @@ html[data-theme="light"]{
         border: none;
       }
     }
+    button.hide-panel{
+      border: none;
+    }
   }
   .tooltip .tooltip-text {
     .Blue {
@@ -522,6 +525,7 @@ section#navigation {
     border-top-left-radius: $border-radius;
     border-top-right-radius: $border-radius;
     gap: 2px;
+    z-index: 1;
     .custom-spinners {
       display: flex;
       flex-direction: column;
@@ -772,6 +776,7 @@ section#config {
 // --------------------------------------------------
 section#logs {
   .wrapper {
+    position: relative;
     padding: 1rem;
     h2 {
       margin: 1rem 0;
@@ -788,6 +793,14 @@ section#logs {
     }
     button.expand-button {
       display: none;
+    }
+    span#logsPaused {
+      text-align: center;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 6px;
+      font-size: 16px;
     }
   }
 }
@@ -938,6 +951,8 @@ section#update {
   }
 }
 @include respond-above($medium) {
+  $gap: 16px;
+  $width: 20rem;
   header {
     font-size: 18px;
     margin-bottom: 0;
@@ -968,7 +983,7 @@ section#update {
     max-width: unset;
     border: none;
     border-right: 1px solid color("border"); 
-    padding-top: 16px;
+    padding-top: $gap;
     .button-group {
       flex-direction: column;
       align-items: stretch;
@@ -1005,10 +1020,10 @@ section#update {
     }
     .log-controls {
       position: absolute;
-      right: calc(16px + 1rem);
-      top: calc(50px + 16px + 1rem);
+      right: calc($gap + 1rem);
+      top: calc(50px + $gap + 1rem);
       height: 2.5rem;
-      border-radius: 6px;
+      border-radius: $border-radius;
     }
   }
   div.group {
@@ -1017,20 +1032,25 @@ section#update {
     vertical-align: top;
     width: calc(100% - 50px);
     box-sizing: border-box;
-    gap: 16px;
-    padding: 16px;
+    overflow: hidden;
+    padding: $gap;
+    gap: $gap;
+    &.expanded {
+      overflow: initial;
+      gap: unset;
+    }
     section {
       box-sizing: border-box;
       max-height: 40vh;
-      // 320px
-      width: 20rem;
+      width: $width;
     }
     .status-device {
+      transition: transform 250ms ease-in-out;
       display: flex;
       flex-direction: column;
       position: relative;
       section {
-        margin-bottom: 16px;
+        margin-bottom: $gap;
       }
       .tooltip {
         margin-top: auto;
@@ -1047,6 +1067,12 @@ section#update {
         left: 0;
         right: 0;
       }
+      &.contracted {
+        width: 0;
+        max-width: 0;
+        opacity: 0;
+        transform: translateX(-100%);
+      }
     }
     section#status {
       ul li:last-child{
@@ -1054,11 +1080,51 @@ section#update {
       }
     }
     section#logs {
+      position: relative;
       max-height: unset;
       max-width: unset;
       // 100% - Header - Padding
       height: calc(100vh - 50px - 32px);
       width: 100%;
+      overflow: initial;
+      .tooltip.hide-panel {
+        position: absolute;
+        left: 0;
+        transform: translate(-50%, -50%);
+        top: 25%;
+      }
+      button.hide-panel {
+        display: inline-block; // Overrides [hidden]
+        background-color: transparent;
+        padding: 8px;
+        line-height: 0;
+        cursor: pointer;
+        color: color("text");
+        svg {
+          transition: all 0.3s ease-in-out;
+          width: 24px;
+          height: 24px;
+          &.rotated {
+            transform: rotate(180deg);
+          }
+        }
+        @include hover {
+          color: color("blue");
+          .tooltip .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+          }
+        }
+      }
+      // Undo cascading effect of disabling tooltip for control buttons
+      .tooltip:not([disabled]) {
+        @include hover {
+          .tooltip-text{
+            visibility: visible;
+            opacity: 1;
+          }
+        }
+      }
       .wrapper {
         height: 100%;
         box-sizing: border-box;
@@ -1086,8 +1152,8 @@ section#update {
     width: calc(100% - 50px);
     height: calc(100vh - 50px);
     max-width: unset;
-    gap: 16px;
-    padding: 16px;
+    gap: $gap;
+    padding: $gap;
     box-sizing: border-box;
     .wrapper {
       width: 400px;
@@ -1099,7 +1165,7 @@ section#update {
   section#update {
     display: inline-flex;
     &[hidden]{display:none;}
-    padding: 16px;
+    padding: $gap;
     vertical-align: top;
     height: calc(100vh - 50px);
     width: calc(100% - 50px);
@@ -1122,8 +1188,9 @@ section#update {
   }
 }
 @include respond-above($big){
+  $width: 28.125rem;
   div.group section {
     // 450px
-    width: 28.125rem;
+    width: $width;
   }
 }

@@ -48,9 +48,7 @@ function handleResponsiveChange() {
       // Force toggle status so that the scheduledRefresh can start for all relevant sections
       toggleSection("status");
       // Ensure device and logs sections are visible in desktop view
-      sections.device.removeAttribute("hidden");
-      sections.logs.removeAttribute("hidden");
-      buttons.logInput.removeAttribute("hidden");
+      displayFullStatus();
     }
   } else {
     // Mobile view logic
@@ -69,6 +67,14 @@ function initResponsiveListener() {
   const mediaQuery = window.matchMedia("(min-width: 58.75rem)");
   mediaQuery.addEventListener("change", handleResponsiveChange);
   handleResponsiveChange(); // Run once on init
+}
+
+// Shows status view on desktop site
+function displayFullStatus(){
+  sections.status.removeAttribute("hidden");
+  sections.device.removeAttribute("hidden");
+  sections.logs.removeAttribute("hidden");
+  buttons.logInput.removeAttribute("hidden");
 }
 
 export function toggleSection(buttonId) {
@@ -119,10 +125,7 @@ export function toggleSection(buttonId) {
     } else {
       // On button clicks
       groupDiv.removeAttribute("hidden");
-      sections.status.removeAttribute("hidden");
-      sections.device.removeAttribute("hidden");
-      sections.logs.removeAttribute("hidden");
-      buttons.logInput.removeAttribute("hidden");
+      displayFullStatus();
     }
   } else {
     groupDiv.removeAttribute("hidden");

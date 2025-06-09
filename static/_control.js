@@ -23,7 +23,7 @@ export async function control(action) {
         el.classList.add("Red");
       });
     }
-    if (isDesktopView()){
+    if (isDesktopView() && action != "quit"){
       stopLogsAutoRefresh();
       startLogsAutoRefresh(1_000);
     }
@@ -32,7 +32,7 @@ export async function control(action) {
       msgEls.forEach((el) => {
         el.textContent = "";
         el.classList.remove("Green", "Red");
-        if (isDesktopView()){
+        if (isDesktopView() && action != "quit") {
           stopLogsAutoRefresh();
           startLogsAutoRefresh();
         }
