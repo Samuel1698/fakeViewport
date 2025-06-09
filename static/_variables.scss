@@ -10,7 +10,7 @@ $base-palette: (
   yellow:     #EFC368,
   down:       #5baed1,
   up:         #8e63b0,
-  search:     #737c82,
+  search:     #1c1d1f,
   border:     #282b2f,
   diminished: #282b2f,
   box:        #1c1e21,
@@ -29,7 +29,7 @@ $light-palette: (
   bYellow:    #EFC368,
   down:       #5baed1,
   up:         #8e63b0,
-  search:     #737c82,
+  search:     #efeff0,
   border:     #eff1f2,
   diminished: #f4f5f6,
   bDiminished:#282b2f,
@@ -106,15 +106,6 @@ $orbit: circle(50vmax at 50% 50%);
     0 8px 8px hsl(0deg 0% 0% / 0.075),
     0 16px 16px hsl(0deg 0% 0% / 0.075)
   ;
-}
-@mixin bigShadow{
-  /* prettier-ignore */
-  box-shadow: 
-  0 5.3px 3.3px rgb(0 0 0 / 6%), 0 6.7px 8.4px rgb(0 0 0 / 5%),
-  0 7.6px 14.7px rgb(0 0 0 / 4%), 0 8.3px 22px rgb(0 0 0 / 4%),
-  0 8.9px 30.4px rgb(0 0 0 / 4%), 0 9.6px 39.9px rgb(0 0 0 / 4%),
-  0 10.3px 50.9px rgb(0 0 0 / 3%), 0 11.4px 64.2px rgb(0 0 0 / 3%),
-  0 13px 81.6px rgb(0 0 0 / 3%), 0 19px 123px rgb(0 0 0 / 2%);
 }
 @mixin respond-above($breakpoint) {
   @media (min-width: $breakpoint) {

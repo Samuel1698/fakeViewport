@@ -65,7 +65,53 @@ export function showChangelog() {
     title.textContent = `Release v${latest}`;
   }
 
-  document.getElementById("changelog-body").innerHTML = marked.parse(changelog);
+  const changelogBody = document.getElementById("changelog-body");
+  changelogBody.innerHTML = marked.parse(changelog);
+
+  // Create a container for all heading groups
+  const groupsContainer = document.createElement("div");
+  groupsContainer.className = "headingWrapper";
+
+  // Get all elements in the changelog body
+  const allElements = Array.from(changelogBody.children);
+
+  // Find the point where H3s start (after title/summary)
+  const firstHeadingIndex = allElements.findIndex((el) => el.tagName === "H3");
+
+  // Insert the groups container after the intro content
+  if (firstHeadingIndex >= 0) {
+    // Move all non-heading intro elements to before the container
+    const introElements = allElements.slice(0, firstHeadingIndex);
+
+    // Insert groups container
+    changelogBody.insertBefore(groupsContainer, allElements[firstHeadingIndex]);
+
+    // Process each heading section
+    const headings = allElements
+      .slice(firstHeadingIndex)
+      .filter((el) => el.tagName === "H3");
+
+    headings.forEach((heading, index) => {
+      // Create heading group wrapper
+      const wrapper = document.createElement("div");
+      wrapper.className = "headingGroup";
+
+      // Collect section elements
+      const sectionElements = [heading];
+      let nextElement = heading.nextElementSibling;
+
+      while (nextElement && nextElement.tagName !== "H3") {
+        sectionElements.push(nextElement);
+        nextElement = nextElement.nextElementSibling;
+      }
+
+      // Move elements to wrapper
+      sectionElements.forEach((el) => wrapper.appendChild(el));
+
+      // Add to groups container
+      groupsContainer.appendChild(wrapper);
+    });
+  }
   document.getElementById("changelog-link").href = releaseUrl;
   document.getElementById("update").removeAttribute("hidden");
 }

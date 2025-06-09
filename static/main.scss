@@ -159,7 +159,7 @@ html[data-theme="light"]{
   #login section {
     background-color: color("box");
     input[type="password"]{
-      background-color: color("diminished");
+      background-color: color("search");
     }
   }
   #login button[type="submit"] {
@@ -186,11 +186,15 @@ html[data-theme="light"]{
       border: 2px solid color("border");
       border-bottom: 2px solid color("background");
       margin-bottom: -2px;
+      @include hover {
+        background-color: color("search", $lightness: -2%);
+      }
     }
     .button-group, .refresh {
       border: 2px solid color("border");
       border-bottom: 2px solid color("background");
       margin-bottom: -2px;
+      z-index: 1;
       button {
         border: 0;
         margin-bottom: unset;
@@ -213,6 +217,12 @@ html[data-theme="light"]{
         background-color: color("background");
       }
     }
+  }
+  section#update .wrapper .headingGroup {
+    border-width: 2px;
+  }
+  div.group section#logs button.hide-panel svg {
+    border-width: 2px;
   }
   @include respond-above($small) {
     #login .wrapper {
@@ -521,7 +531,7 @@ section#navigation {
     &[hidden]{display: none;}
     flex-direction: row;
     margin-left: auto;
-    background-color: color("box");
+    background-color: color("search");
     border-top-left-radius: $border-radius;
     border-top-right-radius: $border-radius;
     gap: 2px;
@@ -532,8 +542,7 @@ section#navigation {
       gap: 2px;
       border-top-left-radius: $border-radius;
       .custom-spinner-btn {
-        background: color("box");
-        color: color("search");
+        color: color("text");
         overflow: hidden;
         border: none;
         width: 32px;
@@ -565,7 +574,7 @@ section#navigation {
       }
     }
     input.logLimit {
-      background: color("box");
+      background-color: transparent;
       color: color("text");
       border: none;
       text-align: center;
@@ -588,6 +597,9 @@ section#navigation {
       @include hover {
         color: color("blue");
       }
+    }
+    @include hover {
+      background-color: color("search", $lightness: 2%);
     }
   }
 }
@@ -809,13 +821,17 @@ section#update {
   padding-bottom: 2rem;
   color: color("gitText");
   .wrapper {
-    h3, h4 {
+    h2 {text-align: center;}
+    .changelog {
+      h2 {text-align: left;}
+    }
+    .headingGroup {
       border-top: 1px solid color("diminished");
       margin: 0;
       padding: 1rem 0;
     }
-    .changelog>ul {
-      margin-bottom: 1rem;
+    .headingGroup h3 {
+      margin-top: 0;
     }
     code {
       font-style: italic;
@@ -844,7 +860,8 @@ section#update {
         margin-top: 0;
       }
     }
-    p {
+    // Hide the changelog links
+    .headingGroup p {
       display: none;
     }
     div.changelog-actions {
@@ -958,7 +975,7 @@ section#update {
     margin-bottom: 0;
     background-color: color("diminished");
     h1 {
-      color: color("search", $lightness: 5%);
+      color: color("text", $lightness: -25%);
     }
   }
   section {
@@ -1104,6 +1121,9 @@ section#update {
           transition: all 0.3s ease-in-out;
           width: 24px;
           height: 24px;
+          background-color: color("background");
+          border-radius: $border-radius;
+          border: 1px solid color("border");
           &.rotated {
             transform: rotate(180deg);
           }
@@ -1199,6 +1219,22 @@ section#update {
     overflow: hidden;
     .wrapper {
       overflow-y: auto;
+      .headingGroup ul {
+        margin-bottom: 0;
+      }
+    }
+    div.changelog {
+      div.headingWrapper {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        div.headingGroup {
+          display: flex;
+          flex-direction: column;
+        }
+        div.headingGroup:last-child:nth-child(odd) {
+          grid-column: span 2;
+        }
+      }
     }
   }
   .tooltip .tooltip-text {
