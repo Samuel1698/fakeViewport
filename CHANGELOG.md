@@ -135,7 +135,7 @@ Same as downloading the `minimal` version from the [release](https://github.com/
 ### ✨ Added
 
 - `viewport --diagnose` argument will look at your current `.env` and `config.ini` and look for errors.
-- `browser_handler` can now deal with dropped/lost connection while attempting to download the ChromeDrivers/GeckoDrivers. 
+- `browser_handler` can now deal with dropped/lost connection while attempting to download the ChromeDrivers/GeckoDrivers.
 - Option to take screenshot on errors (Deleted after `LOG_DAYS`).
 - Test coverage now at `99%` with 300 tests.
 
@@ -175,9 +175,9 @@ Same as downloading the `minimal` version from the [release](https://github.com/
 - Added new endpoints:
 
     `/api/logs`
-    
+
     `/api/logs?limit=` Displays the last N entries in the log file.
-    
+
     `/api/next_restart` Displays the next scheduled restart.
 
 - Added `logfile` button to control panel to fetch `/api/logs` and display the last 100 log entries.
@@ -213,7 +213,7 @@ Same as downloading the `minimal` version from the [release](https://github.com/
 
 - Revamp monitoring.api to include most of what it's displayed in `viewport --status`
 - Rework how the script handles the `script start time (sst)` file to persist between manual and automatic restarts, as the script restarting itself to deal with an error is expected behavior.
-- Split `VERBOSE_LOGGING` option into` ERROR_LOGGING` and `DEBUG_LOGGING`.
+- Split `VERBOSE_LOGGING` option into `ERROR_LOGGING` and `DEBUG_LOGGING`.
 
 ### 🐛 Fixed
 
@@ -308,7 +308,7 @@ Toggles the API on or off. Requires `USE_API=True` in `config.ini`
 
 ---
 
-## 💥🐛✨ v2.0.0: Basic script functionality updated 
+## 💥🐛✨ v2.0.0: Basic script functionality updated
 
 ### ✨ Added
 
@@ -356,7 +356,7 @@ Toggles the API on or off. Requires `USE_API=True` in `config.ini`
 
 ### 🔥 Changed
 
-- Move all retry logic to it's own `handle_retry` function. 
+- Move all retry logic to it's own `handle_retry` function.
 
 ---
 
