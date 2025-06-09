@@ -353,7 +353,7 @@ def test_login_post_correct_key_redirects(tmp_path, monkeypatch):
 def test_logout_clears_session_and_redirects(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
     # /logout should always 302 → /login
-    resp = client_app.get("/logout", follow_redirects=False)
+    resp = client_app.post("/logout", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["Location"].endswith("/login")
 
