@@ -86,7 +86,7 @@ header {
   color: color("text");
   margin-bottom: 2rem;
   width: 100%;
-  height: 50px;
+  height: $header;
   padding: 0 8px;
   box-sizing: border-box;
   h1 {
@@ -977,8 +977,8 @@ section#update {
     justify-content: unset;
     box-sizing: border-box;
     // 100vh -header -1px for overflow prevention
-    height: calc(100vh - 50px - 1px);
-    width: 50px;
+    height: calc(100vh - $header - 1px);
+    width: $header;
     justify-content: space-between;
     max-width: unset;
     border: none;
@@ -1021,7 +1021,7 @@ section#update {
     .log-controls {
       position: absolute;
       right: calc($gap + 1rem);
-      top: calc(50px + $gap + 1rem);
+      top: calc($header + $gap + 1rem);
       height: 2.5rem;
       border-radius: $border-radius;
     }
@@ -1030,7 +1030,7 @@ section#update {
     display: inline-flex;
     &[hidden]{display:none;}
     vertical-align: top;
-    width: calc(100% - 50px);
+    width: calc(100% - $header);
     box-sizing: border-box;
     overflow: hidden;
     padding: $gap;
@@ -1084,7 +1084,7 @@ section#update {
       max-height: unset;
       max-width: unset;
       // 100% - Header - Padding
-      height: calc(100vh - 50px - 32px);
+      height: calc(100vh - $header - (2 * $gap));
       width: 100%;
       overflow: initial;
       .tooltip.hide-panel {
@@ -1144,22 +1144,46 @@ section#update {
   }
   section#config {
     display: inline-flex;
-    &[hidden]{display:none;}
-    border-radius: unset;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    width: calc(100% - 50px);
-    height: calc(100vh - 50px);
-    max-width: unset;
-    gap: $gap;
     padding: $gap;
+    gap: $gap;
+    max-width: unset;
+    width: calc(100% - $header);
     box-sizing: border-box;
-    .wrapper {
-      width: 400px;
-      margin: 0;
+    &[hidden]{display:none;}
+    .flex-group {
+      display: inline-flex;
+      border-radius: unset;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      height: calc(100vh - $header - (2 * $gap));
+      gap: $gap;
       box-sizing: border-box;
-      border-radius: $border-radius;
+      .wrapper {
+        width: 22rem;
+        margin: 0;
+        box-sizing: border-box;
+        border-radius: $border-radius;
+      }
+      &[hidden] {
+        width: 100%;
+        max-width: 700px;
+        .wrapper {
+          width: unset;
+        }
+      }
+    }
+    .tooltip {
+      @include hover {
+        .tooltip-text {
+          span, br {
+            display: none;
+          }
+          span.Blue {
+            display: inline-block;
+          }
+        }
+      }
     }
   }
   section#update {
@@ -1167,8 +1191,8 @@ section#update {
     &[hidden]{display:none;}
     padding: $gap;
     vertical-align: top;
-    height: calc(100vh - 50px);
-    width: calc(100% - 50px);
+    height: calc(100vh - $header);
+    width: calc(100% - $header);
     max-width: unset;
     box-sizing: border-box;
     font-size: 14px;
@@ -1191,6 +1215,9 @@ section#update {
   $width: 28.125rem;
   div.group section {
     // 450px
+    width: $width;
+  }
+  section#config .flex-group .wrapper {
     width: $width;
   }
 }

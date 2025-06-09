@@ -222,31 +222,102 @@
     </section>
   </div>
   <section id="config" hidden>
-    <div class="wrapper">
-      <ul>
-        <li><span>Health Check Interval:</span><span id="healthInterval" data-tooltip="SLEEP_TIME | Time in between health checks | Minimum 1 minute" data-api-key="general.health_interval_sec">-</span></li>
-        <li><span>Log Healthy Every:</span><span id="logInterval" data-tooltip="LOG_INTERVAL | Minutes between status log entries | Must be greater than Health Checks" data-api-key="logging.log_interval_min">-</span></li>
-        <li><span>Seconds to Wait Before Error:</span><span id="waitTime" data-tooltip="WAIT_TIME | Max seconds to wait for page elements (loads, camera feeds, buttons) before error | Minimum 5 seconds" data-api-key="general.wait_time_sec">-</span></li>
-        <li><span>Retries Before Restarting:</span><span data-tooltip="MAX_RETRIES | Number of retry attempts on failures | page reloads → browser restart → script restart | Minimum 3" id="maxRetries"  data-api-key="general.max_retries">-</span></li>
-        <li><span>Restart Times:</span><span id="restartTimes" data-tooltip="RESTART_TIMES | Comma-separated 24h times (HH:MM) for automatic script restart" data-api-key="general.restart_times">-</span></li>
-      </ul>
+    <div class="flex-group">
+      <div class="wrapper">
+        <ul>
+          <li><span>Health Check Interval:</span><span id="healthInterval" data-tooltip="SLEEP_TIME | Time in between health checks | Minimum 1 minute" data-api-key="general.health_interval_sec">-</span></li>
+          <li><span>Log Healthy Every:</span><span id="logInterval" data-tooltip="LOG_INTERVAL | Minutes between status log entries | Must be greater than Health Checks" data-api-key="logging.log_interval_min">-</span></li>
+          <li><span>Wait Before Error:</span><span id="waitTime" data-tooltip="WAIT_TIME | Max seconds to wait for page elements (loads, camera feeds, buttons) before error | Minimum 5 seconds" data-api-key="general.wait_time_sec">-</span></li>
+          <li><span>Retries Before Restarting:</span><span data-tooltip="MAX_RETRIES | Number of retry attempts on failures | page reloads → browser restart → script restart | Minimum 3" id="maxRetries"  data-api-key="general.max_retries">-</span></li>
+          <li><span>Restart Times:</span><span id="restartTimes" data-tooltip="RESTART_TIMES | Comma-separated 24h times (HH:MM) for automatic script restart" data-api-key="general.restart_times">-</span></li>
+        </ul>
+      </div>
+      <div class="wrapper">
+        <ul>
+          <li><span>Binary:</span><span id="profileBinary" data-tooltip="BROWSER_BINARY | Executable Path/Application Binary without the --flags | Only Chrome, Chromium and Firefox supported" data-api-key="browser.binary_path">-</span></li>
+          <li><span>Profile Path:</span><span id="profilePath" data-tooltip="BROWSER_PROFILE_PATH | Profile Directory without the trailing 'Default' | Only Chrome, Chromium and Firefox supported" data-api-key="browser.profile_path">-</span></li>
+          <li><span>Headless:</span><span id="headless" data-tooltip="HEADLESS | Useful only for testing" data-api-key="browser.headless">-</span></li>
+        </ul>
+      </div>
+      <div class="wrapper">
+        <ul>
+          <li><span>Retain Logs for:</span><span id="logDays" data-tooltip="LOG_DAYS | Retain this many days of logs and screenshots" data-api-key="logging.log_days">-</span></li>
+          <li><span>Write to Log File:</span><span id="logFile" data-tooltip="LOG_FILE_FLAG | Write to the logfile" data-api-key="logging.log_file_flag">-</span></li>
+          <li><span>Write to Console:</span><span id="logConsole" data-tooltip="LOG_CONSOLE | Write to the console" data-api-key="logging.log_console_flag">-</span></li>
+          <li><span>Error Logging:</span><span id="errorLogging" data-tooltip="ERROR_LOGGING | On errors, raise exception (more verbose)" data-api-key="logging.error_logging">-</span></li>
+          <li><span>Debug Logging:</span><span id="debugLogging" data-tooltip="DEBUG_LOGGING | Use DEBUG logging level instead of INFO | Incredibly verbose" data-api-key="logging.debug_logging">-</span></li>
+          <li><span>Take Screenshots on Errors:</span><span id="screenshots" data-tooltip="ERROR_PRTSCR | On errors, capture screenshot" data-api-key="logging.ERROR_PRTSCR">-</span></li>
+        </ul>
+      </div>
     </div>
-    <div class="wrapper">
-      <ul>
-        <li><span>Binary:</span><span id="profileBinary" data-tooltip="BROWSER_BINARY | Executable Path/Application Binary without the --flags | Only Chrome, Chromium and Firefox supported" data-api-key="browser.binary_path">-</span></li>
-        <li><span>Profile Path:</span><span id="profilePath" data-tooltip="BROWSER_PROFILE_PATH | Profile Directory without the trailing 'Default' | Only Chrome, Chromium and Firefox supported" data-api-key="browser.profile_path">-</span></li>
-        <li><span>Headless:</span><span id="headless" data-tooltip="HEADLESS | Useful only for testing" data-api-key="browser.headless">-</span></li>
-      </ul>
-    </div>
-    <div class="wrapper">
-      <ul>
-        <li><span>Retain Logs for:</span><span id="logDays" data-tooltip="LOG_DAYS | Retain this many days of logs and screenshots" data-api-key="logging.log_days">-</span></li>
-        <li><span>Write to Log File:</span><span id="logFile" data-tooltip="LOG_FILE_FLAG | Write to the logfile" data-api-key="logging.log_file_flag">-</span></li>
-        <li><span>Write to Console:</span><span id="logConsole" data-tooltip="LOG_CONSOLE | Write to the console" data-api-key="logging.log_console_flag">-</span></li>
-        <li><span>Error Logging:</span><span id="errorLogging" data-tooltip="ERROR_LOGGING | On errors, raise exception (more verbose)" data-api-key="logging.error_logging">-</span></li>
-        <li><span>Debug Logging:</span><span id="debugLogging" data-tooltip="DEBUG_LOGGING | Use DEBUG logging level instead of INFO | Incredibly verbose" data-api-key="logging.debug_logging">-</span></li>
-        <li><span>Take Screenshots on Errors:</span><span id="screenshots" data-tooltip="ERROR_PRTSCR | On errors, capture screenshot" data-api-key="logging.ERROR_PRTSCR">-</span></li>
-      </ul>
+    <div class="flex-group" hidden>
+      <div class="wrapper">
+        <ul>
+          <li>
+            <span>Time in between health checks</span><span class="Yellow">Minimum 1 minute</span>
+          </li>
+          <li>
+            <span>Minutes between status log entries</span>
+            <span class="Yellow">Greater than Health Checks</span>
+          </li>
+          <li>
+            <span>Max Seconds to wait for pages/elements</span>
+            <span class="Yellow">Minimum 5 seconds</span>
+          </li>
+          <li>
+            <span>Number of retry attempts on failures</span>
+            <span class="Yellow">Minimum 3</span>
+          </li>
+          <li>
+            <span>Times for automatic script restart</span>
+            <span class="Yellow">24H Format</span>
+          </li>
+        </ul>
+      </div>
+      <div class="wrapper">
+        <ul>
+          <li>
+            <span>Executable Path/Application Binary</span>
+            <span class="Yellow">Drop the --flags</span>
+          </li>
+          <li>
+            <span>Profile Directory</span>
+            <span class="Yellow">Drop the 'Default'</span>
+          </li>
+          <li>
+            <span>Run the script without a visible browser</span>
+            <span class="Yellow">Useful only for testing</span>
+          </li>
+        </ul>
+      </div>
+      <div class="wrapper">
+        <ul>
+          <li>
+            <span>Retain this many days of logs and screenshots</span>
+            <span class="Yellow">Default 7</span>
+          </li>
+          <li>
+            <span>Write to the logfile</span>
+            <span class="Yellow">Recommended</span>
+          </li>
+          <li>
+            <span>Write to the console</span>
+            <span class="Yellow">Recommended</span>
+          </li>
+          <li>
+            <span>On errors, raise exception</span>
+            <span class="Yellow">Shows Stacktrace</span>
+          </li>
+          <li>
+            <span>Use DEBUG logging level instead of INFO</span>
+            <span class="Yellow">Incredibly Verbose</span>
+          </li>
+          <li>
+            <span>On errors, capture screenshot</span>
+            <span class="Yellow">Deleted after LOG_DAYS</span>
+          </li>
+        </ul>
+      </div>
     </div>
   </section>
   <section id="update" hidden>
