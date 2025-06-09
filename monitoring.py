@@ -145,10 +145,11 @@ def create_app():
                 referrer = request.referrer
                 if referrer:
                     parsed_referrer = urlparse(referrer)
-                    # Only allow redirecting to same domain
-                    if parsed_referrer.netloc == request.host and not parsed_referrer.scheme:
-                        return redirect(referrer)
-
+                    # Extract the path from the referrer and validate it
+                    referrer_path = parsed_referrer.path
+                    if referrer_path and referrer_path.startswith("/") and referrer_path in [url_for("dashboard"), url_for("logout"), url_for("api_index")]: 
+                        return redirect(referrer_path)
+                    else: pass
                 # Default to dashboard if no safe next/referrer
                 return redirect(url_for("dashboard"))
 
@@ -173,6 +174,7 @@ def create_app():
 
     # ----------------------------------------------------------------------- #
     @app.route("/")
+    @app.route("/dashboard")
     @login_required
     def dashboard():
         """
@@ -274,6 +276,7 @@ def create_app():
             flask.Response: JSON index of endpoint URIs.
         """
         return jsonify({
+            "dashboard":       url_for("dashboard",           _external=True),
             "update":          url_for("api_update_info",     _external=True),
             "update/changelog":url_for("api_update_changelog",_external=True),
             "script_uptime":   url_for("api_script_uptime",   _external=True),

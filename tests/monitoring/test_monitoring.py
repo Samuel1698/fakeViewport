@@ -341,7 +341,7 @@ def test_login_post_with_secret_and_unsafe_next_redirects_dashboard(tmp_path, mo
         follow_redirects=False
     )
     assert resp.status_code == 302
-    assert resp.headers["Location"] == "/"
+    assert resp.headers["Location"] == "/dashboard"
 
 def test_login_post_correct_key_redirects(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
@@ -359,35 +359,47 @@ def test_logout_clears_session_and_redirects(tmp_path, monkeypatch):
 
 def test_login_redirects_to_safe_referrer(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
-
-    # Scheme-less absolute referrer (//host/path).  Safe → should be used.
-    referrer = "//localhost/dashboard"
-
-    resp = client_app.post(
-        "/login",
-        data={"key": "shh"},          # matches CONTROL_TOKEN
-        headers={"Referer": referrer},
-        follow_redirects=False
-    )
-
-    assert resp.status_code == 302
-    assert resp.headers["Location"] == referrer
+    # Test with a safe referrer that matches allowed paths
+    safe_paths = [
+        "/dashboard",
+        "/logout",
+        "/api/"
+    ]
+    for path in safe_paths:
+        referrer = f"//localhost{path}"
+        resp = client_app.post(
+            "/login",
+            data={"key": "shh"},
+            headers={"Referer": referrer},
+            follow_redirects=False
+        )
+        assert resp.status_code == 302
+        assert resp.headers["Location"] == path  # Should redirect to exact safe path
 
 def test_login_ignores_unsafe_referrer(tmp_path, monkeypatch):
     client_app = _make_auth_client(tmp_path, monkeypatch)
-    
-    # Simulate a user coming from an external domain (unsafe)
+
+    # Case 1: External domain
     headers = {"Referer": "http://evil.com/steal"}
-    
     resp = client_app.post(
         "/login",
         data={"key": "shh"},
         headers=headers,
         follow_redirects=False
     )
-    
     assert resp.status_code == 302
-    assert resp.headers["Location"] == "/"  # Falls back to dashboard
+    assert resp.headers["Location"] == "/dashboard"
+    
+    # Case 2: Same domain but invalid path
+    headers = {"Referer": "//localhost/invalid_path"}
+    resp = client_app.post(
+        "/login",
+        data={"key": "shh"},
+        headers=headers,
+        follow_redirects=False
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/dashboard"
 
 # --------------------------------------------------------------------------- #
 # LOGIN SKIP WHEN NO SECRET
@@ -397,7 +409,7 @@ def test_login_redirects_to_dashboard_if_no_secret(tmp_path, monkeypatch):
     client_app = no_secret_client(tmp_path, monkeypatch)
     resp = client_app.get("/login", follow_redirects=False)
     assert resp.status_code == 302
-    assert resp.headers["Location"].endswith("/")
+    assert resp.headers["Location"].endswith("/dashboard")
 
 @pytest.mark.parametrize("action,expected_msg", [
     ("start",   "Start command issued"),

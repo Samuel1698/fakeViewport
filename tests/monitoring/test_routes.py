@@ -107,6 +107,7 @@ def test_api_index_links(client):
     assert resp.status_code == 200
     data = resp.get_json()
     expected = {
+        'dashboard',
         'update',
         'update/changelog',
         'script_uptime',
@@ -117,7 +118,10 @@ def test_api_index_links(client):
     }
     assert set(data.keys()) == expected
     for key, url in data.items():
-        assert url.endswith(f'/api/{key}')
+        if key == 'dashboard':
+            assert url.endswith('/dashboard')
+        else:
+            assert url.endswith(f'/api/{key}')
 
 # --------------------------------------------------------------------------- #
 # /api/script_uptime
