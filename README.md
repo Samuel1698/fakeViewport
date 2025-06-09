@@ -490,13 +490,13 @@ Because this script simply displays the live view on a webpage, it has several a
 
 <sup>Control Panel | Device Tab | Light Theme</sup>
 
-<img width="678" alt="Config Tab" src="https://github.com/user-attachments/assets/1f1167c4-5682-471e-b65b-678eaba77ad9" />
+<img width="678" alt="Desktop View" src="https://github.com/user-attachments/assets/eb28383e-0899-4f4e-b5ee-d2e132291bd6" />
 
-<sup>Control Panel | Config Tab | Light Theme</sup>
+<sup>Control Panel | Desktop View | Dark Theme</sup>
 
-<img width="678" alt="Logs Tab" src="https://github.com/user-attachments/assets/cde75dd5-0428-4e25-b907-47f28a5ad771" />
+<img width="678" alt="Config Tab" src="https://github.com/user-attachments/assets/841d52ba-c354-48f2-a02f-1c02fd068b87" />
 
-<sup>Control Panel | Logs Tab | Dark Theme</sup>
+<sup>Control Panel | Desktop Config Tab | Dark Theme</sup>
 
 ---
 
