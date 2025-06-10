@@ -339,3 +339,48 @@ def test_driver_download_stuck_logs_and_kills(monkeypatch, browser):
     spy_log.assert_any_call(
         f"Error downloading {browser}WebDrivers; Restart machine if it persists."
     )
+
+@pytest.mark.parametrize("browser", ["chrome", "chromium", "firefox"])
+def test_cached_driver_path_is_reused(monkeypatch, tmp_path, browser):
+    """
+    If viewport.driver_path already contains a valid file, browser_handler
+    must skip get_driver_path() and use the cached value.
+    """
+    # Arrange
+    fake_driver = tmp_path / f"{browser}_driver"
+    fake_driver.touch(mode=0o755)
+
+    monkeypatch.setattr(viewport, "BROWSER", browser)
+    monkeypatch.setattr(viewport, "validate_config", lambda *a, **k: True)
+    monkeypatch.setattr(viewport, "api_status",     lambda *a, **k: None)
+    monkeypatch.setattr(viewport, "time",           MagicMock(sleep=lambda _: None))
+    monkeypatch.setattr(viewport, "restart_handler", MagicMock())
+
+    # Seed the cache
+    monkeypatch.setattr(viewport, "driver_path", str(fake_driver), raising=False)
+
+    # Spy on get_driver_path → must not be called
+    spy_get_driver = MagicMock()
+    monkeypatch.setattr(viewport, "get_driver_path", spy_get_driver)
+
+    # --- NEW for Firefox: stub the options and service factories ---
+    monkeypatch.setattr(viewport, "FirefoxOptions",
+                        lambda *args, **kwargs: MagicMock())
+    monkeypatch.setattr(viewport, "FirefoxService",
+                        lambda *args, **kwargs: MagicMock())
+
+    # Stub the Selenium constructors so no real browser starts.
+    dummy_driver = MagicMock()
+    if browser in ("chrome", "chromium"):
+        monkeypatch.setattr(viewport.webdriver, "Chrome",
+                            lambda *a, **k: dummy_driver)
+    else:
+        monkeypatch.setattr(viewport.webdriver, "Firefox",
+                            lambda *a, **k: dummy_driver)
+
+    # Act
+    result = viewport.browser_handler(url="about:blank")
+
+    # Assert
+    assert result is dummy_driver, "Handler did not return the created driver"
+    assert spy_get_driver.call_count == 0, "get_driver_path() should NOT be called"
