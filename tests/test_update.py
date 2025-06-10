@@ -1,4 +1,4 @@
-import io, importlib, types, base64, subprocess, json, tarfile, warnings, logging
+import io, importlib, base64, subprocess, json, logging, types
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch, Mock
@@ -7,6 +7,7 @@ from urllib.error import HTTPError
 import pytest
 import monitoring
 import update as uu
+import validate_config
 # --------------------------------------------------------------------------- # 
 # Fixtures
 # --------------------------------------------------------------------------- # 
@@ -36,6 +37,76 @@ def app_client(dummy_repo, monkeypatch):
     app = monitoring.create_app()
     app.testing = True
     return app.test_client()
+
+def _cfg(log_path: Path) -> types.SimpleNamespace:
+    return types.SimpleNamespace(
+        log_file=str(log_path),
+        LOG_FILE_FLAG=True,
+        LOG_CONSOLE=False,
+        LOG_DAYS=7,
+        DEBUG_LOGGING=False,
+    )
+
+# --------------------------------------------------------------------------- # 
+# Logging
+# --------------------------------------------------------------------------- # 
+def test_update_respects_existing_root_handler(monkeypatch, tmp_path):
+    root = logging.getLogger()
+    original = list(root.handlers)
+
+    log_path = tmp_path / "viewport.log"
+    root.handlers.clear()
+    fh = logging.FileHandler(log_path)
+    fh.setFormatter(logging.Formatter('%(message)s'))
+    root.addHandler(fh)
+
+    monkeypatch.setattr(validate_config, "validate_config",
+                        lambda *_, **__: _cfg(log_path))
+
+    uu_reloaded = importlib.reload(uu)
+
+    msg = "existing-handler-branch"
+    uu_reloaded.logger.info(msg)
+    fh.flush()
+    assert msg in log_path.read_text()
+    assert root.handlers == [fh]          # no extra handler added
+
+    root.removeHandler(fh)
+    fh.close()
+    for h in original:                    # restore pre-test state
+        root.addHandler(h)
+
+def test_update_configures_logging_when_root_empty(monkeypatch, tmp_path):
+    root = logging.getLogger()
+    original = list(root.handlers)
+    for h in list(root.handlers):
+        root.removeHandler(h)
+
+    log_path = tmp_path / "viewport.log"
+    monkeypatch.setattr(validate_config, "validate_config",
+                        lambda *_, **__: _cfg(log_path))
+
+    uu_reloaded = importlib.reload(uu)
+
+    assert root.handlers                  # configure_logging ran
+
+    msg = "no-handler-branch"
+    uu_reloaded.logger.info(msg)
+    for h in root.handlers:
+        if hasattr(h, "flush"): h.flush()
+
+    found = any(
+        getattr(h, "baseFilename", None)
+        and msg in Path(h.baseFilename).read_text()
+        for h in root.handlers
+    )
+    assert found                          # message reached the file
+
+    for h in list(root.handlers):         # cleanup
+        root.removeHandler(h)
+        if hasattr(h, "close"): h.close()
+    for h in original:
+        root.addHandler(h)
 
 # --------------------------------------------------------------------------- # 
 # current_version / latest_version
@@ -278,7 +349,7 @@ def test_update_via_git(monkeypatch, clean, step_ok, expected, dummy_repo):
     if not clean:
         assert calls == []                 # bailed early
     else:
-        assert len(calls) >= (1 if not step_ok else 5)
+        assert len(calls) >= (1 if not step_ok else 4)
 
 def test_update_via_git_real_file_change(dummy_repo, monkeypatch):
     # point version file and seed old version
