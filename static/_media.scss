@@ -265,34 +265,44 @@
     }
   }
   section#config {
-    display: inline-flex;
+    display: inline-grid;
+    grid-template-columns: 22rem minmax(22rem, 700px);
     padding: $gap;
     gap: $gap;
     max-width: unset;
     width: calc(100% - $header);
     box-sizing: border-box;
     &[hidden]{display:none;}
-    .flex-group {
-      display: inline-flex;
-      border-radius: unset;
+    ul:not(.status) {
+      display: flex;
       flex-direction: column;
-      flex-wrap: nowrap;
-      justify-content: flex-start;
-      height: calc(100vh - $header - (2 * $gap));
-      gap: $gap;
+      justify-content: space-between;
+    }
+    .wrapper {
+      grid-column: 1;
+      margin: 0;
       box-sizing: border-box;
-      .wrapper {
-        width: 22rem;
-        margin: 0;
-        box-sizing: border-box;
-        border-radius: $border-radius;
-      }
+      border-radius: $border-radius;
       &[hidden] {
-        width: 100%;
-        max-width: 700px;
-        .wrapper {
-          width: unset;
+        display: block;
+        grid-column: 2;
+        ul.status {
+          font-size: 110%;
+          font-weight: bold;
+          justify-content: space-between;
         }
+      }
+      &:nth-child(1), &:nth-child(2){
+        grid-row: 1;
+      }
+      &:nth-child(3), &:nth-child(4){
+        grid-row: 2;
+        ul {
+          height: 100%;
+        }
+      }
+      &:nth-child(5), &:nth-child(6){
+        grid-row: 3;
       }
     }
     .tooltip {
@@ -325,19 +335,19 @@
         margin-bottom: 0;
       }
     }
-    div.changelog {
-      div.headingWrapper {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        div.headingGroup {
-          display: flex;
-          flex-direction: column;
-        }
-        div.headingGroup:last-child:nth-child(odd) {
-          grid-column: span 2;
-        }
-      }
-    }
+    // div.changelog {
+    //   div.headingWrapper {
+    //     display: grid;
+    //     grid-template-columns: repeat(2, 1fr);
+    //     div.headingGroup {
+    //       display: flex;
+    //       flex-direction: column;
+    //     }
+    //     div.headingGroup:last-child:nth-child(odd) {
+    //       grid-column: span 2;
+    //     }
+    //   }
+    // }
   }
   .tooltip .tooltip-text {
     left: 50%;
@@ -355,7 +365,7 @@
     // 450px
     width: $width;
   }
-  section#config .flex-group .wrapper {
-    width: $width;
+  section#config {
+    grid-template-columns: $width minmax($width, 700px);
   }
 }

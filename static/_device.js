@@ -45,40 +45,56 @@ export let configCache = {
     const formatTime = {
       seconds: (value, element) => {
         const formatted = `${value} Second${value !== 1 ? "s" : ""}`;
-        if (element.id === "waitTime" && value <= 5) {
-          element.classList.add("Red");
-        } else {
-          element.classList.add("Blue");
+        if (element.id === "waitTime"){
+          if (value <= 10 || value >= 120){
+            element.classList.add("Red");
+          } else if (value < 30 || value > 90) {
+            element.classList.add("Yellow");
+          } else if (value > 30) {
+            element.classList.add("Green");
+          } else {
+            element.classList.add("Blue");
+          }
         }
         return formatted;
       },
       minutes: (value, element) => {
         const formatted = `${value} Minute${value !== 1 ? "s" : ""}`;
-        if (element.id === "healthInterval" && value <= 1) {
+        if (element.id === "healthInterval" && (value <= 1 || value >= 20)) {
           element.classList.add("Red");
+        } else if (element.id === "healthInterval" && (value < 3 || value > 15)){
+          element.classList.add("Yellow");
+        } else if (element.id === "healthInterval" && value == 5){
+          element.classList.add("Blue");
         } else if (
           element.id === "logInterval" &&
           sleepTimeMinutes &&
           value < sleepTimeMinutes
         ) {
+          element.classList.add("Red");
+        } else if (element.id === "logInterval" && value == 60){
+          element.classList.add("Blue");
+        } else if (element.id === "logInterval" && (value < 30 || value > 120)){
           element.classList.add("Yellow");
         } else {
-          element.classList.add("Blue");
+          element.classList.add("Green");
         }
         return formatted;
       },
       days: (value, element) => {
         const formatted = `${value} Day${value !== 1 ? "s" : ""}`;
-        if (value > 7) {
+        if (value > 14) {
           element.classList.add("Yellow");
-        } else {
+        } else if (element.id === "logDays" && value == 7){
           element.classList.add("Blue");
+        } else {
+          element.classList.add("Green");
         }
         return formatted;
       },
       hours: (value, element) => {
         const formatted = `${value} Hour${value !== 1 ? "s" : ""}`;
-        element.classList.add("Blue");
+        element.classList.add("Green");
         return formatted;
       },
       boolean: (value, element) => {
@@ -99,6 +115,20 @@ export let configCache = {
         return formatted;
       },
     };
+    const classifyPath = (p) => {
+      const l = (p || "").toLowerCase();
+      if (l.includes("chromium")) return "chromium";
+      if (l.includes("chrome")) return "chrome";
+      if (l.includes("firefox")) return "firefox";
+      return "other"; // anything we don’t recognise
+    };
+
+    const profPath = config?.browser?.profile_path || "";
+    const binPath = config?.browser?.binary_path || "";
+    const profType = classifyPath(profPath);
+    const binType = classifyPath(binPath);
+    const mismatch =
+      profType !== "other" && binType !== "other" && profType !== binType;
     // Element configuration with formatting rules
     const elementConfig = [
       // General Section
@@ -116,7 +146,7 @@ export let configCache = {
         id: "maxRetries",
         path: "general.max_retries",
         format: (v, el) => {
-          el.classList.add(v < 3 ? "Red" : "Blue");
+          el.classList.add(v < 3 ? "Red" : v >= 6 ? "Yellow" : "Green");
           return `${v} Attempts`;
         },
       },
@@ -124,7 +154,11 @@ export let configCache = {
         id: "restartTimes",
         path: "general.restart_times",
         format: (v, el) => {
-          el.classList.add("Yellow");
+          if (v === null || (Array.isArray(v) && v.length === 0)) {
+            el.classList.add("Blue"); // Empty or null → Blue
+          } else {
+            el.classList.add("Green"); // Has values → Green
+          }
           return Array.isArray(v) ? v.join(", ") : "-";
         },
       },
@@ -148,21 +182,25 @@ export let configCache = {
           return formatter.format(next).replace(/, /g, " ");
         },
       },
-      // Browser Section
       {
         id: "profilePath",
         path: "browser.profile_path",
         format: (v, el) => {
           if (!v) {
-            el.classList.remove("Green", "Red");
+            el.classList.remove("Green", "Red", "Yellow");
             return "-";
           }
-          const lowerPath = v.toLowerCase();
-          const isValid =
-            lowerPath.includes("chrome") ||
-            lowerPath.includes("chromium") ||
-            lowerPath.includes("firefox");
-          el.classList.add(isValid ? "Green" : "Red");
+
+          const lower = v.toLowerCase();
+          const hasUserDir = lower.includes("your-user");
+
+          if (hasUserDir) {
+            el.classList.add("Yellow");
+          } else if (mismatch || profType === "other") {
+            el.classList.add("Red");
+          } else {
+            el.classList.add("Green");
+          }
           return v;
         },
       },
@@ -171,15 +209,20 @@ export let configCache = {
         path: "browser.binary_path",
         format: (v, el) => {
           if (!v) {
-            el.classList.remove("Green", "Red");
+            el.classList.remove("Green", "Red", "Yellow");
             return "-";
           }
-          const lowerBinary = v.toLowerCase();
-          const isValid =
-            lowerBinary.includes("chrome") ||
-            lowerBinary.includes("chromium") ||
-            lowerBinary.includes("firefox");
-          el.classList.add(isValid ? "Green" : "Red");
+
+          const lower = v.toLowerCase();
+          const hasUserDir = lower.includes("your-user");
+
+          if (hasUserDir) {
+            el.classList.add("Yellow");
+          } else if (mismatch || binType === "other") {
+            el.classList.add("Red");
+          } else {
+            el.classList.add("Green");
+          }
           return v;
         },
       },
