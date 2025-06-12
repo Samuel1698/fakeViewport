@@ -1,23 +1,42 @@
 #!/usr/bin/venv python3
-import subprocess
-import io
-import tarfile
-import logging
+import subprocess, io, tarfile, logging, sys, json, os, base64
+from logging_config import configure_logging
+from validate_config import validate_config
 from pathlib import Path
 from urllib.request import urlopen
-import json, os
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
-import base64
 from datetime import datetime, timedelta
+from viewport import log_error
 
 CACHE_DURATION = timedelta(hours=1)
 REPO  = "Samuel1698/fakeViewport"
 ROOT  = Path(__file__).resolve().parent
 GIT   = ["git", "-C", str(ROOT)]
 VERS  = ROOT / "api" / "VERSION"
+_mon = sys.modules[__name__]
 last_release_fetched: datetime | None = None
 cached_release_data: dict | None = None
+
+# --------------------------------------------------------------------------- # 
+# Config set up
+# --------------------------------------------------------------------------- # 
+cfg = validate_config(strict=False, print=False)
+# pull everything out into locals/globals
+for name, val in vars(cfg).items():
+    setattr(_mon, name, val)
+
+root_logger = logging.getLogger()
+if not root_logger.handlers:
+    configure_logging(
+        log_file_path=str(log_file),
+        log_file=LOG_FILE_FLAG,
+        log_console=LOG_CONSOLE,
+        log_days=LOG_DAYS,
+        Debug_logging=DEBUG_LOGGING
+    )
+else: pass
+logger = logging.getLogger(__name__) 
 # --------------------------------------------------------------------------- # 
 # Helper functions
 # --------------------------------------------------------------------------- # 
@@ -45,11 +64,12 @@ def _github(url: str, *, accept="application/vnd.github+json"):
     try:
         return urlopen(req, timeout=30)
     except HTTPError as e:
+        logging.error("HTTP Error %s", e.code)
         if e.code == 403 and 'rate limit' in str(e):
             remaining = e.headers.get('X-RateLimit-Remaining', '?')
-            logging.warning(f"GitHub rate limit exceeded (remaining: {remaining})")
-        else:
-            logging.warning(str(e))
+            log_error(f"GitHub rate limit exceeded (remaining: {remaining})")
+        elif e.code == 403:
+            log_error("Server Failed to Authenticate")
         raise
     
 def _clean_worktree() -> bool:
@@ -114,10 +134,7 @@ def update_via_git(tag: str) -> bool:
     Returns:
         bool: ``True`` on success, ``False`` if any Git step fails.
     """
-    if not _clean_worktree():
-        logging.warning("Local changes detected - skipping git strategy")
-        return False
-
+    logging.info("Attempting to update via git")
     env = os.environ.copy()
     if (tok := os.getenv("GITHUB_TOKEN")):
         b64 = base64.b64encode(f"x-access-token:{tok}".encode()).decode()
@@ -133,14 +150,14 @@ def update_via_git(tag: str) -> bool:
         GIT + ["checkout", branch],                     # leave detached-HEAD if needed
         GIT + ["fetch", "--tags", "--force", "--prune"],
         GIT + ["pull", "--ff-only", "origin", branch],  # ordinary pull
-        GIT + ["merge", "--ff-only", f"v{tag}"],        # fast-forward to the tag
         ["bash", str(ROOT / "minimize.sh"), "--force"], # run minimizer
     ]
     for step in steps:
         try:
+            logging.info("Executing: %s", " ".join(step))
             subprocess.check_output(step, stderr=subprocess.STDOUT, text=True, env=env)
         except subprocess.CalledProcessError as e:
-            logging.error("git failed: %s", e.output.strip())
+            log_error("git failed: %s", e)
             return False
 
     return True
@@ -156,13 +173,17 @@ def _download_asset(tag: str, keyword: str) -> bytes | None:
     Returns:
         bytes | None: Asset content, or ``None`` if not found.
     """
-    with _github(f"https://api.github.com/repos/{REPO}/releases/tags/v{tag}") as r:
-        data = json.load(r)
-    for asset in data.get("assets", []):
-        if keyword.lower() in asset["name"].lower():
-            with _github(asset["url"], accept="application/octet-stream") as a:
-                return a.read()
-    return None
+    try:
+        with _github(f"https://api.github.com/repos/{REPO}/releases/tags/v{tag}") as r:
+            data = json.load(r)
+        for asset in data.get("assets", []):
+            if keyword.lower() in asset["name"].lower():
+                with _github(asset["url"], accept="application/octet-stream") as a:
+                    return a.read()
+        return None
+    except HTTPError as e:
+        log_error("Failed to download assets")
+        logging.warning("Wait a few minutes before attempting to update again")
 
 def update_via_tar(tag: str) -> bool:
     """
@@ -174,6 +195,7 @@ def update_via_tar(tag: str) -> bool:
     Returns:
         bool: ``True`` if extraction succeeds, ``False`` otherwise.
     """
+    logging.info("Attempting to update via tar")
     try:
         blob = _download_asset(tag, "minimal")
         if blob is None:
@@ -188,7 +210,7 @@ def update_via_tar(tag: str) -> bool:
             tf.extractall(ROOT, members=members)  
         return True
     except Exception as exc:
-        logging.exception("tar update failed: %s", exc)
+        log_error("tar update failed: %s", exc)
         return False
 # --------------------------------------------------------------------------- # 
 # API
@@ -308,11 +330,11 @@ def perform_update() -> str:
         ``"updated-to-2.3.6-via-git"``, or ``"update-failed"``.
     """
     cur, new = current_version(), latest_version()
-
+    logging.info(f"Attempting update to v{new}")
     # already current
     if cur == new:
         outcome = "already-current"
-        logging.info(outcome)
+        logging.info(f"Viewport v{cur} is the latest version")
         return outcome
 
     # git path 
@@ -321,16 +343,16 @@ def perform_update() -> str:
         tried_git = True
         if update_via_git(new):
             outcome = f"updated-to-{new}-via-git"
-            logging.info(outcome)
+            logging.info(f"Successfully updated to v{new} via git")
             return outcome
-
+    else: logging.warning("Local changes detected  or not a git repository - skipping git strategy")
     # tarball path 
     if update_via_tar(new):
         outcome = f"updated-to-{new}-via-tar" + (" (git failed)" if tried_git else "")
-        logging.info(outcome)
+        logging.info(f"Successfully updated to v{new} via tarbal")
         return outcome
 
     # failure
     outcome = "update-failed"
-    logging.info(outcome)                       
+    log_error("Failed to apply update")
     return outcome

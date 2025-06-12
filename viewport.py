@@ -46,6 +46,7 @@ logs_dir    = _base / 'logs'
 api_dir     = _base / 'api'
 ver_file    = api_dir / 'VERSION'
 __version__ = ver_file.read_text().strip()
+driver_path = None
 # Initial non strict config parsing
 cfg = validate_config(strict=False, print=False)
 for name, val in vars(cfg).items():
@@ -406,7 +407,8 @@ def api_handler(*, standalone: bool = False):
                     "Press CTRL+C to quit",
                     "Serving Flask app",
                     "Debug mode:",
-                    "Running on"
+                    "Running on",
+                    "Starting server with"
                 }
                 # Regular expression to match ANSI color codes
                 ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
@@ -992,6 +994,7 @@ def browser_handler(url):
         ``None`` if all attempts fail and the script is scheduled for
         restart.
     """
+    global driver_path
     process_handler(BROWSER, action="kill")
     max_attempts = MAX_RETRIES + 1  # Initial attempt + retries
     for attempt in range(1, max_attempts + 1):  # 1-indexed counting
@@ -1003,7 +1006,10 @@ def browser_handler(url):
             logging.warning(f"Killing existing {BROWSER} processes before final attempt...")
             process_handler(BROWSER, action="kill")
         try:
-            driver_path = get_driver_path(BROWSER, timeout=WAIT_TIME)
+            if driver_path and Path(driver_path).exists():
+                _driver_path = driver_path
+            else:
+                _driver_path = get_driver_path(BROWSER, timeout=WAIT_TIME)
             if BROWSER in ("chrome", "chromium"):
                 chrome_options = Options()
                 if HEADLESS:
@@ -1029,7 +1035,7 @@ def browser_handler(url):
                     "profile.password_manager_enabled": False
                 })
                 driver = webdriver.Chrome(
-                    service=Service(driver_path),
+                    service=Service(_driver_path),
                     options=chrome_options
                 )
             elif BROWSER == "firefox":
@@ -1053,12 +1059,13 @@ def browser_handler(url):
                 opts.add_argument(BROWSER_PROFILE_PATH)
                 opts.binary_location = BROWSER_BINARY
                 opts.accept_insecure_certs = True
-                service = FirefoxService(executable_path=driver_path)
+                service = FirefoxService(executable_path=_driver_path)
                 driver  = webdriver.Firefox(service=service, options=opts)
             else:
                 log_error(f"Unsupported browser: {BROWSER}")
                 api_status(f"Unsupported browser: {BROWSER}")
                 return None
+            driver_path = _driver_path
             driver.get(url)
             return driver
         except InvalidArgumentException:

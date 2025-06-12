@@ -394,6 +394,24 @@ section#config {
     &:not(:first-child){
       border-radius: $border-radius;
     }
+    ul.status {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      margin-bottom: 1rem;
+      li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        span.indicator {
+          height: 12px;
+          width: 12px;
+          border-radius: 50%;
+          display: inline-block;
+          background-color: currentColor;
+        }
+      }
+    }
   }
 }
 // --------------------------------------------------
@@ -484,6 +502,7 @@ section#update {
         padding: 0.5rem 1.4rem;
         background-color: color("blue");
         color: color("text");
+        cursor: pointer;
         border: 0;
         border-radius: $border-radius;
         @include hover {
@@ -491,6 +510,7 @@ section#update {
         }
         &[disabled] {
           background-color: color("diminished");
+          cursor: unset;
         }
       }
     }

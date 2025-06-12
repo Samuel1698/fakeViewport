@@ -57,6 +57,7 @@ export function colorLogEntry(logText, element) {
     lowerLogText.includes("saved") ||
     lowerLogText.includes("gracefully shutting down") ||
     lowerLogText.includes("already running") ||
+    lowerLogText.includes("successfully updated") ||
     lowerLogText.includes("no errors found") ||
     lowerLogText.includes("started")
   ) {
