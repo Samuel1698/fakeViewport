@@ -3,6 +3,22 @@
 Note: Entries marked with "💥" indicate crucial or breaking changes that might affect your current setup. Entries marked with "🐛" indicate a bug fix, "✨" indicates an improvement,
 and "🔥" indicates a non-breaking change.
 
+## ✨🔥🐛 v2.4.1: Visual Fixes & Cache
+
+### 🔥Changed
+
+- `driver_path` gets cached in the same script run to prevent repeated calls to `get_driver_path` unless the script restarts.
+- `monitoring.log` flask logs now less verbose.
+- `config` tab in dashboard now has more clear coloring and a color-guide.
+
+### 🐛 Fixed
+
+- `update.py` properly logs to `viewport.log` instead of `monitoring.log`.
+- Missing meta viewport tag in login page.
+- Update button not having a pointer cursor.
+
+**[Full Changelog](https://github.com/Samuel1698/fakeViewport/compare/v2.4.0...v2.4.1)**
+
 ---
 
 ## ✨💥🐛 v2.4.0: Edgecase Bug Fix & Login Page
