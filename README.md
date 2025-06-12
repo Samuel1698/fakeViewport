@@ -489,7 +489,7 @@ Because this script simply displays the live view on a webpage, it has several a
 
 <sup>Control Panel | Desktop View | Dark Theme</sup>
 
-<img width="678" alt="Config Tab" src="https://github.com/user-attachments/assets/841d52ba-c354-48f2-a02f-1c02fd068b87" />
+<img width="678" alt="Config Tab" src="https://github.com/user-attachments/assets/34e131b1-cbd3-4141-8cbd-f9cce6a4d1bf" />
 
 <sup>Control Panel | Desktop Config Tab | Dark Theme</sup>
 
