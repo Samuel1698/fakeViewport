@@ -1,5 +1,5 @@
 import pytest
-import logging, datetime, os, sys
+import logging, datetime, os, sys, re
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
 from logging_config import configure_logging, ColoredFormatter
@@ -22,6 +22,9 @@ def clear_root_handlers():
     yield
     root.handlers[:] = saved
 
+# --------------------------------------------------------------------------- #
+# Boilerplate configuration check
+# --------------------------------------------------------------------------- #
 def test_configure_logging_file_and_console(tmp_path):
     log_path = tmp_path / "app.log"
     logger = configure_logging(
@@ -157,3 +160,95 @@ def test_date_only_rotation_culls_old_backups(tmp_path):
         "test.log.2025-05-04",
         "test.log.2025-05-05",
     ]
+
+# --------------------------------------------------------------------------- #
+# Re-use-existing-handler branch coverage
+# --------------------------------------------------------------------------- #
+def test_configure_logging_reuses_existing_handler(tmp_path):
+    """
+    Calling configure_logging() twice with the *same* path must not add a second
+    TimedRotatingFileHandler - the early-return branch should trigger.
+    """
+    log_file = tmp_path / "viewport.log"
+
+    first = configure_logging(
+        log_file_path=str(log_file),
+        log_file=True,
+        log_console=False,
+        log_days=1,
+        Debug_logging=False,
+    )
+    handlers_before = [h for h in first.handlers if isinstance(h, TimedRotatingFileHandler)]
+    assert len(handlers_before) == 1
+
+    second = configure_logging(
+        log_file_path=str(log_file),
+        log_file=True,
+        log_console=False,
+        log_days=1,
+        Debug_logging=False,
+    )
+    handlers_after = [h for h in second.handlers if isinstance(h, TimedRotatingFileHandler)]
+    assert second is first                                   # same logger object
+    assert handlers_after == handlers_before                 # same single handler
+
+    # tidy up to avoid bleed-through
+    for h in list(first.handlers):
+        first.removeHandler(h)
+        h.close()
+
+# --------------------------------------------------------------------------- #
+# End-to-end routing & filter behaviour
+# --------------------------------------------------------------------------- #
+def test_viewport_and_monitoring_logs_routed_and_filtered(tmp_path):
+    """
+    • viewport.log gets *root/update* messages, not monitoring/werkzeug  
+    • monitoring.log gets monitoring + cleaned werkzeug lines  
+    • ANSI codes, IP addresses, and timestamps are stripped in monitoring.log
+    """
+    vp_log = tmp_path / "viewport.log"
+    mon_log = tmp_path / "monitoring.log"
+
+    # viewport sets up first – root handler
+    configure_logging(
+        log_file_path=str(vp_log),
+        log_file=True,
+        log_console=False,
+        log_days=1,
+        Debug_logging=False,
+    )
+    # monitoring adds its own handler without wiping the first
+    configure_logging(
+        log_file_path=str(mon_log),
+        log_file=True,
+        log_console=False,
+        log_days=1,
+        Debug_logging=False,
+    )
+
+    # emit one message for each logger type
+    logging.info("ROOT message")
+    logging.getLogger("monitoring").info("MON message")
+    raw_access = "\x1b[0;32m127.0.0.1 - - [01/Jan/2025 00:00:00] \"GET /api/test HTTP/1.1\" 200 -\x1b[0m"
+    logging.getLogger("werkzeug").info(raw_access)
+
+    # flush all handlers so files are written
+    for h in logging.getLogger().handlers:
+        h.flush()
+
+    vp_text  = vp_log.read_text()
+    mon_text = mon_log.read_text()
+
+    # viewport.log expectations
+    assert "ROOT message" in vp_text
+    assert "MON message" not in vp_text
+    assert "/api/test"   not in vp_text
+
+    # monitoring.log expectations
+    assert "MON message" in mon_text
+    assert "ROOT message" not in mon_text
+    assert "\"GET /api/test HTTP/1.1\" 200" in mon_text    # cleaned access line
+    assert "\x1b[" not in mon_text                         # no ANSI codes
+    assert not "127.0.0.1 - - [01/Jan/2025 00:00:00]" in mon_text
+    # no IP + timestamp clutter
+    assert not re.search(r"\d+\.\d+\.\d+\.\d+ - - \[", mon_text)

@@ -407,7 +407,8 @@ def api_handler(*, standalone: bool = False):
                     "Press CTRL+C to quit",
                     "Serving Flask app",
                     "Debug mode:",
-                    "Running on"
+                    "Running on",
+                    "Starting server with"
                 }
                 # Regular expression to match ANSI color codes
                 ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')

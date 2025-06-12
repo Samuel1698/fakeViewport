@@ -1,9 +1,9 @@
-import io, importlib, base64, subprocess, json, logging, types
+import io, importlib, base64, subprocess, json, logging, types, tarfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 from urllib.error import HTTPError
-
+from types import SimpleNamespace
 import pytest
 import monitoring
 import update as uu
@@ -272,8 +272,6 @@ def test__get_release_data_generic_exception_branch(monkeypatch):
 def test__get_release_data_returns_cached(monkeypatch):
     # If cached_release_data is set and last_release_fetched is recent,
     # _get_release_data should short-circuit and return the cache without calling GitHub.
-    from datetime import datetime, timedelta
-
     # Seed the cache with a dummy payload and mark fetched as ‘now’
     uu.cached_release_data = {"tag_name": "vX.Y.Z", "body": "ignored"}
     uu.last_release_fetched = datetime.now()
@@ -330,7 +328,6 @@ def test_default_branch_paths(monkeypatch):
 # update_via_git
 # --------------------------------------------------------------------------- # 
 @pytest.mark.parametrize("clean,step_ok,expected", [
-    (False, True,  False),   # dirty tree → abort
     (True,  True,  True),    # all steps succeed
     (True,  False, False),   # first step fails
 ])
@@ -346,10 +343,7 @@ def test_update_via_git(monkeypatch, clean, step_ok, expected, dummy_repo):
     monkeypatch.setattr(uu.subprocess, "check_output", fake_check)
     ok = uu.update_via_git("0.2.0")
     assert ok is expected
-    if not clean:
-        assert calls == []                 # bailed early
-    else:
-        assert len(calls) >= (1 if not step_ok else 4)
+    assert len(calls) >= (1 if not step_ok else 4)
 
 def test_update_via_git_real_file_change(dummy_repo, monkeypatch):
     # point version file and seed old version
@@ -501,7 +495,6 @@ def test_update_via_tar(monkeypatch, asset_ok, tar_ok, expected, has_dirs, tmp_p
 def test_update_via_tar_real_extraction(dummy_repo, monkeypatch):
     # Test actual tar extraction with real filesystem operations
     def make_version_tar_bytes(tag: str) -> bytes:
-        import io, tarfile
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w:gz") as tf:
             # Add multiple files to test directory handling
@@ -665,8 +658,6 @@ def test__github_headers(monkeypatch):
     }
 
 def test__github_rate_limit_warning(monkeypatch, caplog):
-    import logging
-
     # Capture warnings at WARNING level
     caplog.set_level(logging.WARNING)
 
@@ -690,39 +681,26 @@ def test__github_rate_limit_warning(monkeypatch, caplog):
 
     # Verify that the warning about rate limiting was emitted
     assert "GitHub rate limit exceeded (remaining: 2)" in caplog.text
-    
+
+def test__github_authentication_error(monkeypatch, caplog):
+    # Simulate a non-403 HTTPError (e.g., 404 Not Found)
+    err = HTTPError(url="http://example.com", code=403, msg="Not Found", hdrs=None, fp=None)
+    monkeypatch.setattr(uu, "Request", lambda url, headers: "REQ")
+    monkeypatch.setattr(uu, "urlopen", lambda req, timeout: (_ for _ in ()).throw(err))
+    caplog.set_level("ERROR")
+    with pytest.raises(HTTPError):
+        uu._github("http://example.com")
+    assert "Server Failed to Authenticate" in caplog.text
+
 def test__github_other_http_error_logging(monkeypatch, caplog):
     # Simulate a non-403 HTTPError (e.g., 404 Not Found)
     err = HTTPError(url="http://example.com", code=404, msg="Not Found", hdrs=None, fp=None)
     monkeypatch.setattr(uu, "Request", lambda url, headers: "REQ")
     monkeypatch.setattr(uu, "urlopen", lambda req, timeout: (_ for _ in ()).throw(err))
-    caplog.set_level("WARNING")
+    caplog.set_level("ERROR")
     with pytest.raises(HTTPError):
         uu._github("http://example.com")
-    assert "HTTP Error 404" in caplog.text  
-    
-@pytest.mark.parametrize("assets,keyword,expected", [
-    ([], "minimal", None),
-    ([{"name": "other-file", "url": "u"}], "minimal", None),
-    ([{"name": "pkg-Minimal-V1", "url": "u"}], "minimal", b"BYTES"),
-])
-def test__download_asset(monkeypatch, assets, keyword, expected):
-    tag = "1.2.3"
-    def fake__github(url, accept="application/vnd.github+json"):
-        # metadata call
-        if url.endswith(f"/tags/v{tag}"):
-            meta = {"assets": assets}
-            class Meta(DummyCM):
-                def read(self): return json.dumps(meta)
-            return Meta()
-        # download call
-        class Blob(DummyCM):
-            def read(self): return b"BYTES"
-        return Blob()
-
-    monkeypatch.setattr(uu, "_github", fake__github)
-    result = uu._download_asset(tag, keyword)
-    assert result == expected
+    assert "HTTP Error 404" in caplog.text
 
 # --------------------------------------------------------------------------- # 
 # Monitoring API endpoints
@@ -750,7 +728,6 @@ def test_update_apply_endpoint(app_client, monkeypatch):
 
 def test_update_changelog_endpoint_success(app_client, monkeypatch):
     # Simulate a normal response from latest_changelog
-    import monitoring
     monkeypatch.setattr(monitoring.update, "latest_changelog", lambda: "Example notes")
     response = app_client.get("/api/update/changelog")
     assert response.status_code == 200
@@ -764,7 +741,6 @@ def test_update_changelog_endpoint_success(app_client, monkeypatch):
 
 def test_update_changelog_endpoint_error(app_client, monkeypatch, caplog):
     # Simulate an exception in latest_changelog to hit the error branch
-    import monitoring
     caplog.set_level("ERROR")
     monkeypatch.setattr(
         monitoring.update,
@@ -826,3 +802,70 @@ def test_latest_changelog_exception(monkeypatch):
     uu.last_release_fetched = None
     monkeypatch.setattr(uu, "_get_release_data", lambda: (_ for _ in ()).throw(ValueError("oops")))
     assert uu.latest_changelog() == ""
+
+# --------------------------------------------------------------------------- # 
+# Download Assets
+# --------------------------------------------------------------------------- # 
+@pytest.mark.parametrize("assets,keyword,expected", [
+    ([], "minimal", None),
+    ([{"name": "other-file", "url": "u"}], "minimal", None),
+    ([{"name": "pkg-Minimal-V1", "url": "u"}], "minimal", b"BYTES"),
+])
+def test__download_asset(monkeypatch, assets, keyword, expected):
+    tag = "1.2.3"
+    def fake__github(url, accept="application/vnd.github+json"):
+        # metadata call
+        if url.endswith(f"/tags/v{tag}"):
+            meta = {"assets": assets}
+            class Meta(DummyCM):
+                def read(self): return json.dumps(meta)
+            return Meta()
+        # download call
+        class Blob(DummyCM):
+            def read(self): return b"BYTES"
+        return Blob()
+
+    monkeypatch.setattr(uu, "_github", fake__github)
+    result = uu._download_asset(tag, keyword)
+    assert result == expected
+
+@pytest.mark.parametrize("fail_stage", ["meta", "asset"])
+def test__download_asset_http_error(monkeypatch, caplog, fail_stage):
+    """
+    • fail_stage=='meta'  -> _github raises on the releases/tags call
+    • fail_stage=='asset' -> _github raises while fetching the blob
+    In both cases the function should:
+        * return None
+        * log the generic ERROR + WARNING messages
+    """
+    tag = "1.2.3"
+
+    def fake__github(url, accept="application/vnd.github+json"):
+        # metadata call ---------------------------------------------------
+        if url.endswith(f"/tags/v{tag}"):
+            if fail_stage == "meta":
+                raise HTTPError(url, 404, "Not Found", hdrs=None, fp=None)
+
+            # successful metadata payload with a single asset match
+            payload = {"assets": [{"name": "pkg-Minimal-V1", "url": "blob-url"}]}
+            class Meta(DummyCM):
+                def read(self): return json.dumps(payload)
+            return Meta()
+        if fail_stage == "asset": raise HTTPError(url, 404, "Not Found", hdrs=None, fp=None)
+
+    monkeypatch.setattr(uu, "_github", fake__github)
+
+    # run SUT & capture logs
+    caplog.set_level(logging.INFO)
+    result = uu._download_asset(tag, "minimal")
+
+    # assertions
+    assert result is None
+
+    # ERROR line from log_error(...) and WARNING line that follows
+    assert "Failed to download assets" in caplog.text
+    assert "Wait a few minutes before attempting to update again" in caplog.text
+
+    # (optional) check levels are correct
+    levels = {rec.levelname for rec in caplog.records}
+    assert {"ERROR", "WARNING"} <= levels

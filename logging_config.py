@@ -1,6 +1,7 @@
-import logging
+import logging, re
 from logging.handlers import TimedRotatingFileHandler
 from datetime import time as dtime
+from pathlib import Path
 
 class ColoredFormatter(logging.Formatter):
     RED    = '\033[0;31m'
@@ -24,6 +25,30 @@ class ColoredFormatter(logging.Formatter):
         record.msg = f"{color}{record.msg}{self.NC}"
         return super().format(record)
 
+def clean_flask_message(record):
+    """
+    Strip the 'IP - - [timestamp] ' preamble that Werkzeug adds, leaving
+    the actual HTTP line intact.
+    """
+    if record.name.startswith(("werkzeug", "flask")):
+        # record.msg looks like:
+        # 127.0.0.1 - - [11/Jun/2025 16:37:01] "GET /api/status HTTP/1.1" 200 -
+        record.msg = re.sub(
+            r'^[0-9a-fA-F:.]+ - - \[[^\]]+\]\s*',  # IPv4 *or* IPv6, once
+            '',
+            record.getMessage(),
+            count=1,
+            flags=re.ASCII,
+        ).strip()
+        record.args = ()          # safety; Werkzeug doesn’t use %-style args
+    return True
+
+# Filter to remove ANSI color codes
+def remove_ansi_codes(record):
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    if record.msg: record.msg = ansi_escape.sub('', str(record.msg))
+    return True
+
 def configure_logging(
     log_file_path: str,
     log_file: bool,
@@ -46,10 +71,12 @@ def configure_logging(
     logger = logging.getLogger()
     level = logging.DEBUG if Debug_logging else logging.INFO
     logger.setLevel(level)
-    # Clear any existing handlers so we start fresh
-    logger.handlers.clear()
     logger.propagate = False
-
+    # If a handler for this file already exists, reuse it and exit.
+    for h in logger.handlers:
+        if isinstance(h, TimedRotatingFileHandler) and \
+            Path(h.baseFilename) == Path(log_file_path):
+            return logger
     # File formatter: [YYYY‐MM‐DD HH:MM:SS] [LEVEL] message
     file_fmt = logging.Formatter(f'[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
@@ -63,6 +90,20 @@ def configure_logging(
             utc         = False,
             atTime      = dtime(0, 0),
         )
+        file_handler.addFilter(remove_ansi_codes)
+        # If the handler writes to viewport.log, keep monitoring noise out
+        if Path(log_file_path).name == "viewport.log":
+            viewport_filter = (
+                lambda rec: not (
+                    rec.name.startswith(("werkzeug", "flask", "monitoring"))
+                    or "GET /api/" in rec.getMessage()          # safety-net for stray prints
+                )
+            )
+            file_handler.addFilter(viewport_filter)
+        if Path(log_file_path).name == "monitoring.log":
+            file_handler.addFilter(lambda rec: rec.name.startswith(
+                                        ("monitoring", "werkzeug", "flask")))
+            file_handler.addFilter(clean_flask_message)
         file_handler.setLevel(logger.level)
         file_handler.setFormatter(file_fmt)
         logger.addHandler(file_handler)
