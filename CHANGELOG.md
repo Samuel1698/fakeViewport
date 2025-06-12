@@ -3,7 +3,7 @@
 Note: Entries marked with "💥" indicate crucial or breaking changes that might affect your current setup. Entries marked with "🐛" indicate a bug fix, "✨" indicates an improvement,
 and "🔥" indicates a non-breaking change.
 
-## ✨🔥🐛 v2.4.1: Visual Fixes & Cache
+## 🔥🐛 v2.4.1: Visual Fixes & Cache
 
 ### 🔥Changed
 
