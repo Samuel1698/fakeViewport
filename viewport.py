@@ -29,7 +29,8 @@ from css_selectors import (
     CSS_LOADING_DOTS,
     CSS_LIVEVIEW_WRAPPER,
     CSS_PLAYER_OPTIONS,
-    CSS_CURSOR
+    CSS_CURSOR,
+    CSS_CLOSE_BUTTON
 )
 # --------------------------------------------------------------------------- # 
 # Variable Declaration and file paths
@@ -1674,6 +1675,50 @@ def handle_page(driver):
             api_status(f"Error Loading Page {driver.title}")
             return False
         time.sleep(3)
+def handle_modal(driver):
+    """
+    Detect and close modals with class ReactModalPortal that have child elements (indicating active modal).
+    
+    Args:
+        driver: Selenium WebDriver instance.
+    
+    Returns:
+        bool: True if modal was found and closed, False otherwise.
+    """
+    try:
+        # Check for modal presence by looking for ReactModalPortal divs with children
+        modal = driver.execute_script("""
+            return Array.from(document.querySelectorAll('div.ReactModalPortal')).find(modal => {
+                return modal.children.length > 0;
+            });
+        """)
+        if modal:
+            logging.info("Active modal detected, attempting to close")
+            # Find and click the close button (case-insensitive class match)
+            close_button = WebDriverWait(driver, WAIT_TIME).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_CLOSE_BUTTON))
+            )
+            # Scroll into view and click using ActionChains
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", close_button)
+            actions = ActionChains(driver)
+            actions.move_to_element(close_button).pause(0.2).click().perform()
+            # Verify modal closed by checking if children disappeared
+            WebDriverWait(driver, WAIT_TIME).until(
+                lambda d: not d.execute_script("""
+                    const modals = Array.from(document.querySelectorAll('div.ReactModalPortal'));
+                    return modals.some(m => m.children.length > 0);
+                """)
+            )
+            logging.info("Modal successfully closed")
+            api_status("Modal closed")
+            return True
+        return False
+    except TimeoutException:
+        logging.warning("Modal close button not found or modal didn't disappear")
+        return False
+    except Exception as e:
+        log_error("Error handling modal", e, driver)
+        return False
 def handle_retry(driver, url, attempt, max_retries):
     """
     Execute a retry cycle after a health-check failure.
@@ -1835,6 +1880,8 @@ def handle_view(driver, url):
                 WebDriverWait(driver, WAIT_TIME).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, CSS_LIVEVIEW_WRAPPER))
                 )
+                # Check and handle modal if present
+                handle_modal(driver)
                 # Attempt to keep the window maximized every loop
                 screen_size = driver.get_window_size()
                 if screen_size['width'] != driver.execute_script("return screen.width;") or \
