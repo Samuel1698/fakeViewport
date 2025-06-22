@@ -38,6 +38,7 @@ def make_driver(window_size, screen_size,
 def base_setup(monkeypatch):
     # handle_page and check_driver always succeed up to our branch
     monkeypatch.setattr(viewport, "handle_page", lambda d: True)
+    monkeypatch.setattr(viewport, "handle_modal", lambda d: True)
     monkeypatch.setattr(viewport, "check_driver", lambda d: True)
     monkeypatch.setattr(viewport, "BROWSER", "chrome")
     monkeypatch.setattr(viewport, "MAX_RETRIES", 3)

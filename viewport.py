@@ -1701,7 +1701,9 @@ def handle_modal(driver):
             # Scroll into view and click using ActionChains
             driver.execute_script("arguments[0].scrollIntoView({block:'center'});", close_button)
             actions = ActionChains(driver)
-            actions.move_to_element(close_button).pause(0.2).click().perform()
+            actions.move_to_element(close_button).pause(0.5)
+            actions.click(close_button)
+            actions.perform()
             # Verify modal closed by checking if children disappeared
             WebDriverWait(driver, WAIT_TIME).until(
                 lambda d: not d.execute_script("""
