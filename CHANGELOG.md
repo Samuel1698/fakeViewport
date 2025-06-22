@@ -3,7 +3,14 @@
 Note: Entries marked with "💥" indicate crucial or breaking changes that might affect your current setup. Entries marked with "🐛" indicate a bug fix, "✨" indicates an improvement,
 and "🔥" indicates a non-breaking change.
 
-## ✨🔥🐛 v2.4.1: Visual Fixes & Cache
+## 🐛 v2.4.2: Update Modal dismissal
+
+### 🐛 Fixed
+
+- Issue #38: Automatically attempt to dismiss modals from Ubiquiti by clicking the closeButton
+- Remove `preventDefault` from tooltip mouse event handlers. It would prevent the click from sending the command on touch-enabled devices.  
+
+## 🔥🐛 v2.4.1: Visual Fixes & Cache
 
 ### 🔥Changed
 

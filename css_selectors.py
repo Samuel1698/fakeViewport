@@ -5,3 +5,4 @@ CSS_LOADING_DOTS = "div[class*='TimedDotsLoader']"
 CSS_LIVEVIEW_WRAPPER = "div[class*='liveview__ViewportsWrapper']"
 CSS_PLAYER_OPTIONS = ["aeugT", "dzRoNo"]
 CSS_CURSOR = ["hMbAUy"]
+CSS_CLOSE_BUTTON = "button[class*='closeButton']"

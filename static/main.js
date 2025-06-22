@@ -91,7 +91,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       // Mobile touch handling
       element.addEventListener("touchstart", (e) => {
-        e.preventDefault();
         document.querySelectorAll(".tooltip-trigger").forEach((t) => {
           if (t !== element) t.classList.remove("active");
         });
