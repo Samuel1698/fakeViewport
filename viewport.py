@@ -1959,24 +1959,30 @@ def main():
     logging.info(f"===== Fake Viewport {__version__} =====")
     if API: api_handler()
     api_status("Starting...")
-    intentional_restart = restart_file.exists()
-    # Inspect SST File
-    sst_exists = sst_file.exists()
-    sst_size   = sst_file.stat().st_size if sst_exists else 0
-    sst_non_empty = sst_size > 0
-    # Check existence of another running instance of viewport.py
-    # Used to determine if the previous process likely crashed based on sst file content
-    other_running = process_handler("viewport.py", action="check")
-    crashed = (not other_running) and sst_non_empty and not intentional_restart
+    # ---------------------------------------------------------------------------
+    # Crash / restart detection
+    # ---------------------------------------------------------------------------
+    other_running   = process_handler("viewport.py", action="check")
+    restart_exists  = restart_file.exists()
+    sst_non_empty   = sst_file.exists() and sst_file.stat().st_size > 0
+    # Is the restart flag too old to belong to the active run?
+    stale_restart = False
+    if restart_exists:
+        age = datetime.now() - datetime.fromtimestamp(restart_file.stat().st_mtime)
+        stale_restart = age.total_seconds() > SLEEP_TIME
+    # Treat only a *fresh* flag as an intentional restart
+    restart_in_progress = restart_exists and not stale_restart
+    # We crashed if...
+    crashed = sst_non_empty and (not restart_in_progress) and (not other_running)
+    # Clean up any restart flag so future launches aren’t confused
+    if restart_exists: restart_file.unlink()
+    # Remove pause flag and/or write a new SST timestamp when needed
+    if crashed or not sst_non_empty:
+        if pause_file.exists(): pause_file.unlink()
+        with open(sst_file, "w", buffering=1) as f:  # line-buffered, safer on sudden loss
+            f.write(str(datetime.now()))
     # Check and kill any existing instance of viewport.py and reset the restart_file flag
     if other_running: process_handler("viewport.py", action="kill")
-    if restart_file.exists(): restart_file.unlink()
-    # Write the start time to the SST file
-    # Only if it's empty or if a crash likely happened
-    if sst_size == 0 or crashed:
-        if pause_file.exists(): pause_file.unlink()
-        with open(sst_file, 'w') as f:
-            f.write(str(datetime.now()))
     driver = browser_handler(url)
     # Start the handle_view function in a separate thread
     threading.Thread(target=handle_view, args=(driver, url)).start()
