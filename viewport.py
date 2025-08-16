@@ -1,6 +1,6 @@
 #!/usr/bin/venv python3
 import os, psutil, sys, time, argparse, signal, subprocess
-import math, threading, logging, concurrent, shutil, re
+import math, threading, logging, concurrent.futures, shutil, re
 from logging_config                      import configure_logging
 from validate_config                     import validate_config
 from pathlib                             import Path
@@ -586,49 +586,71 @@ def get_tuple(name: str) -> Tuple[int, ...]:
         comparisons or sorting.
     """
     return tuple(int(x) for x in _version_re.findall(name))
-def get_local_driver(mgr) -> Optional[Path]:
+def get_local_driver(mgr_or_browser) -> Optional[Path]:
     """
-    Locate the newest already-downloaded driver managed by *mgr*.
+    Return the newest cached driver Path without relying on webdriver_manager internals.
 
-    Args:
-        mgr: An instance of ``ChromeDriverManager`` or
-            ``GeckoDriverManager`` whose ``driver_path`` points inside
-            the local cache.
-
-    Returns:
-        pathlib.Path | None: Path to the most recent driver binary, or
-        ``None`` if no cached versions are found.
+    Accepts either a webdriver_manager manager instance or a browser string.
     """
-    platform_dir = Path(mgr.driver_path).parent.parent
+    # Resolve browser name
+    browser = None
+    try:
+        # Avoid importing types; detect by class name
+        cls = type(mgr_or_browser).__name__.lower()
+        if "gecko" in cls:
+            browser = "firefox"
+        elif "chrome" in cls:
+            browser = "chrome"
+    except Exception: 
+        pass
+    if isinstance(mgr_or_browser, str):
+        browser = mgr_or_browser.lower()
+
+    if browser not in ("chrome", "chromium", "firefox"):
+        return None
+    # Compute conventional cache locations used by webdriver_manager
+    base = Path.home() / ".wdm" / "drivers"
+    if browser == "firefox":
+        platform_dir = base / "geckodriver" / "linux64"
+        bin_name = "geckodriver"
+    else:
+        # chrome or chromium both use chromedriver
+        platform_dir = base / "chromedriver" / "linux64"
+        bin_name = "chromedriver"
+
     if not platform_dir.exists():
         return None
     versions = [d for d in platform_dir.iterdir() if d.is_dir()]
     if not versions:
         return None
+    # Newest by semantic-ish version comparison
     newest = max(versions, key=lambda d: get_tuple(d.name))
-    bin_name = "chromedriver" if "chrome" in mgr.driver_path else "geckodriver"
-    return newest / bin_name
+    candidate = newest / bin_name
+    return candidate if candidate.exists() and os.access(candidate, os.X_OK) else None
 def get_driver_path(browser: str, timeout: int = 60) -> str:
     """
-    Download (or reuse) a WebDriver binary and return its filesystem path.
-
-    The download is attempted in a background thread so it can time-out
-    cleanly. On timeout, the function falls back to the newest cached
-    driver if one exists.
+    Return a WebDriver path, preferring an already-cached driver to avoid
+    re-extraction (which can hit ETXTBUSY if a running process has the file mapped).
+    Falls back to download with a timeout; on timeout or extraction errors,
+    use the newest cached driver if available.
 
     Args:
-        browser: Target browser - ``chrome``, ``chromium``, or
-            ``"firefox"``.
-        timeout: Maximum seconds to wait for the download to finish.
+        browser: "chrome", "chromium", or "firefox".
+        timeout: Seconds to wait for download/extraction.
 
     Returns:
-        string: Absolute path to the driver executable.
+        Absolute path to the driver executable.
 
     Raises:
-        ValueError: If *browser* is not one of the supported values.
-        DriverDownloadStuckError: If the download exceeds *timeout* and
-            no suitable cached driver is available.
+        ValueError: Unsupported browser.
+        DriverDownloadStuckError: If download/extraction fails and no cached driver exists.
     """
+    # Nudge webdriver_manager to be cache-friendly long-term
+    os.environ.setdefault("WDM_LOCAL", "1")
+    os.environ.setdefault("WDM_PROGRESS_BAR", "0")
+    os.environ.setdefault("WDM_CACHE_VALID_RANGE", "365")
+
+    # Pick the right manager
     if browser in ("chrome", "chromium"):
         is_chromium = "chromium" in BROWSER_BINARY.lower()
         mgr = ChromeDriverManager(
@@ -638,13 +660,26 @@ def get_driver_path(browser: str, timeout: int = 60) -> str:
         mgr = GeckoDriverManager()
     else:
         raise ValueError(f"Unsupported browser for driver install: {browser!r}")
+    # Prefer the newest cached driver (no writes → no ETXTBUSY)
+    local = get_local_driver(mgr)
+    if local and local.exists() and os.access(local, os.X_OK):
+        try:
+            # Clean old versions opportunistically when we *aren't* extracting
+            stale_drivers_handler(local)
+        except Exception:
+            # Non-fatal: keep going even if cleanup fails
+            pass
+        return str(local)
+    # We really need to download/extract
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     future = executor.submit(mgr.install)
     try:
         driver_path = Path(future.result(timeout=timeout))
+        # Now that a fresh version exists, remove stale builds
         stale_drivers_handler(driver_path)
         return str(driver_path)
     except concurrent.futures.TimeoutError:
+        # Timeout → try cache as fallback
         fallback = get_local_driver(mgr)
         if fallback and fallback.exists():
             msg = (
@@ -656,12 +691,32 @@ def get_driver_path(browser: str, timeout: int = 60) -> str:
             api_status("Driver download slow; fell back to older driver")
             executor.shutdown(wait=False)
             return str(fallback)
-        # No local fallback → still raise
         msg = f"{browser.title()} driver download stuck (> {timeout}s) and no local driver found"
         log_error(msg)
         api_status("Driver download stuck; restart computer if it persists")
         executor.shutdown(wait=False)
         raise DriverDownloadStuckError(msg)
+    except Exception as e:
+        # Any extraction/write error (including ETXTBUSY) → try cache before giving up
+        fallback = get_local_driver(mgr)
+        if fallback and fallback.exists():
+            log_error(
+                f"{browser.title()} driver install errored ({e.__class__.__name__}); "
+                f"using existing driver {fallback.parent.name}"
+            )
+            api_status("Driver install error; fell back to cached driver")
+            executor.shutdown(wait=False)
+            return str(fallback)
+        # No fallback available → surface a consistent error type
+        log_error(
+            f"{browser.title()} driver install failed and no local driver found: ",
+            e
+        )
+        api_status("Driver install failed; no cached driver available")
+        executor.shutdown(wait=False)
+        raise DriverDownloadStuckError(
+            f"{browser.title()} driver install failed with {e.__class__.__name__}: {e}"
+        )
     finally:
         executor.shutdown(wait=False)
 # --------------------------------------------------------------------------- # 
@@ -971,6 +1026,7 @@ def process_handler(name, action="check"):
                 except ProcessLookupError:
                     logging.warning(f"Process {pid} already gone")
             pids = ', '.join(str(x) for x in matches)
+            time.sleep(0.5)
             logging.info(f"Killed process '{name}' with PIDs: {pids}")
             api_status(f"Killed process '{name}'")
             return False
@@ -1959,24 +2015,30 @@ def main():
     logging.info(f"===== Fake Viewport {__version__} =====")
     if API: api_handler()
     api_status("Starting...")
-    intentional_restart = restart_file.exists()
-    # Inspect SST File
-    sst_exists = sst_file.exists()
-    sst_size   = sst_file.stat().st_size if sst_exists else 0
-    sst_non_empty = sst_size > 0
-    # Check existence of another running instance of viewport.py
-    # Used to determine if the previous process likely crashed based on sst file content
-    other_running = process_handler("viewport.py", action="check")
-    crashed = (not other_running) and sst_non_empty and not intentional_restart
+    # ---------------------------------------------------------------------------
+    # Crash / restart detection
+    # ---------------------------------------------------------------------------
+    other_running   = process_handler("viewport.py", action="check")
+    restart_exists  = restart_file.exists()
+    sst_non_empty   = sst_file.exists() and sst_file.stat().st_size > 0
+    # Is the restart flag too old to belong to the active run?
+    stale_restart = False
+    if restart_exists:
+        age = datetime.now() - datetime.fromtimestamp(restart_file.stat().st_mtime)
+        stale_restart = age.total_seconds() > SLEEP_TIME
+    # Treat only a *fresh* flag as an intentional restart
+    restart_in_progress = restart_exists and not stale_restart
+    # We crashed if...
+    crashed = sst_non_empty and (not restart_in_progress) and (not other_running)
+    # Clean up any restart flag so future launches aren’t confused
+    if restart_exists: restart_file.unlink()
+    # Remove pause flag and/or write a new SST timestamp when needed
+    if crashed or not sst_non_empty:
+        if pause_file.exists(): pause_file.unlink()
+        with open(sst_file, "w", buffering=1) as f:  # line-buffered, safer on sudden loss
+            f.write(str(datetime.now()))
     # Check and kill any existing instance of viewport.py and reset the restart_file flag
     if other_running: process_handler("viewport.py", action="kill")
-    if restart_file.exists(): restart_file.unlink()
-    # Write the start time to the SST file
-    # Only if it's empty or if a crash likely happened
-    if sst_size == 0 or crashed:
-        if pause_file.exists(): pause_file.unlink()
-        with open(sst_file, 'w') as f:
-            f.write(str(datetime.now()))
     driver = browser_handler(url)
     # Start the handle_view function in a separate thread
     threading.Thread(target=handle_view, args=(driver, url)).start()

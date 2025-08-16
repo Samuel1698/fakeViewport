@@ -146,7 +146,7 @@ export let configCache = {
         id: "maxRetries",
         path: "general.max_retries",
         format: (v, el) => {
-          el.classList.add(v < 3 ? "Red" : v >= 6 ? "Yellow" : "Green");
+          el.classList.add(v == 3 ? "Blue" : v < 3 ? "Red" : v >= 6 ? "Yellow" : "Green");
           return `${v} Attempts`;
         },
       },

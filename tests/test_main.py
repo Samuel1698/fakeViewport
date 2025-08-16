@@ -144,7 +144,7 @@ def test_main_various(
 
     # SST write logic
     if expected_write:
-        mock_open_file.assert_called_once_with(viewport.sst_file, "w")
+        mock_open_file.assert_called_once_with(viewport.sst_file, "w", buffering=1)
         handle = mock_open_file()
         handle.write.assert_called_once()
     else:
