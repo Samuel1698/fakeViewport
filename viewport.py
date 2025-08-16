@@ -586,49 +586,71 @@ def get_tuple(name: str) -> Tuple[int, ...]:
         comparisons or sorting.
     """
     return tuple(int(x) for x in _version_re.findall(name))
-def get_local_driver(mgr) -> Optional[Path]:
+def get_local_driver(mgr_or_browser) -> Optional[Path]:
     """
-    Locate the newest already-downloaded driver managed by *mgr*.
+    Return the newest cached driver Path without relying on webdriver_manager internals.
 
-    Args:
-        mgr: An instance of ``ChromeDriverManager`` or
-            ``GeckoDriverManager`` whose ``driver_path`` points inside
-            the local cache.
-
-    Returns:
-        pathlib.Path | None: Path to the most recent driver binary, or
-        ``None`` if no cached versions are found.
+    Accepts either a webdriver_manager manager instance or a browser string.
     """
-    platform_dir = Path(mgr.driver_path).parent.parent
+    # Resolve browser name
+    browser = None
+    try:
+        # Avoid importing types; detect by class name
+        cls = type(mgr_or_browser).__name__.lower()
+        if "gecko" in cls:
+            browser = "firefox"
+        elif "chrome" in cls:
+            browser = "chrome"
+    except Exception:
+        pass
+    if isinstance(mgr_or_browser, str):
+        browser = mgr_or_browser.lower()
+
+    if browser not in ("chrome", "chromium", "firefox"):
+        return None
+    # Compute conventional cache locations used by webdriver_manager
+    base = Path.home() / ".wdm" / "drivers"
+    if browser == "firefox":
+        platform_dir = base / "geckodriver" / "linux64"
+        bin_name = "geckodriver"
+    else:
+        # chrome or chromium both use chromedriver
+        platform_dir = base / "chromedriver" / "linux64"
+        bin_name = "chromedriver"
+
     if not platform_dir.exists():
         return None
     versions = [d for d in platform_dir.iterdir() if d.is_dir()]
     if not versions:
         return None
+    # Newest by semantic-ish version comparison
     newest = max(versions, key=lambda d: get_tuple(d.name))
-    bin_name = "chromedriver" if "chrome" in mgr.driver_path else "geckodriver"
-    return newest / bin_name
+    candidate = newest / bin_name
+    return candidate if candidate.exists() and os.access(candidate, os.X_OK) else None
 def get_driver_path(browser: str, timeout: int = 60) -> str:
     """
-    Download (or reuse) a WebDriver binary and return its filesystem path.
-
-    The download is attempted in a background thread so it can time-out
-    cleanly. On timeout, the function falls back to the newest cached
-    driver if one exists.
+    Return a WebDriver path, preferring an already-cached driver to avoid
+    re-extraction (which can hit ETXTBUSY if a running process has the file mapped).
+    Falls back to download with a timeout; on timeout or extraction errors,
+    use the newest cached driver if available.
 
     Args:
-        browser: Target browser - ``chrome``, ``chromium``, or
-            ``"firefox"``.
-        timeout: Maximum seconds to wait for the download to finish.
+        browser: "chrome", "chromium", or "firefox".
+        timeout: Seconds to wait for download/extraction.
 
     Returns:
-        string: Absolute path to the driver executable.
+        Absolute path to the driver executable.
 
     Raises:
-        ValueError: If *browser* is not one of the supported values.
-        DriverDownloadStuckError: If the download exceeds *timeout* and
-            no suitable cached driver is available.
+        ValueError: Unsupported browser.
+        DriverDownloadStuckError: If download/extraction fails and no cached driver exists.
     """
+    # Nudge webdriver_manager to be cache-friendly long-term
+    os.environ.setdefault("WDM_LOCAL", "1")
+    os.environ.setdefault("WDM_PROGRESS_BAR", "0")
+    os.environ.setdefault("WDM_CACHE_VALID_RANGE", "365")
+
+    # Pick the right manager
     if browser in ("chrome", "chromium"):
         is_chromium = "chromium" in BROWSER_BINARY.lower()
         mgr = ChromeDriverManager(
@@ -638,13 +660,26 @@ def get_driver_path(browser: str, timeout: int = 60) -> str:
         mgr = GeckoDriverManager()
     else:
         raise ValueError(f"Unsupported browser for driver install: {browser!r}")
+    # Prefer the newest cached driver (no writes → no ETXTBUSY)
+    local = get_local_driver(mgr)
+    if local and local.exists() and os.access(local, os.X_OK):
+        try:
+            # Clean old versions opportunistically when we *aren't* extracting
+            stale_drivers_handler(local)
+        except Exception:
+            # Non-fatal: keep going even if cleanup fails
+            pass
+        return str(local)
+    # We really need to download/extract
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     future = executor.submit(mgr.install)
     try:
         driver_path = Path(future.result(timeout=timeout))
+        # Now that a fresh version exists, remove stale builds
         stale_drivers_handler(driver_path)
         return str(driver_path)
     except concurrent.futures.TimeoutError:
+        # Timeout → try cache as fallback
         fallback = get_local_driver(mgr)
         if fallback and fallback.exists():
             msg = (
@@ -656,12 +691,32 @@ def get_driver_path(browser: str, timeout: int = 60) -> str:
             api_status("Driver download slow; fell back to older driver")
             executor.shutdown(wait=False)
             return str(fallback)
-        # No local fallback → still raise
         msg = f"{browser.title()} driver download stuck (> {timeout}s) and no local driver found"
         log_error(msg)
         api_status("Driver download stuck; restart computer if it persists")
         executor.shutdown(wait=False)
         raise DriverDownloadStuckError(msg)
+    except Exception as e:
+        # Any extraction/write error (including ETXTBUSY) → try cache before giving up
+        fallback = get_local_driver(mgr)
+        if fallback and fallback.exists():
+            log_error(
+                f"{browser.title()} driver install errored ({e.__class__.__name__}); "
+                f"using existing driver {fallback.parent.name}"
+            )
+            api_status("Driver install error; fell back to cached driver")
+            executor.shutdown(wait=False)
+            return str(fallback)
+        # No fallback available → surface a consistent error type
+        log_error(
+            f"{browser.title()} driver install failed and no local driver found: ",
+            e
+        )
+        api_status("Driver install failed; no cached driver available")
+        executor.shutdown(wait=False)
+        raise DriverDownloadStuckError(
+            f"{browser.title()} driver install failed with {e.__class__.__name__}: {e}"
+        )
     finally:
         executor.shutdown(wait=False)
 # --------------------------------------------------------------------------- # 
@@ -971,6 +1026,7 @@ def process_handler(name, action="check"):
                 except ProcessLookupError:
                     logging.warning(f"Process {pid} already gone")
             pids = ', '.join(str(x) for x in matches)
+            time.sleep(0.5)
             logging.info(f"Killed process '{name}' with PIDs: {pids}")
             api_status(f"Killed process '{name}'")
             return False

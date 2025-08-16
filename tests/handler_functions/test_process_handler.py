@@ -172,8 +172,9 @@ def _make_proc(pid, cmdline, uids=None, name=None, cpu: float = 0.0, mem: int = 
 @patch("viewport.os.getpid")
 @patch("viewport.os.kill")
 @patch("viewport.api_status")
+@patch("viewport.time.sleep")
 def test_process_handler(
-    mock_api, mock_kill, mock_getpid, mock_geteuid, mock_iter, mock_log_info,
+    mock_sleep, mock_api, mock_kill, mock_getpid, mock_geteuid, mock_iter, mock_log_info,
     proc_list, current_pid, name, action,
     expected_result, expected_kill_calls, expected_api_calls, expected_log_info
 ):
@@ -212,7 +213,8 @@ def test_process_handler(
 # Cover the psutil.NoSuchProcess / AccessDenied path in the loop
 # --------------------------------------------------------------------------- #
 @patch("viewport.psutil.process_iter")
-def test_process_handler_ignores_uninspectable_procs(mock_iter):
+@patch("viewport.time.sleep")
+def test_process_handler_ignores_uninspectable_procs(mock_sleep, mock_iter):
     class BadProc:
         @property
         def info(self):
@@ -240,8 +242,9 @@ def test_process_handler_ignores_uninspectable_procs(mock_iter):
 @patch("viewport.api_status")
 @patch("viewport.logging.info")
 @patch("viewport.logging.warning")
+@patch("viewport.time.sleep")
 def test_process_handler_kill_handles_processlookuperror(
-    mock_warn, mock_info, mock_api, mock_iter,
+    mock_sleep, mock_warn, mock_info, mock_api, mock_iter,
     mock_geteuid, mock_getpid, mock_kill
 ):
     # one matching process
