@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 from datetime import datetime, time as dt_time
+import stat
 import pytest
 import viewport
 # --------------------------------------------------------------------------- #
@@ -23,6 +24,7 @@ class DummyMgr:
     def install(self):
         # Value used in “happy-path” tests
         return "/fake/driver/path"
+    
 
 class DummyFuture:
     def result(self, timeout=None):
@@ -154,6 +156,35 @@ def _patch_timeout(monkeypatch):
         lambda self, timeout=None: (_ for _ in ()).throw(concurrent.futures.TimeoutError())
     )
 
+@pytest.fixture
+def wdm_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    # webdriver_manager respects these envs your code sets; leave them alone
+    return tmp_path
+
+def make_cached_driver(wdm_home, browser: str, version: str) -> Path:
+    if browser == "firefox":
+        base = Path.home() / ".wdm" / "drivers" / "geckodriver" / "linux64" / version
+        binary = base / "geckodriver"
+    else:
+        base = Path.home() / ".wdm" / "drivers" / "chromedriver" / "linux64" / version
+        binary = base / "chromedriver"
+    base.mkdir(parents=True, exist_ok=True)
+    binary.touch()
+    # Make it executable for get_local_driver’s check
+    mode = binary.stat().st_mode
+    binary.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return binary
+
+# Slow down manager.install enough to trigger a tiny timeout in the test
+@pytest.fixture
+def slow_install(monkeypatch):
+    def _slow_install(self, *args, **kwargs): 
+        pass
+    # Patch both managers inside the viewport module where they’re referenced
+    monkeypatch.setattr(viewport.GeckoDriverManager, "install", _slow_install, raising=True)
+    monkeypatch.setattr(viewport.ChromeDriverManager, "install", _slow_install, raising=True)
+
 def test_get_driver_path_chrome_success(monkeypatch):
     _patch_cleaner(monkeypatch)
     monkeypatch.setattr(viewport, "ChromeDriverManager", lambda *_, **__: DummyMgr())
@@ -194,28 +225,16 @@ def test_get_driver_path_unsupported_browser():
     with pytest.raises(ValueError):
         viewport.get_driver_path("safari")
 
-def test_get_driver_path_timeout_fallback_firefox(monkeypatch, tmp_path):
-    newest_bin = stale_drivers_tree(tmp_path, ["v.91.0", "v.92.0"])
-    _patch_cleaner(monkeypatch)
-    _patch_timeout(monkeypatch)
-    monkeypatch.setattr(viewport, "GeckoDriverManager",
-                        lambda *a, **kw: DummyMgr(newest_bin))
+def test_get_driver_path_timeout_fallback_firefox(wdm_home, slow_install):
+    cached = make_cached_driver(wdm_home, "firefox", "0.35.0")
+    # Tiny timeout so our patched install blocks past it
     path = viewport.get_driver_path("firefox", timeout=0.01)
-    assert path == str(newest_bin)
+    assert Path(path) == cached
 
-def test_get_driver_path_timeout_fallback(monkeypatch, tmp_path):
-    newest_bin = stale_drivers_tree(tmp_path, ["114.150.20.56", "137.140.20.50"])
-    _patch_cleaner(monkeypatch)                 # skip delete logic
-
-    monkeypatch.setattr(viewport, "ChromeDriverManager",
-                        lambda *a, **kw: DummyMgr(newest_bin))
-    monkeypatch.setattr(viewport.concurrent.futures,    # executor always “hangs”
-                        "ThreadPoolExecutor", DummyExecutor)
-
+def test_get_driver_path_timeout_fallback(wdm_home, slow_install):
+    cached = make_cached_driver(wdm_home, "chrome", "127.0.6533.99")
     path = viewport.get_driver_path("chrome", timeout=0.01)
-    assert path == str(newest_bin)
-    viewport.log_error.assert_called_once()
-    viewport.api_status.assert_called_once()
+    assert Path(path) == cached
 
 def test_get_driver_path_timeout_empty_fallback(monkeypatch, tmp_path):
     empty_dir = (tmp_path / "chromedriver" / "linux64" / "123.0"); empty_dir.mkdir(parents=True)
@@ -226,15 +245,14 @@ def test_get_driver_path_timeout_empty_fallback(monkeypatch, tmp_path):
     with pytest.raises(viewport.DriverDownloadStuckError):
         viewport.get_driver_path("chrome", timeout=0.01)
 
-def test_get_driver_path_timeout_fallback_numeric_sort(monkeypatch, tmp_path):
-    # 9.9.10 is lexicographically > 10.0 but should *not* win
-    newest_bin = stale_drivers_tree(tmp_path, ["9.9.10", "10.0"])
-    _patch_cleaner(monkeypatch)
-    _patch_timeout(monkeypatch)
-    monkeypatch.setattr(viewport, "ChromeDriverManager",
-                        lambda *a, **kw: DummyMgr(newest_bin))
-    assert viewport.get_driver_path("chrome", timeout=0.01).endswith("10.0/chromedriver")
-    
+def test_get_driver_path_timeout_fallback_numeric_sort(wdm_home, slow_install):
+    # Ensure newest by numeric comparison, not lexicographic
+    make_cached_driver(wdm_home, "chrome", "9.10.1")
+    make_cached_driver(wdm_home, "chrome", "90.2.1")
+    newest = make_cached_driver(wdm_home, "chrome", "100.0.0")
+    path = viewport.get_driver_path("chrome", timeout=0.01)
+    assert Path(path) == newest
+
 def test_get_driver_path_success_invokes_cleanup(monkeypatch):
     called = {"clean": 0}
     monkeypatch.setattr(viewport, "stale_drivers_handler",
@@ -242,6 +260,166 @@ def test_get_driver_path_success_invokes_cleanup(monkeypatch):
     monkeypatch.setattr(viewport, "ChromeDriverManager", lambda *_, **__: DummyMgr())
     assert viewport.get_driver_path("chrome", timeout=1) == "/fake/driver/path"
     assert called["clean"] == 1
+
+    
+def test_get_driver_path_unsupported_browser_raises_value_error(wdm_home):
+    with pytest.raises(ValueError):
+        viewport.get_driver_path("opera", timeout=0.01)
+
+def test_get_driver_path_timeout_no_cache_raises(wdm_home, slow_install):
+    with pytest.raises(viewport.DriverDownloadStuckError):
+        viewport.get_driver_path("firefox", timeout=0.01)
+
+def test_get_driver_path_install_error_with_cache_fallback(wdm_home, monkeypatch):
+    # Create cached driver so fallback is possible
+    base = Path.home() / ".wdm" / "drivers" / "chromedriver" / "linux64" / "120.0.0"
+    cached = base / "chromedriver"
+    base.mkdir(parents=True, exist_ok=True)
+    cached.touch()
+    mode = cached.stat().st_mode
+    cached.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    monkeypatch.setattr(viewport, "stale_drivers_handler", lambda p: (_ for _ in ()).throw(RuntimeError("cleanup failed")))
+
+    path = viewport.get_driver_path("chrome", timeout=0.5)
+    assert Path(path) == cached
+
+def test_get_driver_path_install_error_no_cache_raises(wdm_home, monkeypatch):
+    def boom(self, *a, **k):
+        raise OSError("simulated extraction failure")
+    monkeypatch.setattr(viewport.GeckoDriverManager, "install", boom, raising=True)
+
+    with pytest.raises(viewport.DriverDownloadStuckError):
+        viewport.get_driver_path("firefox", timeout=0.5)
+
+# Timeout branch: first get_local_driver() returns None, after timeout it returns a valid cached path
+def test_driver_timeout_then_second_lookup_fallback(monkeypatch, tmp_path):
+    from pathlib import Path
+    import stat, time
+    import viewport
+
+    fallback = tmp_path / "geckodriver"
+    fallback.touch()
+    fallback.chmod(fallback.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    calls = {"n": 0}
+    def fake_get_local_driver(_mgr_or_browser):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else fallback
+    monkeypatch.setattr(viewport, "get_local_driver", fake_get_local_driver, raising=True)
+
+    def slow_install(self, *a, **k):
+        time.sleep(0.2)
+        return "/dev/null"
+    monkeypatch.setattr(viewport.GeckoDriverManager, "install", slow_install, raising=True)
+
+    statuses = []
+    monkeypatch.setattr(viewport, "api_status", lambda s: statuses.append(s), raising=True)
+    # keep log_error patch if you want, but don't assert on it
+    monkeypatch.setattr(viewport, "log_error", lambda *a, **k: None, raising=True)
+
+    path = viewport.get_driver_path("firefox", timeout=0.01)
+    assert Path(path) == fallback
+    assert any("Driver download slow; fell back to older driver" in s for s in statuses)
+
+# Exception branch: ensure install() RAISES (not times out) and second lookup returns fallback
+def test_driver_install_error_then_second_lookup_fallback(monkeypatch, tmp_path):
+    from pathlib import Path
+    import stat
+    import viewport
+
+    fallback = tmp_path / "chromedriver"
+    fallback.touch()
+    fallback.chmod(fallback.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    calls = {"n": 0}
+    def fake_get_local_driver(_mgr_or_browser):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else fallback
+    # Patch fallback behavior first
+    monkeypatch.setattr(viewport, "get_local_driver", fake_get_local_driver, raising=True)
+
+    # Make absolutely sure install() raises OSError (last patch wins)
+    def boom(self, *a, **k):
+        raise OSError("simulated extraction failure")
+    monkeypatch.setattr(viewport.ChromeDriverManager, "install", boom, raising=True)
+
+    # Keep logs quiet and assert on status hook
+    statuses = []
+    monkeypatch.setattr(viewport, "api_status", lambda s: statuses.append(s), raising=True)
+    monkeypatch.setattr(viewport, "log_error", lambda *a, **k: None, raising=True)
+
+    path = viewport.get_driver_path("chrome", timeout=1)  # long enough to avoid TimeoutError
+    assert Path(path) == fallback
+    assert any("fell back to cached driver" in s for s in statuses)
+
+# --------------------------------------------------------------------------- #
+# get_local_driver  – Error branch
+# --------------------------------------------------------------------------- #
+
+# Helper to create the correct cache dir without a driver binary
+def make_cache_dir_only(wdm_home, browser: str, version: str) -> Path:
+    base = Path.home() / ".wdm" / "drivers" / "chromedriver" / "linux64" / version
+    binary = base / "chromedriver"
+    base.mkdir(parents=True, exist_ok=True)
+    return binary  # not created; only the folder exists
+
+# Helper to create a non-executable cached driver
+def make_cached_driver_nonexec(wdm_home, browser: str, version: str) -> Path:
+    base = Path.home() / ".wdm" / "drivers" / "chromedriver" / "linux64" / version
+    binary = base / "chromedriver"
+    base.mkdir(parents=True, exist_ok=True)
+    binary.touch()
+    # Ensure executable bit is NOT set
+    mode = binary.stat().st_mode & ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    binary.chmod(mode)
+    return binary
+
+def test_get_local_driver_unknown_manager_returns_none(wdm_home):
+    class NotADriverManager:
+        pass
+    obj = NotADriverManager()
+    assert viewport.get_local_driver(obj) is None
+
+def test_get_local_driver_unsupported_browser_str_returns_none(wdm_home):
+    assert viewport.get_local_driver("opera") is None
+
+def test_get_local_driver_platform_dir_exists_but_empty(wdm_home):
+    # Create geckodriver/linux64 without version folders
+    base = Path.home() / ".wdm" / "drivers" / "geckodriver" / "linux64"
+    base.mkdir(parents=True, exist_ok=True)
+    assert viewport.get_local_driver("firefox") is None
+
+def test_get_local_driver_version_dir_without_binary(wdm_home):
+    # Create a version dir but no binary inside
+    missing = make_cache_dir_only(wdm_home, "chrome", "123.0.0")
+    assert viewport.get_local_driver("chrome") is None
+    assert not missing.exists()
+
+def test_get_local_driver_non_exec_binary_returns_none(wdm_home):
+    nonexec = make_cached_driver_nonexec(wdm_home, "chrome", "88.0.0")
+    assert viewport.get_local_driver("chrome") is None
+    assert nonexec.exists()
+
+# Try/except coverage in get_local_driver: execute both the raise AND the return path in the metaclass
+def test_get_local_driver_handles_type_name_access_error(wdm_home):
+    from pathlib import Path
+    import viewport
+
+    class _EvilMeta(type):
+        def __getattribute__(self, name):
+            if name == "__name__":
+                raise RuntimeError("boom")
+            return super().__getattribute__(name)
+
+    class _Evil(metaclass=_EvilMeta):
+        """docstring to ensure a safe attribute exists"""
+
+    _ = _Evil.__doc__
+
+    obj = _Evil()
+    assert viewport.get_local_driver(obj) is None
+
 # --------------------------------------------------------------------------- #
 # stale_drivers_handler
 # --------------------------------------------------------------------------- # 

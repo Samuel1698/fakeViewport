@@ -601,7 +601,7 @@ def get_local_driver(mgr_or_browser) -> Optional[Path]:
             browser = "firefox"
         elif "chrome" in cls:
             browser = "chrome"
-    except Exception:
+    except Exception: 
         pass
     if isinstance(mgr_or_browser, str):
         browser = mgr_or_browser.lower()
