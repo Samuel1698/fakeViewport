@@ -3,6 +3,18 @@
 Note: Entries marked with "💥" indicate crucial or breaking changes that might affect your current setup. Entries marked with "🐛" indicate a bug fix, "✨" indicates an improvement,
 and "🔥" indicates a non-breaking change.
 
+## 🔥🐛 v2.4.3: Bug Fixes
+
+### 🐛 Fixed
+
+- Issue #40: Updating to Debian Trixie would break concurrent.futures
+- `max_retries` now correctly displays the default value as Blue.
+
+### 🔥 Changed
+
+- `get_driver_path` now more robustly handles cached drivers. Aims to prevent rare occurence where a script restart would not fully close the geckodriver/chromedriver and it would prevent script execution with "file busy" error message.
+- Rework how `main()` determines if the process crashed before it's being called again. Aims to solve edge case where a power outage and a subsequent system restart would not reset the `script_start_time` file.
+
 ## 🐛 v2.4.2: Update Modal dismissal
 
 ### 🐛 Fixed
