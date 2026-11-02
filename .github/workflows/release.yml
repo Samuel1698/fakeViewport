@@ -18,23 +18,27 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Bump api/VERSION and push to the branch the tag was cut from
+      # Bump api/VERSION only when necessary
       - name: Update VERSION file and push
         env:
-          TAG:    ${{ github.event.release.tag_name }}              # e.g. v2.3.3
-          BRANCH: ${{ github.event.release.target_commitish }}      # e.g. main
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+          BRANCH: ${{ github.event.release.target_commitish }}
         run: |
           git fetch origin "$BRANCH"
-          git checkout "$BRANCH"
+          git checkout -B "$BRANCH" "origin/$BRANCH"
 
-          echo "${TAG#v}" > api/VERSION           # strip leading 'v'
+          echo "${TAG#v}" > api/VERSION
 
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add api/VERSION
-          git commit -m "docs: bump VERSION to ${TAG}"
-          git push origin "$BRANCH"
+          if git diff --quiet -- api/VERSION; then
+            echo "api/VERSION already matches ${TAG}. Skipping commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            git add api/VERSION
+            git commit -m "docs: bump VERSION to ${TAG}"
+            git push origin "HEAD:$BRANCH"
+          fi
 
       # Build release bundles
       - name: Build bundles

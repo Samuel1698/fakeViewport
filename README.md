@@ -2,18 +2,11 @@
 
 <!-- [START BADGES] -->
 
-[![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg?branch=snapshot)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
+[![Python](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/python-test.yml)
+[![CodeQL](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml/badge.svg)](https://github.com/Samuel1698/fakeViewport/actions/workflows/codeql.yml)
+[![codecov](https://codecov.io/github/Samuel1698/fakeViewport/graph/badge.svg?token=mPKJSAYXH5)](https://codecov.io/github/Samuel1698/fakeViewport)
 
 <!-- [END BADGES] -->
-
-## SNAPSHOT
-
-You are currently seeing the snapshot branch. This is where I make rapid changes and experiment with new code. If this branch is ahead of main, it is most likely broken.
-Check the [latest release](https://github.com/Samuel1698/fakeViewport/releases) or go to [main](https://github.com/Samuel1698/fakeViewport/tree/main) for a stable version of the code.
-
----
-
-
 
 Tired of refreshing the Unifi store only to see the Viewport out of stock? Me too. So I created a $30 alternative using a **Dell Wyse Thin Client** and this script. The script will automatically and remotely launch the Protect Live View of your choosing, handle login if the session expires, recover from temporary connection issues, and resolve random webpage hiccups.
 
@@ -94,8 +87,10 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 
 4. **Configure `.env`**
 
-   Edit `.env` with your credentials and Protect Live View URL:
-
+   Edit `.env` with your credentials and Protect Live View URL.
+   
+   If you wish to select a different Live View layout than the default, notice that the url changes when you switch. Use the appropriate url in this file to launch your preferred view.
+   
    ```ini
    USERNAME=YourLocalUsername
    PASSWORD=YourLocalPassword
@@ -112,7 +107,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
 
    The `FLASK_RUN_HOST`, `FLASK_RUN_PORT` and `SECRET` are optional. Feel free to delete them if you're not using the API.
 
-5. **Configure the `config.ini` file**
+6. **Configure the `config.ini` file**
 
    Open the `config.ini` file and check what options there are available for customization of how the script runs.
 
@@ -147,7 +142,7 @@ Tired of refreshing the Unifi store only to see the Viewport out of stock? Me to
    BROWSER_BINARY=/usr/bin/google-chrome-stable
    ```
 
-6. **Test and Run**
+7. **Test and Run**
 
    ```bash
    viewport -h
