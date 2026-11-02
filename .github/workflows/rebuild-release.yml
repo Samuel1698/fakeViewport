@@ -1,0 +1,61 @@
+name: Rebuild Release Assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to rebuild"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the exact release tag
+      - name: Checkout release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+
+      # Confirm that the release exists and version matches
+      - name: Verify release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY"
+
+          VERSION="${TAG#v}"
+          CURRENT=$(cat api/VERSION)
+
+          if [ "$CURRENT" != "$VERSION" ]; then
+            echo "::error::Version mismatch: $CURRENT != $VERSION"
+            exit 1
+          fi
+
+      # Build the release bundles
+      - name: Build bundles
+        run: |
+          chmod +x ./release.sh
+          ./release.sh
+
+      # Confirm tarballs were generated
+      - name: Verify bundles
+        run: |
+          ls -lh dist/*.tar.gz
+
+      # Upload to the existing release
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          gh release upload "$TAG" dist/*.tar.gz \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
