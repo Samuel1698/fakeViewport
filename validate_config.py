@@ -104,7 +104,7 @@ def parse_restart_times(raw: str, errors: list[str]) -> list[time]:
 
 def validate_env(env_file: Path, api: bool, errors: list[str]) -> tuple[str, str, str, str, int, str, dict]:
     try:
-        load_dotenv(dotenv_path=env_file)
+        load_dotenv(dotenv_path=env_file, override=True)
         values = dotenv_values(env_file)
         allowed = {
             "USERNAME", "PASSWORD", "URL",
@@ -191,7 +191,7 @@ def validate_env(env_file: Path, api: bool, errors: list[str]) -> tuple[str, str
         errors.append(f"Failed to validate .env file: {e}")
         errors.append("Format should be KEY=value.")
         return ("", "", "", "", 0, "")
-    
+
 def validate_url(url_val: str, errors: list[str]):
     parsed = urlparse(url_val)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:

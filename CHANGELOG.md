@@ -3,6 +3,13 @@
 Note: Entries marked with "💥" indicate crucial or breaking changes that might affect your current setup. Entries marked with "🐛" indicate a bug fix, "✨" indicates an improvement,
 and "🔥" indicates a non-breaking change.
 
+## 🐛 v2.4.4: Fullscreen Fix
+
+### 🐛 Fixed
+
+- Issue #43: Attempt to fix `.env` oversight in `validate_config.py`.
+- Fix html change in webpage breaking full-screen button press.
+
 ## 🔥🐛 v2.4.3: Bug Fixes
 
 ### 🐛 Fixed
